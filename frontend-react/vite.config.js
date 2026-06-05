@@ -1,0 +1,14 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+// The browser talks only to the Vite origin; /api and /files are proxied to the
+// Spring backend on :8080. This sidesteps CORS entirely and streams SSE fine.
+export default defineConfig({
+    plugins: [react()],
+    server: {
+        port: 5173,
+        proxy: {
+            '/api': { target: 'http://localhost:8080', changeOrigin: true },
+            '/files': { target: 'http://localhost:8080', changeOrigin: true },
+        },
+    },
+});

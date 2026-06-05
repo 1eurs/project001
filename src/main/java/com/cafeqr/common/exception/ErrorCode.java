@@ -1,0 +1,26 @@
+package com.cafeqr.common.exception;
+
+/** Stable, machine-readable error codes returned to clients. */
+public enum ErrorCode {
+    VALIDATION_ERROR,
+    BAD_REQUEST,
+    UNAUTHORIZED,
+    INVALID_CREDENTIALS,
+    TOKEN_EXPIRED,
+    TOKEN_INVALID,
+    FORBIDDEN,
+    ACCESS_DENIED,
+    NOT_FOUND,
+    CONFLICT,
+    EMAIL_ALREADY_EXISTS,
+    SLUG_ALREADY_EXISTS,
+    RESTAURANT_INACTIVE,
+    BRANCH_INACTIVE,
+    TABLE_INVALID,
+    MENU_ITEM_UNAVAILABLE,
+    INVALID_ORDER_STATUS_TRANSITION,
+    EMPTY_ORDER,
+    PAYMENT_ERROR,
+    UPLOAD_ERROR,
+    INTERNAL_ERROR
+}

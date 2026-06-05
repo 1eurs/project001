@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cafeqr-db
+    environment:
+      POSTGRES_DB: cafeqr
+      POSTGRES_USER: cafeqr
+      POSTGRES_PASSWORD: cafeqr
+    ports:
+      - "5432:5432"
+    volumes:
+      - cafeqr-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cafeqr -d cafeqr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    container_name: cafeqr-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/cafeqr
+      SPRING_DATASOURCE_USERNAME: cafeqr
+      SPRING_DATASOURCE_PASSWORD: cafeqr
+      APP_JWT_SECRET: "Y2FmZXFyLXN1cGVyLXNlY3JldC1rZXktY2hhbmdlLW1lLWluLXByb2R1Y3Rpb24tMTIzNDU2"
+      APP_PUBLIC_BASE_URL: "http://localhost:8080"
+    ports:
+      - "8080:8080"
+    volumes:
+      - cafeqr-uploads:/app/uploads
+
+volumes:
+  cafeqr-db-data:
+  cafeqr-uploads:

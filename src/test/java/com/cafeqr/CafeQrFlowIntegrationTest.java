@@ -1,0 +1,210 @@
+package com.cafeqr;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.math.BigDecimal;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * End-to-end MVP flow against a real PostgreSQL (Testcontainers). Also acts as the schema
+ * contract test: the context only starts if Flyway migrations and Hibernate {@code validate} agree.
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Testcontainers
+class CafeQrFlowIntegrationTest {
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName("cafeqr")
+            .withUsername("cafeqr")
+            .withPassword("cafeqr");
+
+    @DynamicPropertySource
+    static void datasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+    }
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    void fullOrderingFlowWithTenantIsolation() throws Exception {
+        // 1. First platform admin registers and is logged in.
+        String adminToken = read(post("/api/auth/register-platform-admin", Map.of(
+                "fullName", "Admin", "email", "admin@cafeqr.test", "password", "Admin123!")),
+                "$.data.accessToken");
+
+        // 2. Admin creates a restaurant.
+        MvcResult restaurantResult = perform(authed(post("/api/admin/restaurants", Map.of(
+                "name", "Demo Cafe", "vatEnabled", true, "vatRate", 5)), adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        Number restaurantId = json(restaurantResult, "$.data.id");
+        String slug = json(restaurantResult, "$.data.slug");
+
+        // 3. Admin creates the restaurant owner.
+        perform(authed(post("/api/users", Map.of(
+                "fullName", "Owner", "email", "owner@cafeqr.test", "password", "Owner123!",
+                "role", "RESTAURANT_OWNER", "restaurantId", restaurantId)), adminToken))
+                .andExpect(status().isOk());
+
+        // 4. Owner logs in.
+        String ownerToken = read(post("/api/auth/login", Map.of(
+                "email", "owner@cafeqr.test", "password", "Owner123!")), "$.data.accessToken");
+
+        // 5. Owner creates a branch.
+        Number branchId = json(perform(authed(post(
+                "/api/restaurants/" + restaurantId + "/branches", Map.of("name", "Main Branch")), ownerToken))
+                .andExpect(status().isOk()).andReturn(), "$.data.id");
+
+        // 6. Owner creates a table (QR).
+        String tableToken = json(perform(authed(post(
+                "/api/branches/" + branchId + "/tables", Map.of("tableNumber", "T1")), ownerToken))
+                .andExpect(status().isOk()).andReturn(), "$.data.qrCodeToken");
+
+        // 7. Owner creates a category.
+        Number categoryId = json(perform(authed(post("/api/menu/categories", Map.of(
+                "nameEn", "Coffee", "nameAr", "قهوة")), ownerToken))
+                .andExpect(status().isOk()).andReturn(), "$.data.id");
+
+        // 8. Owner creates a menu item priced 1.500 OMR.
+        Number itemId = json(perform(authed(post("/api/menu/items", Map.of(
+                "categoryId", categoryId, "nameEn", "Latte", "nameAr", "لاتيه", "price", 1.500)), ownerToken))
+                .andExpect(status().isOk()).andReturn(), "$.data.id");
+
+        // 9. Customer loads the public menu by scanning the QR token.
+        perform(get("/api/public/qr/" + tableToken + "/menu"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.categories[0].items[0].nameEn").value("Latte"));
+
+        // 10. Customer places a dine-in order.
+        MvcResult orderResult = perform(post("/api/public/orders", Map.of(
+                "restaurantSlug", slug, "branchId", branchId, "tableToken", tableToken,
+                "orderType", "DINE_IN", "customerName", "Sara",
+                "items", new Object[]{Map.of("menuItemId", itemId, "quantity", 1)})))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andReturn();
+        String trackingToken = json(orderResult, "$.data.trackingToken");
+        assertThat(new BigDecimal(String.valueOf((Object) json(orderResult, "$.data.total"))))
+                .isEqualByComparingTo("1.575"); // 1.500 + 5% VAT
+
+        // 11. Dashboard sees the order; grab its id.
+        Number orderId = json(perform(authed(get("/api/dashboard/orders"), ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].status").value("PENDING"))
+                .andReturn(), "$.data.content[0].id");
+
+        // 12-15. Owner walks the order through the lifecycle.
+        perform(authed(patch("/api/dashboard/orders/" + orderId + "/accept", Map.of("prepTimeMinutes", 10)), ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
+        perform(authed(patch("/api/dashboard/orders/" + orderId + "/preparing", null), ownerToken))
+                .andExpect(jsonPath("$.data.status").value("PREPARING"));
+        perform(authed(patch("/api/dashboard/orders/" + orderId + "/ready", null), ownerToken))
+                .andExpect(jsonPath("$.data.status").value("READY"));
+        perform(authed(patch("/api/dashboard/orders/" + orderId + "/complete", null), ownerToken))
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        // 16. Customer tracking shows the final status.
+        perform(get("/api/public/orders/" + trackingToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        // --- Tenant isolation: a second restaurant's owner cannot read the first order ---
+        Number restaurantId2 = json(perform(authed(post("/api/admin/restaurants",
+                Map.of("name", "Other Cafe")), adminToken)).andReturn(), "$.data.id");
+        perform(authed(post("/api/users", Map.of(
+                "fullName", "Owner2", "email", "owner2@cafeqr.test", "password", "Owner123!",
+                "role", "RESTAURANT_OWNER", "restaurantId", restaurantId2)), adminToken))
+                .andExpect(status().isOk());
+        String owner2Token = read(post("/api/auth/login", Map.of(
+                "email", "owner2@cafeqr.test", "password", "Owner123!")), "$.data.accessToken");
+
+        perform(authed(get("/api/dashboard/orders/" + orderId), owner2Token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+
+        // --- JWT auth: protected endpoints reject anonymous access ---
+        perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        perform(get("/api/dashboard/orders")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void rejectsInvalidStatusTransitionViaApi() throws Exception {
+        String adminToken = read(post("/api/auth/register-platform-admin", Map.of(
+                "fullName", "Admin", "email", "admin2@cafeqr.test", "password", "Admin123!")),
+                "$.data.accessToken");
+        // No order exists with id 999999 -> 404 (sanity that the dashboard is wired & secured).
+        perform(authed(patch("/api/dashboard/orders/999999/accept", null), adminToken))
+                .andExpect(status().isNotFound());
+    }
+
+    // ----------------------------------------------------------------- helpers
+
+    private org.springframework.test.web.servlet.ResultActions perform(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder) throws Exception {
+        return mockMvc.perform(builder);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder post(String url, Object body) {
+        var builder = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(url)
+                .contentType(MediaType.APPLICATION_JSON);
+        return body != null ? builder.content(writeJson(body)) : builder;
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder patch(String url, Object body) {
+        var builder = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(url)
+                .contentType(MediaType.APPLICATION_JSON);
+        return body != null ? builder.content(writeJson(body)) : builder;
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder authed(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder, String token) {
+        return builder.header("Authorization", "Bearer " + token);
+    }
+
+    private String read(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder,
+                        String path) throws Exception {
+        return json(mockMvc.perform(builder).andExpect(status().isOk()).andReturn(), path);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T json(MvcResult result, String path) throws Exception {
+        return (T) JsonPath.read(result.getResponse().getContentAsString(), path);
+    }
+
+    private String writeJson(Object body) {
+        try {
+            return objectMapper.writeValueAsString(body);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+}

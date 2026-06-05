@@ -1,0 +1,22 @@
+package com.cafeqr.analytics.dto;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+
+public record AnalyticsSummaryResponse(
+        Instant from,
+        Instant to,
+        long totalOrders,
+        long pendingOrders,
+        long acceptedOrders,
+        long declinedOrders,
+        long preparingOrders,
+        long readyOrders,
+        long completedOrders,
+        long cancelledOrders,
+        BigDecimal totalRevenue,
+        BigDecimal averageOrderValue,
+        List<BestSellingItem> bestSellingItems,
+        List<HourlyCount> busiestHours
+) {}
