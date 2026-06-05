@@ -2,11 +2,11 @@
 // When the real name is decided, change `name` (and optionally turn off `working`)
 // here — the whole landing page updates from this one file.
 export const BRAND = {
-  name: 'CafeQR',
-  // small "working title" pill shown next to the logo until the name is final
-  working: true,
+  // Fascano = Fast + Scan + Order
+  name: 'Fascano',
+  working: false,
   tagline: {
-    ar: 'القائمة والطلب عبر رمز QR — مصمّمة لمقاهي عُمان',
-    en: 'QR menu & ordering — built for Omani cafés',
+    ar: 'اطلب من سيارتك عبر رمز QR — لعربات الطعام والمقاهي في عُمان',
+    en: 'Order from your car via QR — for Omani food trucks & cafés',
   },
 };

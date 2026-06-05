@@ -36,6 +36,7 @@ export interface AuthResponse {
 export interface PublicRestaurant {
   id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null;
   instagramUrl?: string | null; currency: string; vatEnabled: boolean; vatRate: number; // percent (5 = 5%)
+  theme?: string | null; // menu look chosen by the café owner (see menuThemes.ts); optional
 }
 export interface PublicBranch { id: number; name: string; address?: string | null; phone?: string | null; openingHours?: string | null; }
 export interface PublicTable { id: number; tableNumber: string; qrCodeToken: string; }
