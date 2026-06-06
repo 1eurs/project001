@@ -1,14 +1,14 @@
 /* =====================================================================
-   "Onyx" theme — shared tokens + primitives for all three CafeQR surfaces
+   "Onyx" theme — shared tokens + primitives for all Serva. surfaces
    ===================================================================== */
 :root, :root[data-theme="dark"]{
   --bg:#0E0F12;--bg-2:#15171C;--surface:rgba(255,255,255,.045);--surface-2:rgba(255,255,255,.07);
   --line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);
   --text:#F3F5F0;--muted:#9AA0A6;--faint:#686E74;
-  --accent:#C6FF3A;--accent-2:#A4E000;--accent-ink:#0E0F12;--accent-glow:rgba(198,255,58,.28);
-  --accent-text:#C6FF3A;                 /* accent used as foreground text */
+  --accent:#10b981;--accent-2:#059669;--accent-ink:#03120D;--accent-glow:rgba(16,185,129,.28);
+  --accent-text:#10b981;                 /* accent used as foreground text */
   --pending:#F5B83D;--accepted:#5AA9FF;--preparing:#B08CFF;--ready:#3DE0A0;--bad:#FF6B5A;
-  --green:#3DE0A0;--blue:#5AA9FF;--amber:#F5B83D;--violet:#B08CFF;
+  --green:#10b981;--blue:#5AA9FF;--amber:#F5B83D;--violet:#B08CFF;
   --canvas:#07080A;                      /* page background base   */
   --glass:rgba(14,15,18,.72);            /* frosted top bars       */
   --rail-bg:rgba(21,23,28,.6);           /* side rails             */
@@ -17,14 +17,15 @@
   --r-lg:24px;--r-md:18px;--r-sm:12px;
   --shadow:0 40px 80px -40px rgba(0,0,0,.9);--shadow-sm:0 14px 30px -16px rgba(0,0,0,.7);
   --font-ar:'IBM Plex Sans Arabic',system-ui,sans-serif;
+  --font-brand:'Sora','IBM Plex Sans Arabic',system-ui,sans-serif;
   --font-mono:'IBM Plex Mono',ui-monospace,monospace;
 }
 :root[data-theme="light"]{
   --bg:#FAFAF7;--bg-2:#FFFFFF;--surface:rgba(15,18,20,.035);--surface-2:rgba(15,18,20,.065);
   --line:rgba(15,18,20,.10);--line-2:rgba(15,18,20,.16);
   --text:#15181C;--muted:#5B6066;--faint:#8A9099;
-  --accent:#C6FF3A;--accent-2:#A4E000;--accent-ink:#1A2200;--accent-glow:rgba(150,200,30,.30);
-  --accent-text:#5C7A00;                 /* readable lime on light */
+  --accent:#10b981;--accent-2:#059669;--accent-ink:#03120D;--accent-glow:rgba(16,185,129,.26);
+  --accent-text:#047857;                 /* readable green on light */
   --canvas:#EFEFEA;
   --glass:rgba(255,255,255,.72);
   --rail-bg:rgba(255,255,255,.7);
@@ -74,7 +75,7 @@ a{color:inherit;text-decoration:none}
 /* ---- chips ---- */
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
 .chip .d{width:6px;height:6px;border-radius:50%;background:currentColor}
-.chip.ok{color:var(--green);border-color:rgba(61,224,160,.4);background:rgba(61,224,160,.08)}
+.chip.ok{color:var(--green);border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.08)}
 .chip.warn{color:var(--amber);border-color:rgba(245,184,61,.4);background:rgba(245,184,61,.08)}
 .chip.bad{color:var(--bad);border-color:rgba(255,107,90,.4);background:rgba(255,107,90,.08)}
 

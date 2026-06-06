@@ -124,7 +124,7 @@ class OrderServiceTest {
         });
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", "no sugar",
+                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, "no sugar",
                 List.of(new CreateOrderRequest.Item(100L, 2, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
@@ -150,7 +150,7 @@ class OrderServiceTest {
                 .thenThrow(new BadRequestException(ErrorCode.MENU_ITEM_UNAVAILABLE, "unavailable"));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.TAKEAWAY, null, null, null,
+                "demo", 5L, null, OrderType.TAKEAWAY, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Item(100L, 1, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
@@ -165,13 +165,50 @@ class OrderServiceTest {
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.DINE_IN, null, null, null,
+                "demo", 5L, null, OrderType.DINE_IN, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Item(100L, 1, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
                 .satisfies(ex -> assertThat(((BadRequestException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.TABLE_INVALID));
+    }
+
+    @Test
+    void createsCarOrderWithNormalizedPlate() {
+        when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
+        when(menuService.getOrderableItem(1L, 5L, 100L)).thenReturn(menuItem());
+        when(orderRepository.nextOrderNumber()).thenReturn(1002L);
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(2L);
+            return o;
+        });
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "demo", 5L, null, OrderType.CAR, "Sara", "9999", "  a 1234  ", "  White ", null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+
+        OrderTrackingResponse response = orderService.createOrder(request);
+
+        assertThat(response.orderType()).isEqualTo(OrderType.CAR);
+        assertThat(response.carPlate()).isEqualTo("A 1234");
+        assertThat(response.carColor()).isEqualTo("white");
+    }
+
+    @Test
+    void carOrderRequiresPlate() {
+        when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "demo", 5L, null, OrderType.CAR, null, null, " ", null, null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+
+        assertThatThrownBy(() -> orderService.createOrder(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Car plate");
     }
 
     @Test

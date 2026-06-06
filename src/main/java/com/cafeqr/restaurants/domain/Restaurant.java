@@ -38,6 +38,12 @@ public class Restaurant extends BaseEntity {
     @Column(name = "vat_rate", nullable = false)
     private BigDecimal vatRate = new BigDecimal("5");
 
+    @Column(name = "menu_theme", nullable = false, length = 40)
+    private String theme = "onyx";
+
+    @Column(name = "menu_theme_custom_json")
+    private String themeCustomJson;
+
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
@@ -111,6 +117,22 @@ public class Restaurant extends BaseEntity {
 
     public void setVatRate(BigDecimal vatRate) {
         this.vatRate = vatRate;
+    }
+
+    public String getTheme() {
+        return theme;
+    }
+
+    public void setTheme(String theme) {
+        this.theme = theme;
+    }
+
+    public String getThemeCustomJson() {
+        return themeCustomJson;
+    }
+
+    public void setThemeCustomJson(String themeCustomJson) {
+        this.themeCustomJson = themeCustomJson;
     }
 
     public boolean isActive() {

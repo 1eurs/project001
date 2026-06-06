@@ -15,6 +15,8 @@ public record OrderSummaryResponse(
         Long branchId,
         Long tableId,
         String customerName,
+        String carPlate,
+        String carColor,
         OrderType orderType,
         OrderStatus status,
         PaymentStatus paymentStatus,
@@ -24,7 +26,7 @@ public record OrderSummaryResponse(
 ) {
     public static OrderSummaryResponse from(Order o) {
         return new OrderSummaryResponse(
-                o.getId(), o.getOrderNumber(), o.getBranchId(), o.getTableId(), o.getCustomerName(),
+                o.getId(), o.getOrderNumber(), o.getBranchId(), o.getTableId(), o.getCustomerName(), o.getCarPlate(), o.getCarColor(),
                 o.getOrderType(), o.getStatus(), o.getPaymentStatus(), o.getTotal(),
                 o.getPrepTimeMinutes(), o.getCreatedAt());
     }

@@ -1,10 +1,10 @@
-# CafeQR — Frontend (React)
+# Serva. — Frontend (React)
 
-Production-style React app for all three CafeQR surfaces, in the **Onyx** dark theme,
+Production-style React app for all three Serva. surfaces, in the **Onyx** dark theme,
 RTL/Arabic-first with an EN toggle, wired to the **real Spring Boot API**.
 
 - **App A — Customer** (`/r/:slug/b/:branchId/t/:tableToken`, `/cart`, `/order/:trackingToken`)
-- **App B — Cafe dashboard / KDS** (`/dashboard`)
+- **App B — Serva. dashboard / KDS** (`/dashboard`)
 - **App C — Platform admin** (`/admin`)
 
 ## Stack

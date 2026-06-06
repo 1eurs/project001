@@ -1,21 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { PublicMenu, PublicItem } from '../../lib/types';
+import type { OrderType, PublicMenu, PublicItem } from '../../lib/types';
 import { omr } from '../../lib/format';
 import { LangToggle, useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { ThemeToggle } from '../../lib/theme';
 import { useCartStore, useCart } from '../../lib/cart';
 import { useToast } from '../../lib/toast';
 import { useVenue, cartKeyOf, menuUrlOf } from './venue';
-import './customer.css';
+import { CustomerFrame } from './CustomerFrame';
+import { resolveThemeId } from './menuThemes';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د',
-        soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', takeaway: 'سفري', added: 'أُضيف ✓' },
+        soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', takeaway: 'سفري', car: 'خدمة السيارة', added: 'أُضيف ✓' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min',
-        soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', takeaway: 'Takeaway', added: 'Added ✓' },
+        soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', takeaway: 'Takeaway', car: 'Outdoor car', added: 'Added ✓' },
 };
 
 const thumb = (it: PublicItem) => {
@@ -31,19 +32,22 @@ export default function MenuPage() {
   const { lang } = useI18n();
   const t = useT(DICT);
   const nav = useNavigate();
+  const location = useLocation();
+  const orderType: OrderType = token ? 'DINE_IN' : location.pathname.endsWith('/car') ? 'CAR' : 'TAKEAWAY';
 
   const url = menuUrlOf(slug, bId, token);
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['menu', url],
     queryFn: () => api.get<PublicMenu>(url, { auth: false }),
   });
+  const themeId = resolveThemeId(data?.restaurant.theme);
 
   const setVenue = useVenue((s) => s.setVenue);
   useEffect(() => {
-    if (data) setVenue({ slug, branchId: bId, tableToken: token, restaurant: data.restaurant, branch: data.branch ?? null, table: data.table ?? null });
-  }, [data]); // eslint-disable-line
+    if (data) setVenue({ slug, branchId: bId, tableToken: token, orderType, restaurant: data.restaurant, branch: data.branch ?? null, table: data.table ?? null });
+  }, [data, orderType]); // eslint-disable-line
 
-  const cartKey = cartKeyOf(slug, bId, token);
+  const cartKey = cartKeyOf(slug, bId, token, orderType);
   const cart = useCart(cartKey);
   const { add, bump } = useCartStore();
   const toast = useToast();
@@ -60,6 +64,7 @@ export default function MenuPage() {
 
   // sticky category nav highlight
   const scrollRef = useRef<HTMLDivElement>(null);
+  const navButtonsRef = useRef<Map<number, HTMLButtonElement>>(new Map());
   const [activeCat, setActiveCat] = useState<number | null>(null);
   useEffect(() => {
     const root = scrollRef.current;
@@ -73,6 +78,11 @@ export default function MenuPage() {
     return () => io.disconnect();
   }, [data]);
 
+  useEffect(() => {
+    if (activeCat == null) return;
+    navButtonsRef.current.get(activeCat)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [activeCat]);
+
   const gotoCat = (id: number) => document.getElementById('cat-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   if (isLoading) return <Frame><div className="center"><div className="spinner" /></div></Frame>;
@@ -81,7 +91,7 @@ export default function MenuPage() {
     return (
       <Frame>
         <div className="empty" style={{ margin: 'auto' }}>
-          <div className="big">☕</div>
+          <div className="big">S.</div>
           <h3>{t('unavailable')}</h3>
           <p>{msg}</p>
           <button className="btn ghost" style={{ marginTop: 16 }} onClick={() => refetch()}>{t('retry')}</button>
@@ -91,22 +101,32 @@ export default function MenuPage() {
   }
 
   const r = data.restaurant;
+  const pickedRestaurantName = pick(r, 'name', lang);
+  const restaurantName = pickedRestaurantName || r.name;
+  const secondaryRestaurantName = pickedRestaurantName && r.name !== pickedRestaurantName ? r.name : null;
   return (
-    <Frame>
+    <Frame restaurantTheme={data.restaurant.theme} restaurantThemeCustomJson={data.restaurant.themeCustomJson}>
       <header className="c-hdr">
         <div className="c-hdr-top">
           <div className="c-brand">
-            <div className="c-mark">{pick(r, 'name', lang).charAt(0)}</div>
+            <div className={'c-mark' + (r.logoUrl ? ' has-logo' : '')}>
+              {r.logoUrl ? <img src={r.logoUrl} alt={restaurantName} /> : restaurantName.charAt(0)}
+            </div>
             <div>
-              <h1>{pick(r, 'name', lang)}</h1>
-              {lang === 'ar' && <div className="en">{r.name}</div>}
+              <h1>{restaurantName}</h1>
+              {secondaryRestaurantName && <div className="en">{secondaryRestaurantName}</div>}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><ThemeToggle /><LangToggle /></div>
+          <div className="c-actions">
+            {themeId === 'onyx' && <ThemeToggle />}
+            <LangToggle />
+          </div>
         </div>
         <div className="c-meta">
           {data.table
             ? <span className="c-table">🪑 {t('table')} <span className="num">{data.table.tableNumber}</span></span>
+            : orderType === 'CAR'
+              ? <span className="c-table">🚗 {t('car')}</span>
             : <span className="c-table">🥡 {t('takeaway')}</span>}
           {data.branch && <><span className="dot" /><span>{pick(data.branch, 'name', lang)}</span></>}
         </div>
@@ -114,8 +134,18 @@ export default function MenuPage() {
 
       <nav className="c-nav">
         {data.categories.map((c) => (
-          <button key={c.id} className={activeCat === c.id ? 'on' : ''} onClick={() => gotoCat(c.id)}>
-            {pick(c, 'name', lang)}
+          <button
+            key={c.id}
+            ref={(el) => {
+              if (el) navButtonsRef.current.set(c.id, el);
+              else navButtonsRef.current.delete(c.id);
+            }}
+            className={activeCat === c.id ? 'on' : ''}
+            aria-current={activeCat === c.id ? 'true' : undefined}
+            onClick={() => gotoCat(c.id)}
+          >
+            <span>{pick(c, 'name', lang)}</span>
+            <em>{c.items.length}</em>
           </button>
         ))}
       </nav>
@@ -162,7 +192,7 @@ export default function MenuPage() {
             })}
           </section>
         ))}
-        <div style={{ height: 90 }} />
+        <div className="c-bottom-spacer" />
       </main>
 
       <div className={'c-cartbar' + (count > 0 ? ' show' : '')} onClick={() => nav('/cart')}>
@@ -175,6 +205,8 @@ export default function MenuPage() {
   );
 }
 
-function Frame({ children }: { children: React.ReactNode }) {
-  return <div className="cust-bg"><div className="phone">{children}</div></div>;
+function Frame({ children, restaurantTheme, restaurantThemeCustomJson }:
+  { children: React.ReactNode; restaurantTheme?: string | null; restaurantThemeCustomJson?: string | null }) {
+  const { restaurant } = useVenue();
+  return <CustomerFrame restaurantTheme={restaurantTheme ?? restaurant?.theme} restaurantThemeCustomJson={restaurantThemeCustomJson ?? restaurant?.themeCustomJson}>{children}</CustomerFrame>;
 }

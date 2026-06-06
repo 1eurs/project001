@@ -1,13 +1,14 @@
 .landing{min-height:100dvh;display:grid;place-items:center;padding:32px 18px;
   background:
-    radial-gradient(900px 600px at 85% -5%, rgba(198,255,58,.10), transparent 55%),
+    radial-gradient(900px 600px at 85% -5%, rgba(16,185,129,.10), transparent 55%),
     radial-gradient(800px 700px at -10% 110%, rgba(176,140,255,.10), transparent 55%),
     var(--canvas);}
 .landing-inner{width:100%;max-width:920px}
 .landing-hd{display:flex;align-items:center;gap:14px;margin-bottom:6px}
-.brandmark{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-weight:700;font-size:20px;
+.brandmark{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-family:var(--font-brand);font-weight:800;font-size:20px;
   background:linear-gradient(155deg,var(--accent),var(--accent-2));color:var(--accent-ink)}
-.landing-hd h1{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-top:2px}
+.brand-name{font-family:var(--font-brand);font-weight:800;font-size:13px;color:var(--accent);letter-spacing:0}
+.landing-hd h1{font-size:24px;font-weight:700;letter-spacing:0;margin-top:2px}
 .landing-sub{color:var(--muted);font-size:14px;margin:10px 2px 26px}
 
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}

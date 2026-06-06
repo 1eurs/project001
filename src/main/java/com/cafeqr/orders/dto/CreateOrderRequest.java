@@ -18,6 +18,10 @@ public record CreateOrderRequest(
         @NotNull OrderType orderType,
         @Size(max = 150) String customerName,
         @Size(max = 40) String customerPhone,
+        /** Required for CAR orders; shown to staff for outdoor car delivery. */
+        @Size(max = 40) String carPlate,
+        /** Optional for CAR orders; helps staff spot the car (palette key, e.g. "white"). */
+        @Size(max = 20) String carColor,
         @Size(max = 500) String customerNote,
         @NotEmpty @Valid List<Item> items
 ) {

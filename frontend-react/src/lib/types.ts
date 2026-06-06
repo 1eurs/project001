@@ -3,7 +3,7 @@
 export type Lang = 'ar' | 'en';
 
 export type Role = 'PLATFORM_ADMIN' | 'RESTAURANT_OWNER' | 'BRANCH_MANAGER' | 'STAFF' | 'KITCHEN_STAFF';
-export type OrderType = 'DINE_IN' | 'TAKEAWAY';
+export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'CAR';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type PaymentMethod = 'CASH' | 'CARD' | 'ONLINE' | 'OTHER';
@@ -37,6 +37,7 @@ export interface PublicRestaurant {
   id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null;
   instagramUrl?: string | null; currency: string; vatEnabled: boolean; vatRate: number; // percent (5 = 5%)
   theme?: string | null; // menu look chosen by the café owner (see menuThemes.ts); optional
+  themeCustomJson?: string | null;
 }
 export interface PublicBranch { id: number; name: string; address?: string | null; phone?: string | null; openingHours?: string | null; }
 export interface PublicTable { id: number; tableNumber: string; qrCodeToken: string; }
@@ -60,14 +61,14 @@ export interface OrderItem {
 export interface OrderTracking {
   orderNumber: string; trackingToken: string; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
-  customerName?: string | null; customerNote?: string | null; items: OrderItem[];
+  customerName?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null; items: OrderItem[];
   createdAt: string; acceptedAt?: string | null; preparingAt?: string | null; readyAt?: string | null;
   completedAt?: string | null; cancelledAt?: string | null; declinedAt?: string | null;
 }
 // full dashboard order (live board / detail) — mirrors OrderResponse.java
 export interface OrderResponse {
   id: number; orderNumber: string; trackingToken: string; restaurantId: number; branchId: number; tableId?: number | null;
-  customerName?: string | null; customerPhone?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
+  customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
   customerNote?: string | null; internalNote?: string | null; paymentMethod?: PaymentMethod | null; items: OrderItem[];
   createdAt: string; acceptedAt?: string | null; declinedAt?: string | null; preparingAt?: string | null;
@@ -85,7 +86,7 @@ export interface TableResponse {
 
 export interface OrderSummaryResponse {
   id: number; orderNumber: string; branchId?: number | null; tableId?: number | null; customerName?: string | null;
-  orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus; total: number; prepTimeMinutes?: number | null; createdAt: string;
+  carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus; total: number; prepTimeMinutes?: number | null; createdAt: string;
 }
 export interface PageResponse<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number; last: boolean; }
 
@@ -103,13 +104,13 @@ export interface MenuItemResponse {
 export interface CreateOrderItem { menuItemId: number; quantity: number; note?: string | null; }
 export interface CreateOrderPayload {
   restaurantSlug: string; branchId: number; tableToken?: string | null; orderType: OrderType;
-  customerName?: string | null; customerPhone?: string | null; customerNote?: string | null; items: CreateOrderItem[];
+  customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null; items: CreateOrderItem[];
 }
 
 /* ---- admin ---- */
 export interface Restaurant {
-  id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null; email?: string | null;
-  currency: string; vatEnabled: boolean; vatRate: number; active: boolean; createdAt?: string;
+  id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null; email?: string | null; instagramUrl?: string | null;
+  currency: string; vatEnabled: boolean; vatRate: number; theme?: string | null; themeCustomJson?: string | null; active: boolean; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
 export interface Subscription {

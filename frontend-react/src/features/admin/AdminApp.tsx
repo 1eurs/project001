@@ -8,6 +8,7 @@ import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
 import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle } from '../../lib/types';
 import { DEMO } from '../../lib/demo';
+import { BRAND } from '../../lib/brand';
 import Login from '../auth/Login';
 import './admin.css';
 
@@ -21,7 +22,7 @@ const DICT: Dict = {
         activate: 'تفعيل', deactivate: 'إيقاف', save: 'حفظ', cancel: 'إلغاء', create: 'إنشاء',
         createT: 'إنشاء مطعم', createP: 'يُنشأ المطعم وحساب المالك (اختياري) معاً.',
         rName: 'اسم المطعم', rSlug: 'المعرّف (slug)', oName: 'اسم المالك', oEmail: 'بريد المالك', oPass: 'كلمة المرور',
-        loginTitle: 'منصّة CafeQR', loginSub: 'دخول مدير المنصّة', createdOk: 'تم الإنشاء', saved: 'تم الحفظ', enabled: 'مفعّل', disabled: 'متوقف' },
+        loginTitle: 'منصّة Serva.', loginSub: 'دخول مدير المنصّة', createdOk: 'تم الإنشاء', saved: 'تم الحفظ', enabled: 'مفعّل', disabled: 'متوقف' },
   en: { restaurants: 'Restaurants', cur: 'OMR', logoutT: 'Logout',
         kTotal: 'Total restaurants', kActive: 'Active', kInactive: 'Inactive', kNew: 'New this month',
         search: 'Search name or slug…', all: 'All', active: 'Active', inactive: 'Inactive', newR: '＋ New restaurant',
@@ -31,7 +32,7 @@ const DICT: Dict = {
         activate: 'Activate', deactivate: 'Deactivate', save: 'Save', cancel: 'Cancel', create: 'Create',
         createT: 'Create restaurant', createP: 'Creates the restaurant and (optionally) the owner account.',
         rName: 'Restaurant name', rSlug: 'Slug', oName: 'Owner name', oEmail: 'Owner email', oPass: 'Password',
-        loginTitle: 'CafeQR platform', loginSub: 'Platform admin sign-in', createdOk: 'Created', saved: 'Saved', enabled: 'On', disabled: 'Off' },
+        loginTitle: 'Serva. platform', loginSub: 'Platform admin sign-in', createdOk: 'Created', saved: 'Saved', enabled: 'On', disabled: 'Off' },
 };
 
 const SUB_STATUSES: SubscriptionStatus[] = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'EXPIRED'];
@@ -42,7 +43,7 @@ const hue = (id: number) => `hsl(${(id * 67) % 360} 70% 60%)`;
 export default function AdminApp() {
   const { authed } = useAuth();
   const t = useT(DICT);
-  if (!authed) return <Login mark="◆" title={t('loginTitle')} subtitle={t('loginSub')} demo={{ email: DEMO.adminEmail, password: DEMO.adminPassword }} />;
+  if (!authed) return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} demo={{ email: DEMO.adminEmail, password: DEMO.adminPassword }} />;
   return <AdminInner />;
 }
 
@@ -87,7 +88,7 @@ function AdminInner() {
   return (
     <div className="adm">
       <aside className="arail">
-        <div className="logo">◆</div>
+        <div className="logo">S.</div>
         <nav className="nav"><button className="on">🏪</button></nav>
         <button className="out" title={t('logoutT')} onClick={() => logout()}>⏻</button>
       </aside>

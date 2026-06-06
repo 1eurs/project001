@@ -1,4 +1,4 @@
-# CafeQR — Frontend Build Guide
+# Serva. — Frontend Build Guide
 
 This document tells the frontend team **exactly what to build** and **which backend API powers each
 screen**. Every endpoint below already exists and is verified in this backend.
@@ -24,8 +24,8 @@ Three surfaces with different users, auth, and design:
 
 | # | App | Users | Auth | Device | Route group (as built) |
 |---|-----|-------|------|--------|------------------------|
-| **A** | **Customer ordering** | Cafe guests | None (public + opaque tokens) | Mobile browser (phone) | `/r/...`, `/cart`, `/order/:token` |
-| **B** | **Cafe dashboard** | Owner, Branch manager, Staff, Kitchen | JWT login | Tablet / desktop | `/dashboard` |
+| **A** | **Customer ordering** | Guests | None (public + opaque tokens) | Mobile browser (phone) | `/r/...`, `/cart`, `/order/:token` |
+| **B** | **Serva dashboard** | Owner, Branch manager, Staff, Kitchen | JWT login | Tablet / desktop | `/dashboard` |
 | **C** | **Platform admin** | Platform admin | JWT login | Desktop | `/admin` |
 
 > **As implemented:** all three surfaces live in **one Vite + React app** (`frontend-react/`),
@@ -151,7 +151,7 @@ Entry point is the QR code, which encodes:
 
 ---
 
-## 4. App B — Cafe dashboard (staff, login)
+## 4. App B — Serva dashboard (staff, login)
 
 ### Route tree (role-gated)
 ```
@@ -297,7 +297,7 @@ Disable any action whose transition isn't allowed; the server returns
 **Customer menu (mobile)**
 ```
 ┌──────────────────────────┐
-│ ☕ Mutrah Coffee   [AR|EN]│
+│ S. Mutrah Coffee   [AR|EN]│
 │ Table 5 · Dine-in        │
 ├──────────────────────────┤
 │ Coffee ───────────────── │

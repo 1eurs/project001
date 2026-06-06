@@ -84,9 +84,11 @@ class CafeQrFlowIntegrationTest {
                 .andExpect(status().isOk()).andReturn(), "$.data.id");
 
         // 6. Owner creates a table (QR).
-        String tableToken = json(perform(authed(post(
+        MvcResult tableResult = perform(authed(post(
                 "/api/branches/" + branchId + "/tables", Map.of("tableNumber", "T1")), ownerToken))
-                .andExpect(status().isOk()).andReturn(), "$.data.qrCodeToken");
+                .andExpect(status().isOk()).andReturn();
+        Number tableId = json(tableResult, "$.data.id");
+        String tableToken = json(tableResult, "$.data.qrCodeToken");
 
         // 7. Owner creates a category.
         Number categoryId = json(perform(authed(post("/api/menu/categories", Map.of(
@@ -137,6 +139,14 @@ class CafeQrFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
 
+        // 17. The table can be deleted without deleting historical orders.
+        perform(authed(delete("/api/tables/" + tableId), ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        perform(authed(get("/api/dashboard/orders/" + orderId), ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tableId").doesNotExist());
+
         // --- Tenant isolation: a second restaurant's owner cannot read the first order ---
         Number restaurantId2 = json(perform(authed(post("/api/admin/restaurants",
                 Map.of("name", "Other Cafe")), adminToken)).andReturn(), "$.data.id");
@@ -183,6 +193,10 @@ class CafeQrFlowIntegrationTest {
         var builder = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(url)
                 .contentType(MediaType.APPLICATION_JSON);
         return body != null ? builder.content(writeJson(body)) : builder;
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder delete(String url) {
+        return org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(url);
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder authed(

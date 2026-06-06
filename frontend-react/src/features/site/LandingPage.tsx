@@ -11,7 +11,7 @@ import './site.css';
 const T: Dict = {
   ar: {
     nav_idea: 'الفكرة', nav_how: 'كيف يعمل', nav_demo: 'العرض', nav_req: 'اطلب حسابك', nav_signin: 'دخول',
-    kicker: 'سريع · امسح · اطلب',
+    kicker: 'طلبك على بُعد مسحة واحدة.',
     h1a: 'اطلب من', h1b: 'سيارتك', trans: 'Order from your car.',
     sub: 'أو من طاولتك — أينما كنت.',
     lead: 'لعربات الطعام والمقاهي في عُمان. يمسح الزبون الرمز من سيارته، يتصفّح القائمة بالعربية أو الإنجليزية، ويطلب — دون أي تطبيق.',
@@ -37,7 +37,7 @@ const T: Dict = {
   },
   en: {
     nav_idea: 'Idea', nav_how: 'How', nav_demo: 'Demo', nav_req: 'Request access', nav_signin: 'Sign in',
-    kicker: 'Fast · Scan · Order',
+    kicker: 'Your order, one scan away.',
     h1a: 'Order from', h1b: 'your car', trans: 'اطلب من سيارتك.',
     sub: 'or your table — wherever you are.',
     lead: 'For Omani food trucks & cafés. The guest scans from their car, browses the menu in Arabic or English, and orders — with no app at all.',
@@ -169,7 +169,7 @@ export default function LandingPage() {
           </div>
           <div>
             <h4>{t('foot_contact')}</h4>
-            <a href="mailto:hello@cafeqr.app">hello@cafeqr.app</a>
+            <a href="mailto:hello@serva.app">hello@serva.app</a>
             <a href="tel:+96890000000">+968 9000 0000</a>
             <a href="#request">{t('cta_req')}</a>
           </div>

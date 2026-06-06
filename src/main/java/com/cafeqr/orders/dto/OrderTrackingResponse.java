@@ -22,6 +22,8 @@ public record OrderTrackingResponse(
         Integer prepTimeMinutes,
         String declineReason,
         String customerName,
+        String carPlate,
+        String carColor,
         String customerNote,
         List<OrderItemResponse> items,
         Instant createdAt,
@@ -36,7 +38,7 @@ public record OrderTrackingResponse(
         return new OrderTrackingResponse(
                 o.getOrderNumber(), o.getTrackingToken(), o.getOrderType(), o.getStatus(), o.getPaymentStatus(),
                 o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(), o.getDeclineReason(),
-                o.getCustomerName(), o.getCustomerNote(),
+                o.getCustomerName(), o.getCarPlate(), o.getCarColor(), o.getCustomerNote(),
                 o.getItems().stream().map(OrderItemResponse::from).toList(),
                 o.getCreatedAt(), o.getAcceptedAt(), o.getPreparingAt(), o.getReadyAt(),
                 o.getCompletedAt(), o.getCancelledAt(), o.getDeclinedAt());

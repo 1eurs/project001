@@ -32,12 +32,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class OrderService {
@@ -89,6 +92,8 @@ public class OrderService {
         order.setTableId(tableId);
         order.setCustomerName(request.customerName());
         order.setCustomerPhone(request.customerPhone());
+        order.setCarPlate(normalizeCarPlate(request));
+        order.setCarColor(normalizeCarColor(request));
         order.setCustomerNote(request.customerNote());
         order.setOrderType(request.orderType());
         order.setStatus(OrderStatus.PENDING);
@@ -262,6 +267,24 @@ public class OrderService {
         return null; // takeaway
     }
 
+    private String normalizeCarPlate(CreateOrderRequest request) {
+        if (request.orderType() != OrderType.CAR) {
+            return null;
+        }
+        if (request.carPlate() == null || request.carPlate().isBlank()) {
+            throw new BadRequestException("Car plate is required for outdoor car orders");
+        }
+        return request.carPlate().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeCarColor(CreateOrderRequest request) {
+        if (request.orderType() != OrderType.CAR
+                || request.carColor() == null || request.carColor().isBlank()) {
+            return null;
+        }
+        return request.carColor().trim().toLowerCase(Locale.ROOT);
+    }
+
     private BigDecimal computeVat(Restaurant restaurant, BigDecimal subtotal) {
         if (!restaurant.isVatEnabled() || restaurant.getVatRate() == null
                 || restaurant.getVatRate().signum() == 0) {
@@ -315,13 +338,34 @@ public class OrderService {
     }
 
     private void streamOnly(Order order, String eventName) {
+        // Snapshot the views now, while the entity (and its items) are still loaded,
+        // then publish only after the transaction commits so dashboard refetches and
+        // the customer tracking stream observe committed data (no read-after-write race,
+        // no phantom orders if the commit rolls back).
         OrderResponse dashboardView = OrderResponse.from(order);
-        streamService.publishAll(
-                List.of(OrderStreamService.restaurantChannel(order.getRestaurantId()),
-                        OrderStreamService.branchChannel(order.getBranchId())),
-                OrderEvent.of(eventName, dashboardView));
-        streamService.publish(
-                OrderStreamService.orderChannel(order.getTrackingToken()),
-                OrderEvent.of(eventName, OrderTrackingResponse.from(order)));
+        OrderTrackingResponse trackingView = OrderTrackingResponse.from(order);
+        List<String> dashboardChannels = List.of(
+                OrderStreamService.restaurantChannel(order.getRestaurantId()),
+                OrderStreamService.branchChannel(order.getBranchId()));
+        String customerChannel = OrderStreamService.orderChannel(order.getTrackingToken());
+
+        afterCommit(() -> {
+            streamService.publishAll(dashboardChannels, OrderEvent.of(eventName, dashboardView));
+            streamService.publish(customerChannel, OrderEvent.of(eventName, trackingView));
+        });
+    }
+
+    /** Run {@code action} after the current transaction commits (or immediately if none is active). */
+    private void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 }

@@ -86,6 +86,14 @@ public class RestaurantService {
     }
 
     @Transactional
+    public RestaurantResponse updateTheme(Long id, String theme, String themeCustomJson) {
+        Restaurant restaurant = getEntity(id);
+        restaurant.setTheme(theme);
+        restaurant.setThemeCustomJson("custom".equals(theme) ? themeCustomJson : null);
+        return RestaurantResponse.from(restaurant);
+    }
+
+    @Transactional
     public RestaurantResponse setActive(Long id, boolean active) {
         Restaurant restaurant = getEntity(id);
         restaurant.setActive(active);

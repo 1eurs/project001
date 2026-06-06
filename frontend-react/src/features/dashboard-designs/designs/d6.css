@@ -1,0 +1,91 @@
+/* ===== Design 6 · Espresso — cozy dark-roast boutique ================ */
+.d6 {
+  --bg: #1b1410; --panel: #241a14; --panel2: #2c2017; --cream: #f4e9dc; --muted: #b7a392; --faint: #8a7766;
+  --caramel: #e6b574; --caramel2: #d9a35f; --line: rgba(230,181,116,.14); --green: #7fb98a;
+  display: flex; min-height: 100%; color: var(--cream);
+  background:
+    radial-gradient(900px 500px at 100% -5%, rgba(230,181,116,.10), transparent 55%),
+    radial-gradient(700px 600px at -5% 105%, rgba(127,185,138,.06), transparent 55%), var(--bg);
+  font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --dk-text: var(--cream); --dk-muted: var(--muted); --dk-panel: var(--panel); --dk-panel2: var(--panel2);
+  --dk-line: var(--line); --dk-accent: var(--caramel); --dk-accent-ink: #2a1a0c; --dk-radius: 16px;
+}
+.d6 .dk { padding-inline: 0; }
+.d6 .dk h2, .d6 .dk h3 { font-family: 'Fraunces', serif; font-weight: 500; }
+.d6 small { font-size: .52em; color: var(--muted); font-weight: 500; font-family: 'IBM Plex Sans Arabic', sans-serif; }
+
+.d6-side { width: 230px; flex: 0 0 auto; border-right: 1px solid var(--line); padding: 24px 18px; display: flex; flex-direction: column; gap: 8px; }
+.d6-brand { font-family: 'Fraunces', serif; font-weight: 600; font-size: 25px; letter-spacing: -.02em; padding: 0 8px 18px; }
+.d6-brand span { color: var(--caramel); }
+.d6-side nav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.d6-side nav a { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-radius: 13px; color: var(--muted); font-size: 14px; cursor: pointer; transition: .18s; }
+.d6-side nav a span { font-size: 15px; width: 20px; text-align: center; }
+.d6-side nav a:hover { background: var(--panel); color: var(--cream); }
+.d6-side nav a.on { background: linear-gradient(150deg, var(--caramel), var(--caramel2)); color: #2a1a0c; font-weight: 600; }
+.d6-cafe { display: flex; align-items: center; gap: 11px; padding: 12px; border-radius: 15px; background: var(--panel); border: 1px solid var(--line); }
+.d6-cafe-logo { width: 40px; height: 40px; border-radius: 12px; background: var(--panel2); display: grid; place-items: center; font-size: 19px; }
+.d6-cafe b { font-size: 13.5px; display: block; }
+.d6-cafe span { font-size: 11px; color: var(--faint); }
+
+.d6-main { flex: 1; min-width: 0; padding: 26px 30px 96px; overflow: auto; }
+.d6-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.d6-kicker { font-size: 12.5px; color: var(--caramel); font-weight: 500; }
+.d6-hd h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: clamp(26px, 3.4vw, 38px); letter-spacing: -.02em; margin-top: 6px; }
+.d6-live { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--green); background: rgba(127,185,138,.1); border: 1px solid rgba(127,185,138,.28); padding: 8px 14px; border-radius: 999px; white-space: nowrap; }
+.d6-live i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: d6p 1.8s infinite; }
+@keyframes d6p { 50% { opacity: .4; } }
+
+.d6-toprow { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-bottom: 16px; }
+.d6-feature { background: linear-gradient(160deg, var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 22px; padding: 24px; position: relative; overflow: hidden; }
+.d6-flabel { font-size: 13px; color: var(--muted); }
+.d6-fval { font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(40px, 5vw, 56px); letter-spacing: -.03em; line-height: 1; margin: 10px 0; }
+.d6-fdelta { font-size: 13px; color: var(--green); }
+.d6-fchart { width: 100%; height: 90px; display: block; margin-top: 14px; }
+
+.d6-ministats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.d6-stat { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+.d6-slabel { font-size: 12px; color: var(--muted); }
+.d6-sval { font-family: 'Fraunces', serif; font-weight: 500; font-size: 28px; letter-spacing: -.02em; margin: 6px 0 4px; }
+.d6-ssub { font-size: 11.5px; color: var(--caramel); }
+
+.d6-cols { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; align-items: start; }
+.d6-card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 22px; }
+.d6-rightcol { display: flex; flex-direction: column; gap: 16px; }
+.d6-chd { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+.d6-chd h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 20px; }
+.d6-chd span { font-size: 12px; color: var(--faint); }
+
+.d6-feed { display: flex; flex-direction: column; gap: 4px; }
+.d6-order { display: flex; align-items: center; gap: 13px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.d6-order:last-child { border-bottom: 0; padding-bottom: 0; }
+.d6-oi { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 13px; background: var(--panel2); display: grid; place-items: center; font-size: 18px; }
+.d6-ob { flex: 1; min-width: 0; }
+.d6-ob b { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; }
+.d6-ob b em { font-style: normal; font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 12px; color: var(--muted); margin-left: 8px; }
+.d6-ob span { display: block; font-size: 12.5px; color: var(--faint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d6-oside { text-align: right; flex: 0 0 auto; }
+.d6-ost { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.d6-ost i { width: 6px; height: 6px; border-radius: 50%; }
+.d6-otot { display: block; font-family: 'Fraunces', serif; font-size: 15px; margin-top: 3px; }
+
+.d6-menu { display: flex; flex-direction: column; gap: 2px; }
+.d6-menu li { display: flex; align-items: center; gap: 11px; padding: 11px 0; }
+.d6-me { width: 34px; height: 34px; border-radius: 10px; background: var(--panel2); display: grid; place-items: center; font-size: 16px; }
+.d6-mn { font-size: 14px; font-weight: 500; flex: 0 0 auto; }
+.d6-mn em { font-style: normal; display: block; font-size: 11px; color: var(--faint); margin-top: 1px; }
+.d6-dots { flex: 1; border-bottom: 1px dotted var(--line); margin: 0 4px 4px; }
+.d6-mq { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600; color: var(--caramel); }
+
+.d6-week { display: flex; align-items: flex-end; gap: 9px; height: 110px; margin-bottom: 16px; }
+.d6-wcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; height: 100%; }
+.d6-wt { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.d6-wt i { width: 100%; border-radius: 6px 6px 3px 3px; background: rgba(230,181,116,.18); }
+.d6-wt i.on { background: linear-gradient(180deg, var(--caramel), var(--caramel2)); }
+.d6-wcol span { font-size: 10px; color: var(--faint); }
+.d6-channels { display: flex; flex-wrap: wrap; gap: 7px; }
+.d6-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: var(--panel2); border: 1px solid var(--line); padding: 6px 11px; border-radius: 999px; }
+.d6-chip i { width: 8px; height: 8px; border-radius: 3px; }
+
+@media (max-width: 1040px) { .d6-toprow, .d6-cols { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .d6-side { display: none; } .d6-main { padding: 18px 16px 96px; } }
+@media (max-width: 560px) { .d6-ministats { grid-template-columns: 1fr 1fr; } }

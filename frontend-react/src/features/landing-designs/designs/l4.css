@@ -1,0 +1,100 @@
+/* ===== Landing 4 · Bold — neo-brutalist poster ======================= */
+.b4 {
+  --paper: #f3efe2; --ink: #14110c; --lime: #b6f23d; --blue: #2b50f0; --pink: #ff5d8f;
+  --line: #14110c; --shadow: 5px 5px 0 var(--ink);
+  background: var(--paper); color: var(--ink);
+  font-family: 'Bricolage Grotesque', 'IBM Plex Sans Arabic', system-ui, sans-serif; min-height: 100%;
+}
+.b4 .b4-btn { background: var(--lime); color: var(--ink); border: 2.5px solid var(--ink); border-radius: 0; padding: 11px 20px; font-weight: 800; font-size: 14px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 7px; box-shadow: 3px 3px 0 var(--ink); transition: .1s; }
+.b4 .b4-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.b4 .b4-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.b4 .b4-btn.alt { background: var(--blue); color: #fff; }
+.b4 .lg { padding: 14px 24px; font-size: 15px; box-shadow: 4px 4px 0 var(--ink); }
+.b4 .full { width: 100%; justify-content: center; }
+
+.b4-nav { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; gap: 20px; padding: 20px 28px; }
+.b4-brand { font-weight: 800; font-size: 24px; letter-spacing: -.03em; }
+.b4-brand span { color: var(--blue); }
+.b4-links { display: flex; gap: 8px; margin-inline-start: 16px; }
+.b4-links a { font-size: 14px; font-weight: 700; padding: 7px 12px; border: 2px solid transparent; transition: .1s; }
+.b4-links a:hover { border-color: var(--ink); background: var(--lime); }
+.b4-nav .b4-btn { margin-inline-start: auto; }
+
+.b4-hero { max-width: 1160px; margin: 0 auto; padding: 24px 28px 40px; display: grid; grid-template-columns: 1.2fr .8fr; gap: 36px; align-items: center; }
+.b4-badge { display: inline-block; background: var(--pink); color: #fff; border: 2.5px solid var(--ink); padding: 7px 14px; font-weight: 800; font-size: 13px; box-shadow: 3px 3px 0 var(--ink); transform: rotate(-2deg); }
+.b4-hero h1 { font-size: clamp(46px, 8vw, 104px); line-height: .92; font-weight: 800; letter-spacing: -.04em; text-transform: uppercase; margin: 22px 0 18px; }
+.b4-mark { background: var(--lime); padding: 0 .12em; box-decoration-break: clone; -webkit-box-decoration-break: clone; border: 3px solid var(--ink); }
+.b4-sub { font-size: 22px; font-weight: 800; margin-bottom: 12px; }
+.b4-lead { font-size: 16px; line-height: 1.6; font-weight: 500; max-width: 480px; }
+.b4-cta { display: flex; gap: 14px; margin-top: 26px; flex-wrap: wrap; }
+
+.b4-hero-r { position: relative; display: grid; place-items: center; }
+.b4-frame { border: 3px solid var(--ink); background: var(--blue); padding: 18px; box-shadow: 8px 8px 0 var(--ink); transform: rotate(2deg); }
+.b4-phone { --pm-bg: #14110c; --pm-accent: var(--lime); --pm-accent-ink: #14110c; --pm-radius: 18px; }
+.b4-sticker { position: absolute; font-weight: 800; font-size: 13px; border: 2.5px solid var(--ink); padding: 6px 12px; box-shadow: 3px 3px 0 var(--ink); }
+.b4-sticker.s1 { top: -10px; inset-inline-start: -10px; background: var(--lime); transform: rotate(-8deg); }
+.b4-sticker.s2 { bottom: 4px; inset-inline-end: -14px; background: var(--pink); color: #fff; transform: rotate(7deg); }
+
+.b4-marquee { border-block: 3px solid var(--ink); background: var(--ink); color: var(--paper); overflow: hidden; padding: 12px 0; }
+.b4-mtrack { display: inline-flex; gap: 28px; white-space: nowrap; animation: b4scroll 26s linear infinite; font-weight: 800; font-size: 22px; text-transform: uppercase; }
+.b4-mtrack span { display: inline-flex; align-items: center; gap: 28px; }
+.b4-mtrack i { color: var(--lime); font-style: normal; }
+@keyframes b4scroll { to { transform: translateX(-33.33%); } }
+[dir="rtl"] .b4-mtrack { animation-direction: reverse; }
+
+.b4-sec { max-width: 1160px; margin: 0 auto; padding: 52px 28px; }
+.b4-seclbl { display: inline-block; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; background: var(--ink); color: var(--paper); padding: 5px 12px; margin-bottom: 24px; }
+.b4-h2 { font-size: clamp(32px, 5vw, 60px); font-weight: 800; text-transform: uppercase; letter-spacing: -.03em; line-height: .95; margin-bottom: 26px; }
+
+.b4-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.b4-step { background: #fff; border: 3px solid var(--ink); padding: 24px; box-shadow: var(--shadow); }
+.b4-step:nth-child(2) { background: var(--lime); }
+.b4-stepn { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 3px solid var(--ink); border-radius: 50%; font-weight: 800; font-size: 20px; background: var(--paper); }
+.b4-step h3 { font-size: 20px; font-weight: 800; text-transform: uppercase; margin: 14px 0 8px; }
+.b4-step p { font-size: 14px; line-height: 1.55; font-weight: 500; }
+
+.b4-feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 3px solid var(--ink); }
+.b4-feat { padding: 24px; border-inline-end: 3px solid var(--ink); border-bottom: 3px solid var(--ink); background: #fff; transition: .12s; }
+.b4-feat:hover { background: var(--lime); }
+.b4-feats .b4-feat:nth-child(3n) { border-inline-end: 0; }
+.b4-feats .b4-feat:nth-last-child(-n+3) { border-bottom: 0; }
+.b4-fi { font-size: 26px; }
+.b4-feat h4 { font-size: 17px; font-weight: 800; text-transform: uppercase; margin: 12px 0 7px; }
+.b4-feat p { font-size: 13.5px; line-height: 1.5; font-weight: 500; }
+
+.b4-demos { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.b4-democard { position: relative; border: 3px solid var(--ink); background: var(--lime); padding: 30px; min-height: 150px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; box-shadow: var(--shadow); transition: .12s; }
+.b4-democard.alt { background: var(--blue); color: #fff; }
+.b4-democard:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--ink); }
+.b4-democard .t { font-size: 22px; font-weight: 800; text-transform: uppercase; }
+.b4-democard .cc { font-size: 13px; font-weight: 600; }
+.b4-democard .go { position: absolute; top: 22px; inset-inline-end: 24px; font-size: 24px; }
+
+.b4-reqcard { border: 3px solid var(--ink); background: #fff; box-shadow: 8px 8px 0 var(--ink); padding: 36px; display: grid; grid-template-columns: 1fr 1.05fr; gap: 34px; align-items: center; }
+.b4-reqcopy .b4-lead { margin-top: 12px; }
+.b4-form { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+.b4-form label { display: flex; flex-direction: column; gap: 6px; }
+.b4-form label.full { grid-column: 1 / -1; }
+.b4-form span { font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.b4-form input, .b4-form textarea { background: var(--paper); border: 2.5px solid var(--ink); border-radius: 0; padding: 12px 13px; color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 600; resize: none; }
+.b4-form input:focus, .b4-form textarea:focus { outline: none; background: #fff; box-shadow: 3px 3px 0 var(--lime); }
+.b4-form button { grid-column: 1 / -1; margin-top: 4px; }
+.b4-ok { text-align: center; padding: 24px; }
+.b4-okmk { width: 56px; height: 56px; margin: 0 auto 14px; border: 3px solid var(--ink); display: grid; place-items: center; font-size: 26px; background: var(--lime); }
+.b4-ok h3 { font-size: 24px; font-weight: 800; text-transform: uppercase; }
+.b4-ok p { margin-top: 8px; font-weight: 500; }
+
+.b4-foot { border-top: 3px solid var(--ink); margin-top: 30px; }
+.b4-bignme { font-size: clamp(64px, 19vw, 250px); font-weight: 800; text-transform: uppercase; letter-spacing: -.04em; line-height: .9; text-align: center; padding: 24px; }
+.b4-footbar { border-top: 3px solid var(--ink); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 16px 28px; font-weight: 700; font-size: 13px; text-transform: uppercase; }
+
+@media (max-width: 900px) {
+  .b4-links { display: none; }
+  .b4-hero { grid-template-columns: 1fr; padding: 20px 18px 36px; }
+  .b4-hero-r { order: -1; }
+  .b4-sec { padding: 40px 18px; }
+  .b4-steps, .b4-demos, .b4-reqcard, .b4-form { grid-template-columns: 1fr; }
+  .b4-feats { grid-template-columns: 1fr; }
+  .b4-feats .b4-feat { border-inline-end: 0; }
+  .b4-reqcard { padding: 22px; }
+}

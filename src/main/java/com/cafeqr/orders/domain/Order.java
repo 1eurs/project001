@@ -40,6 +40,12 @@ public class Order extends BaseEntity {
     @Column(name = "customer_phone")
     private String customerPhone;
 
+    @Column(name = "car_plate")
+    private String carPlate;
+
+    @Column(name = "car_color", length = 20)
+    private String carColor;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "order_type", nullable = false, length = 20)
     private OrderType orderType;
@@ -154,6 +160,22 @@ public class Order extends BaseEntity {
 
     public void setCustomerPhone(String customerPhone) {
         this.customerPhone = customerPhone;
+    }
+
+    public String getCarPlate() {
+        return carPlate;
+    }
+
+    public void setCarPlate(String carPlate) {
+        this.carPlate = carPlate;
+    }
+
+    public String getCarColor() {
+        return carColor;
+    }
+
+    public void setCarColor(String carColor) {
+        this.carColor = carColor;
     }
 
     public OrderType getOrderType() {

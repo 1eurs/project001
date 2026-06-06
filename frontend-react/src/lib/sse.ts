@@ -8,15 +8,28 @@ export const ORDER_EVENTS = [
 ] as const;
 export type OrderEventName = (typeof ORDER_EVENTS)[number];
 
-export function useOrderStream(url: string | null, onEvent: (name: OrderEventName, data: any) => void) {
+export type StreamStatus = 'connecting' | 'open' | 'reconnecting';
+
+export function useOrderStream(
+  url: string | null,
+  onEvent: (name: OrderEventName, data: any) => void,
+  onStatus?: (status: StreamStatus) => void,
+) {
   const cb = useRef(onEvent);
   cb.current = onEvent;
+  const statusCb = useRef(onStatus);
+  statusCb.current = onStatus;
 
   useEffect(() => {
     if (!url) return;
+    statusCb.current?.('connecting');
     const es = new EventSource(url);
+    es.onopen = () => statusCb.current?.('open');
+    // EventSource auto-reconnects on error; surface that so the UI can show it.
+    es.onerror = () => statusCb.current?.('reconnecting');
     const handlers = ORDER_EVENTS.map((name) => {
       const fn = (e: MessageEvent) => {
+        if (name === 'connected') statusCb.current?.('open');
         let data: any = null;
         try { data = e.data ? JSON.parse(e.data) : null; } catch { data = e.data; }
         cb.current(name, data);

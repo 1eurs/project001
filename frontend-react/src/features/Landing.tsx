@@ -1,23 +1,22 @@
 import { Link } from 'react-router-dom';
 import { DEMO } from '../lib/demo';
+import { BRAND } from '../lib/brand';
 import { LangToggle, useI18n } from '../lib/i18n';
 import { ThemeToggle } from '../lib/theme';
 import './landing.css';
 
 const T = {
   ar: {
-    tag: 'منصّة الطلب عبر QR',
-    sub: 'ثلاثة تطبيقات — نفس النظام، واجهة عربية أولاً، API حقيقي.',
+    tag: 'منصّة Serva. للطلب عبر QR',
     a: 'تطبيق العميل', aD: 'تصفّح القائمة، اطلب من الطاولة، وتتبّع طلبك مباشرة.',
-    b: 'لوحة المقهى', bD: 'شاشة المطبخ المباشرة، إدارة الطلبات والقائمة والطاولات.',
+    b: 'لوحة Serva.', bD: 'شاشة التحضير المباشرة، إدارة الطلبات والقائمة والطاولات.',
     c: 'لوحة المنصّة', cD: 'إدارة المطاعم والاشتراكات على مستوى المنصّة.',
     open: 'فتح', creds: 'بيانات الدخول التجريبية',
   },
   en: {
-    tag: 'QR ordering platform',
-    sub: 'Three apps — one system, Arabic-first, talking to the real API.',
+    tag: 'Serva. QR ordering platform',
     a: 'Customer app', aD: 'Browse the menu, order from the table, track live.',
-    b: 'Cafe dashboard', bD: 'Live kitchen display, manage orders, menu & tables.',
+    b: 'Serva. dashboard', bD: 'Live prep display, manage orders, menu & tables.',
     c: 'Platform admin', cD: 'Manage restaurants and subscriptions platform-wide.',
     open: 'Open', creds: 'Demo credentials',
   },
@@ -32,15 +31,15 @@ export default function Landing() {
     <div className="landing">
       <div className="landing-inner fade-in">
         <header className="landing-hd">
-          <div className="brandmark">◆</div>
+          <div className="brandmark">S.</div>
           <div style={{ flex: 1 }}>
-            <div className="mono-lbl" style={{ color: 'var(--accent)' }}>CAFEQR</div>
+            <div className="brand-name">{BRAND.name}</div>
             <h1>{t.tag}</h1>
           </div>
           <ThemeToggle />
           <LangToggle />
         </header>
-        <p className="landing-sub">{t.sub}</p>
+        <p className="landing-sub">{BRAND.tagline[lang]}</p>
 
         <div className="cards">
           <Card to={customerUrl} accent="var(--accent)" icon="🍽" title={t.a} desc={t.aD} cta={t.open} />

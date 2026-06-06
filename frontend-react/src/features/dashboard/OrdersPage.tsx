@@ -4,17 +4,18 @@ import { api, ApiError } from '../../lib/api';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
+import { carColorOf, carColorLabel } from '../../lib/carColors';
 import type { OrderSummaryResponse, PageResponse, OrderResponse, OrderStatus } from '../../lib/types';
 
 const DICT: Dict = {
-  ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', takeaway: 'سفري', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
+  ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', takeaway: 'سفري', car: 'خدمة السيارة', carPlate: 'لوحة السيارة', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
         prev: 'السابق', next: 'التالي', page: 'صفحة', none: 'لا طلبات', markPaid: 'تحديد كمدفوع', paid: 'مدفوع', unpaid: 'غير مدفوع', items: 'الأصناف', timeline: 'التسلسل الزمني',
-        customer: 'العميل', note: 'ملاحظة العميل', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب',
+        customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب',
         st_PENDING: 'جديد', st_ACCEPTED: 'مقبول', st_PREPARING: 'تحضير', st_READY: 'جاهز', st_COMPLETED: 'مكتمل', st_DECLINED: 'مرفوض', st_CANCELLED: 'ملغى',
         ts_createdAt: 'أُنشئ', ts_acceptedAt: 'قُبل', ts_preparingAt: 'بدأ التحضير', ts_readyAt: 'جاهز', ts_completedAt: 'اكتمل', ts_declinedAt: 'رُفض', ts_cancelledAt: 'أُلغي' },
-  en: { cur: 'OMR', all: 'All', table: 'Table', takeaway: 'Takeaway', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
+  en: { cur: 'OMR', all: 'All', table: 'Table', takeaway: 'Takeaway', car: 'Outdoor car', carPlate: 'Car plate', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
         prev: 'Prev', next: 'Next', page: 'Page', none: 'No orders', markPaid: 'Mark paid', paid: 'Paid', unpaid: 'Unpaid', items: 'Items', timeline: 'Timeline',
-        customer: 'Customer', note: 'Customer note', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail',
+        customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail',
         st_PENDING: 'New', st_ACCEPTED: 'Accepted', st_PREPARING: 'Preparing', st_READY: 'Ready', st_COMPLETED: 'Completed', st_DECLINED: 'Declined', st_CANCELLED: 'Cancelled',
         ts_createdAt: 'Created', ts_acceptedAt: 'Accepted', ts_preparingAt: 'Preparing', ts_readyAt: 'Ready', ts_completedAt: 'Completed', ts_declinedAt: 'Declined', ts_cancelledAt: 'Cancelled' },
 };
@@ -25,6 +26,11 @@ const COLOR: Record<OrderStatus, string> = {
   READY: 'var(--ready)', COMPLETED: 'var(--faint)', DECLINED: 'var(--bad)', CANCELLED: 'var(--faint)',
 };
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
+const orderTypeLabel = (o: { orderType: string; carPlate?: string | null }, t: (key: string) => string) => {
+  if (o.orderType === 'DINE_IN') return `🪑 ${t('table')}`;
+  if (o.orderType === 'CAR') return `🚗 ${t('car')}${o.carPlate ? ` · ${o.carPlate}` : ''}`;
+  return `🥡 ${t('takeaway')}`;
+};
 
 export default function OrdersPage({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
@@ -65,7 +71,7 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
                   <tr key={o.id} onClick={() => setSelected(o.id)}>
                     <td><span className="num" style={{ fontWeight: 600 }}>{o.orderNumber}</span></td>
                     <td className="hide-sm"><span className="num" style={{ color: 'var(--muted)' }}>{fmt(o.createdAt)}</span></td>
-                    <td className="hide-sm">{o.orderType === 'DINE_IN' ? `🪑 ${t('table')}` : `🥡 ${t('takeaway')}`}</td>
+                    <td className="hide-sm">{orderTypeLabel(o, t)}</td>
                     <td><span className="chip" style={{ color: COLOR[o.status] }}><span className="d" style={{ background: COLOR[o.status] }} />{t('st_' + o.status)}</span></td>
                     <td className="hide-sm"><span className={'chip' + (o.paymentStatus === 'PAID' ? ' ok' : '')}><span className="d" />{o.paymentStatus === 'PAID' ? t('paid') : t('unpaid')}</span></td>
                     <td><span className="num">{omr(o.total)} {t('cur')}</span></td>
@@ -109,7 +115,7 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
     <>
       <div className="drawer-hd">
         <div><div style={{ fontWeight: 700, fontSize: 17 }} className="num">{o.orderNumber}</div>
-          <div className="rslug">{o.orderType === 'DINE_IN' ? t('table') : t('takeaway')} · <span style={{ color: COLOR[o.status] }}>{t('st_' + o.status)}</span></div></div>
+          <div className="rslug">{orderTypeLabel(o, t)} · <span style={{ color: COLOR[o.status] }}>{t('st_' + o.status)}</span></div></div>
         <button className="x" onClick={onClose}>✕</button>
       </div>
       <div className="drawer-bd">
@@ -117,6 +123,16 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
           <div className="sect"><h4>{t('customer')}</h4>
             <div className="kv"><span className="k">{o.customerName || '—'}</span><span className="v num">{o.customerPhone || ''}</span></div>
             {o.customerNote && <div className="kv"><span className="k">{t('note')}</span><span className="v">{o.customerNote}</span></div>}
+          </div>
+        )}
+        {o.orderType === 'CAR' && (o.carPlate || o.carColor) && (
+          <div className="sect"><h4>{t('car')}</h4>
+            {o.carPlate && <div className="kv"><span className="k">{t('carPlate')}</span><span className="v num">{o.carPlate}</span></div>}
+            {o.carColor && (
+              <div className="kv"><span className="k">{t('carColor')}</span>
+                <span className="v carcol"><span className="cc-dot" style={{ background: carColorOf(o.carColor)?.hex ?? o.carColor }} />{carColorLabel(o.carColor, lang)}</span>
+              </div>
+            )}
           </div>
         )}
         <div className="sect"><h4>{t('items')}</h4>

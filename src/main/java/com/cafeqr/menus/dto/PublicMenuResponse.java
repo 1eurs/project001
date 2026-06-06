@@ -26,11 +26,14 @@ public record PublicMenuResponse(
             String instagramUrl,
             String currency,
             boolean vatEnabled,
-            BigDecimal vatRate
+            BigDecimal vatRate,
+            String theme,
+            String themeCustomJson
     ) {
         public static PublicRestaurant from(Restaurant r) {
             return new PublicRestaurant(r.getId(), r.getName(), r.getSlug(), r.getLogoUrl(),
-                    r.getPhone(), r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate());
+                    r.getPhone(), r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
+                    r.getTheme(), r.getThemeCustomJson());
         }
     }
 

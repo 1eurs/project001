@@ -26,11 +26,9 @@ public class LocalStorageService implements StorageService {
             Set.of("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif");
 
     private final Path rootDir;
-    private final String publicBaseUrl;
 
     public LocalStorageService(AppProperties appProperties) {
         this.rootDir = Paths.get(appProperties.storage().localDir()).toAbsolutePath().normalize();
-        this.publicBaseUrl = appProperties.publicBaseUrl();
     }
 
     @Override
@@ -61,7 +59,7 @@ public class LocalStorageService implements StorageService {
             throw new BadRequestException(ErrorCode.UPLOAD_ERROR, "Could not store file");
         }
 
-        return publicBaseUrl + "/files/" + folder + "/" + filename;
+        return "/files/" + folder + "/" + filename;
     }
 
     private String resolveExtension(String originalFilename) {

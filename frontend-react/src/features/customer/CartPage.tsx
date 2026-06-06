@@ -7,17 +7,22 @@ import { omr, estimateVat } from '../../lib/format';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useCartStore, useCart } from '../../lib/cart';
-import { useVenue, cartKeyOf, menuUrlOf } from './venue';
-import './customer.css';
+import { CAR_COLORS } from '../../lib/carColors';
+import { useVenue, cartKeyOf, menuPathOf, menuUrlOf } from './venue';
+import { CustomerFrame } from './CustomerFrame';
 
 const DICT: Dict = {
   ar: { title: 'سلّتك', cur: 'ر.ع', empty: 'سلّتك فارغة', emptySub: 'أضف ما يطيب لك من القائمة.', back: 'العودة للقائمة',
-        whoFor: 'نوع الطلب', dineIn: 'تناول هنا', takeaway: 'سفري', name: 'الاسم (اختياري)', phone: 'الجوال (اختياري)',
+        carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب', carPlateRequired: 'أدخل رقم لوحة السيارة',
+        carPlateHint: 'اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
+        name: 'الاسم (اختياري)', phone: 'الجوال (اختياري)',
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
         finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
-        whoFor: 'Order type', dineIn: 'Dine-in', takeaway: 'Takeaway', name: 'Name (optional)', phone: 'Phone (optional)',
+        carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB', carPlateRequired: 'Enter the car plate',
+        carPlateHint: 'Numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
+        name: 'Name (optional)', phone: 'Phone (optional)',
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
         finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…' },
@@ -32,10 +37,11 @@ export default function CartPage() {
   const t = useT(DICT);
   const nav = useNavigate();
   const toast = useToast();
-  const { slug, branchId, tableToken, restaurant } = useVenue();
+  const { slug, branchId, tableToken, orderType: venueOrderType, restaurant } = useVenue();
+  const orderType: OrderType = tableToken ? 'DINE_IN' : venueOrderType === 'CAR' ? 'CAR' : 'TAKEAWAY';
 
-  const menuPath = tableToken ? `/r/${slug}/b/${branchId}/t/${tableToken}` : branchId != null ? `/r/${slug}/b/${branchId}` : `/r/${slug}`;
-  const cartKey = cartKeyOf(slug, branchId, tableToken);
+  const menuPath = menuPathOf(slug, branchId, tableToken, orderType);
+  const cartKey = cartKeyOf(slug, branchId, tableToken, orderType);
   const cart = useCart(cartKey);
   const { bump, setNote, clear } = useCartStore();
 
@@ -50,9 +56,12 @@ export default function CartPage() {
     return m;
   }, [data]);
 
-  const [orderType, setOrderType] = useState<OrderType>(tableToken ? 'DINE_IN' : 'TAKEAWAY');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [plateNum, setPlateNum] = useState('');   // digits, e.g. 1234
+  const [plateCode, setPlateCode] = useState(''); // letter code, e.g. أ ب
+  const carPlate = `${plateNum} ${plateCode}`.replace(/\s+/g, ' ').trim();
+  const [carColor, setCarColor] = useState(''); // palette key, e.g. white
   const [note, setOrderNote] = useState('');
 
   const subtotal = cart.reduce((s, l) => s + (itemsById.get(l.id)?.price ?? 0) * l.qty, 0);
@@ -62,9 +71,12 @@ export default function CartPage() {
 
   const place = useMutation({
     mutationFn: () => {
+      const normalizedPlate = carPlate.trim().replace(/\s+/g, ' ').toUpperCase();
       const payload: CreateOrderPayload = {
         restaurantSlug: slug!, branchId: branchId!, tableToken: orderType === 'DINE_IN' ? tableToken : null,
-        orderType, customerName: name || null, customerPhone: phone || null, customerNote: note || null,
+        orderType, customerName: name || null, customerPhone: phone || null,
+        carPlate: orderType === 'CAR' ? normalizedPlate : null,
+        carColor: orderType === 'CAR' ? (carColor || null) : null, customerNote: note || null,
         items: cart.map((l) => ({ menuItemId: l.id, quantity: l.qty, note: l.note || null })),
       };
       return api.post<OrderTracking>('/api/public/orders', payload, { auth: false });
@@ -76,9 +88,17 @@ export default function CartPage() {
     },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
+  const missingCarPlate = orderType === 'CAR' && !plateNum.trim();
+  const submit = () => {
+    if (missingCarPlate) {
+      toast(t('carPlateRequired'));
+      return;
+    }
+    place.mutate();
+  };
 
   return (
-    <div className="cust-bg"><div className="phone">
+    <CustomerFrame>
       <header className="c-vhdr">
         <button className="c-back" onClick={() => nav(menuPath)} aria-label="back"><span className="arr">›</span></button>
         <h2>{t('title')}</h2>
@@ -86,7 +106,7 @@ export default function CartPage() {
 
       {cart.length === 0 ? (
         <div className="c-vbody"><div className="empty" style={{ margin: 'auto' }}>
-          <div className="big">☕</div><h3>{t('empty')}</h3><p>{t('emptySub')}</p>
+          <div className="big">S.</div><h3>{t('empty')}</h3><p>{t('emptySub')}</p>
           <button className="btn ghost" style={{ marginTop: 16 }} onClick={() => nav(menuPath)}>{t('back')}</button>
         </div></div>
       ) : (
@@ -116,14 +136,45 @@ export default function CartPage() {
               );
             })}
 
-            {tableToken && (
-              <div className="field" style={{ marginTop: 18 }}>
-                <label>{t('whoFor')}</label>
-                <div className="c-seg">
-                  <button className={orderType === 'DINE_IN' ? 'on' : ''} onClick={() => setOrderType('DINE_IN')}>🪑 {t('dineIn')}</button>
-                  <button className={orderType === 'TAKEAWAY' ? 'on' : ''} onClick={() => setOrderType('TAKEAWAY')}>🥡 {t('takeaway')}</button>
+            {orderType === 'CAR' && (
+              <>
+                <div className="plate-field" style={{ marginTop: 18 }}>
+                  <div className="oman-plate">
+                    <div className="oman-plate-hd">
+                      <span className="op-flag">🇴🇲</span>
+                      <span className="op-ar">سلطنة عُمان</span>
+                      <span className="op-en">Sultanate of Oman</span>
+                    </div>
+                    <div className="oman-plate-bd">
+                      <input className="op-num" inputMode="numeric" value={plateNum} aria-label={t('plateNum')}
+                        maxLength={5} placeholder="1234"
+                        onChange={(e) => setPlateNum(e.target.value.replace(/[^0-9٠-٩]/g, '').slice(0, 5))} />
+                      <span className="op-div" />
+                      <input className="op-code" inputMode="text" autoCapitalize="characters" value={plateCode} aria-label={t('plateCode')}
+                        maxLength={5} placeholder="أ ب"
+                        onChange={(e) => setPlateCode(e.target.value.replace(/[^A-Za-z؀-ۿ ]/g, '').replace(/\s+/g, ' ').toUpperCase().slice(0, 5))} />
+                    </div>
+                  </div>
+                  <p className="plate-hint">{t('carPlateHint')}</p>
                 </div>
-              </div>
+
+                <div className="field">
+                  <label>{t('carColor')}</label>
+                  <div className="car-colors">
+                    {CAR_COLORS.map((c) => (
+                      <button type="button" key={c.key}
+                        className={'car-sw' + (carColor === c.key ? ' on' : '') + (c.ring ? ' light' : '')}
+                        style={{ ['--sw' as any]: c.hex }}
+                        aria-pressed={carColor === c.key} aria-label={lang === 'ar' ? c.ar : c.en}
+                        title={lang === 'ar' ? c.ar : c.en}
+                        onClick={() => setCarColor((v) => (v === c.key ? '' : c.key))}>
+                        <span className="dot" />
+                        <span className="nm">{lang === 'ar' ? c.ar : c.en}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
             <div className="field"><label>{t('name')}</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="…" /></div>
             <div className="field"><label>{t('phone')}</label><input className="num" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9XXXXXXX" /></div>
@@ -138,12 +189,12 @@ export default function CartPage() {
           </div>
 
           <div className="c-foot-bar">
-            <button className="btn full" disabled={place.isPending} onClick={() => place.mutate()}>
+            <button className="btn full" disabled={place.isPending || missingCarPlate} onClick={submit}>
               {place.isPending ? t('placing') : <>{t('place')} · <span className="num">{omr(total)}</span></>}
             </button>
           </div>
         </>
       )}
-    </div></div>
+    </CustomerFrame>
   );
 }

@@ -19,10 +19,10 @@ public class OpenApiConfig {
     public OpenAPI cafeQrOpenApi() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("CafeQR API")
-                        .description("Backend for a QR-based cafe ordering platform (Oman / OMR).")
+                        .title("Serva. API")
+                        .description("Backend for a QR-based restaurant and cafe ordering platform (Oman / OMR).")
                         .version("v1")
-                        .contact(new Contact().name("CafeQR").email("support@cafeqr.local"))
+                        .contact(new Contact().name("Serva.").email("support@serva.local"))
                         .license(new License().name("Proprietary")))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME,
                         new SecurityScheme()

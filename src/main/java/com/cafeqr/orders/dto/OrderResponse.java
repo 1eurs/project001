@@ -19,6 +19,8 @@ public record OrderResponse(
         Long tableId,
         String customerName,
         String customerPhone,
+        String carPlate,
+        String carColor,
         OrderType orderType,
         OrderStatus status,
         PaymentStatus paymentStatus,
@@ -41,7 +43,7 @@ public record OrderResponse(
     public static OrderResponse from(Order o) {
         return new OrderResponse(
                 o.getId(), o.getOrderNumber(), o.getTrackingToken(), o.getRestaurantId(), o.getBranchId(),
-                o.getTableId(), o.getCustomerName(), o.getCustomerPhone(), o.getOrderType(), o.getStatus(),
+                o.getTableId(), o.getCustomerName(), o.getCustomerPhone(), o.getCarPlate(), o.getCarColor(), o.getOrderType(), o.getStatus(),
                 o.getPaymentStatus(), o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(),
                 o.getDeclineReason(), o.getCustomerNote(), o.getInternalNote(),
                 o.getItems().stream().map(OrderItemResponse::from).toList(),

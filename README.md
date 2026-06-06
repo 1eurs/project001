@@ -1,8 +1,8 @@
-# CafeQR — QR Ordering Platform Backend
+# Serva. — QR Ordering Platform Backend
 
-A clean, production-style **modular monolith** backend for small Oman cafes. Customers scan a
-QR code at their table, browse a bilingual (AR/EN) menu, place an order, and track it live.
-Cafe staff manage orders from a dashboard with real‑time updates.
+A clean, production-style **modular monolith** backend for small Oman restaurants and cafes.
+Customers scan a QR code at their table or from their car, browse a bilingual (AR/EN) menu, place an
+order, and track it live. Venue staff manage orders from a dashboard with real-time updates.
 
 No frontend is included — but every API a React/Next.js frontend needs is implemented.
 
@@ -175,9 +175,9 @@ POST /api/payments/orders/{orderId}/mark-failed
 `method` is one of `CASH | CARD | ONLINE | OTHER`. A real gateway (Thawani/Tap) can later settle
 orders with `method=ONLINE` and a real provider id without changing any callers.
 
-## Cafe subscriptions (billing the platform)
+## Venue subscriptions (billing the platform)
 
-A separate money flow from customer payments: how each **cafe pays the platform** for CafeQR. A
+A separate money flow from customer payments: how each **venue pays the platform** for Serva. A
 subscription has a `billingCycle` of **`ONE_TIME`** (single lifetime payment) or **`MONTHLY` / `YEARLY`**
 (recurring), a per-cycle `price`, a `status` (`TRIAL|ACTIVE|PAST_DUE|CANCELLED|EXPIRED`), and dates.
 One-time plans default to `ACTIVE`; recurring plans default to `TRIAL`. The response exposes a derived

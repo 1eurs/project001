@@ -16,6 +16,8 @@ public record RestaurantResponse(
         String currency,
         boolean vatEnabled,
         BigDecimal vatRate,
+        String theme,
+        String themeCustomJson,
         boolean active,
         Instant createdAt,
         Instant updatedAt
@@ -23,7 +25,7 @@ public record RestaurantResponse(
     public static RestaurantResponse from(Restaurant r) {
         return new RestaurantResponse(
                 r.getId(), r.getName(), r.getSlug(), r.getLogoUrl(), r.getPhone(), r.getEmail(),
-                r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(), r.isActive(),
+                r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(), r.getTheme(), r.getThemeCustomJson(), r.isActive(),
                 r.getCreatedAt(), r.getUpdatedAt());
     }
 }
