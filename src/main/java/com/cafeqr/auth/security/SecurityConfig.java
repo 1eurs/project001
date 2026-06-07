@@ -1,6 +1,8 @@
 package com.cafeqr.auth.security;
 
 import com.cafeqr.common.config.AppProperties;
+import com.cafeqr.common.ratelimit.RateLimitFilter;
+import com.cafeqr.common.ratelimit.RateLimiter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,15 +30,18 @@ public class SecurityConfig {
     private final RestAuthenticationEntryPoint authenticationEntryPoint;
     private final RestAccessDeniedHandler accessDeniedHandler;
     private final AppProperties appProperties;
+    private final RateLimiter rateLimiter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           RestAuthenticationEntryPoint authenticationEntryPoint,
                           RestAccessDeniedHandler accessDeniedHandler,
-                          AppProperties appProperties) {
+                          AppProperties appProperties,
+                          RateLimiter rateLimiter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.appProperties = appProperties;
+        this.rateLimiter = rateLimiter;
     }
 
     @Bean
@@ -47,7 +52,8 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh",
-                                "/api/auth/register-platform-admin").permitAll()
+                                "/api/auth/register-platform-admin",
+                                "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         .requestMatchers("/api/public/**", "/files/**").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
                                 "/actuator/health").permitAll()
@@ -55,9 +61,19 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(rateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private RateLimitFilter rateLimitFilter() {
+        AppProperties.RateLimit rl = appProperties.rateLimit();
+        return new RateLimitFilter(
+                rateLimiter,
+                rl == null || rl.enabledOrDefault(),
+                rl != null ? rl.authPerMinuteOrDefault() : 10,
+                rl != null ? rl.publicPerMinuteOrDefault() : 8);
     }
 
     @Bean

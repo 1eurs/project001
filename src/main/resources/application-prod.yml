@@ -1,0 +1,17 @@
+# Production profile. Activate with SPRING_PROFILES_ACTIVE=prod.
+# Requires a real APP_JWT_SECRET (the app refuses to start with the committed default — see SecretValidation).
+spring:
+  jpa:
+    show-sql: false
+
+# No dev bootstrap admin in prod — create the first platform admin via
+# POST /api/auth/register-platform-admin (works only while none exists).
+app:
+  bootstrap:
+    enabled: false
+
+logging:
+  level:
+    com.cafeqr: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN

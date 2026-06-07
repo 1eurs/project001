@@ -1,6 +1,7 @@
 package com.cafeqr.subscriptions.dto;
 
 import com.cafeqr.subscriptions.domain.BillingCycle;
+import com.cafeqr.subscriptions.domain.PaymentMethod;
 import com.cafeqr.subscriptions.domain.Subscription;
 import com.cafeqr.subscriptions.domain.SubscriptionStatus;
 
@@ -17,6 +18,9 @@ public record SubscriptionResponse(
         SubscriptionStatus status,
         LocalDate startDate,
         LocalDate endDate,
+        PaymentMethod paymentMethod,
+        String paymentReference,
+        Instant paymentConfirmedAt,
         /** Convenience flag: TRIAL/ACTIVE and not past its end date. */
         boolean currentlyActive,
         Instant createdAt,
@@ -25,7 +29,8 @@ public record SubscriptionResponse(
     public static SubscriptionResponse from(Subscription s) {
         return new SubscriptionResponse(
                 s.getId(), s.getRestaurantId(), s.getPlanName(), s.getBillingCycle(), s.getPrice(),
-                s.getStatus(), s.getStartDate(), s.getEndDate(), isActive(s),
+                s.getStatus(), s.getStartDate(), s.getEndDate(),
+                s.getPaymentMethod(), s.getPaymentReference(), s.getPaymentConfirmedAt(), isActive(s),
                 s.getCreatedAt(), s.getUpdatedAt());
     }
 

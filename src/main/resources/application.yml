@@ -67,3 +67,37 @@ app:
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8080}
   cors:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
+  # Annual subscription fee + the bank details shown to cafés (used for signup AND renewals).
+  # >>> CHANGE_ME: replace the placeholders below with your real bank details + price. <<<
+  onboarding:
+    plan-name: ${APP_ONBOARDING_PLAN:Annual}
+    price: ${APP_ONBOARDING_PRICE:29.000}             # per-year fee
+    currency: ${APP_ONBOARDING_CURRENCY:OMR}
+    bank-name: ${APP_ONBOARDING_BANK_NAME:CHANGE_ME - Bank Muscat}
+    account-name: ${APP_ONBOARDING_ACCOUNT_NAME:CHANGE_ME - Serva LLC}
+    account-number: ${APP_ONBOARDING_ACCOUNT_NUMBER:CHANGE_ME - 0000000000}
+    iban: ${APP_ONBOARDING_IBAN:CHANGE_ME - OM00 0000 0000 0000 0000 0000}
+  # Subscription lifecycle (annual model): term length, grace after lapse, renewal reminders.
+  subscription:
+    term-months: ${APP_SUB_TERM_MONTHS:12}
+    grace-days: ${APP_SUB_GRACE_DAYS:7}
+    reminder-days-before: ${APP_SUB_REMINDER_DAYS:14,7,1}
+  # Per-IP request limits on sensitive public endpoints (uses X-Forwarded-For behind nginx).
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    auth-per-minute: ${APP_RATE_LIMIT_AUTH:10}
+    public-per-minute: ${APP_RATE_LIMIT_PUBLIC:8}
+  # Outbound channels. Each stays 'log' (no real sending) until its provider + credentials are set.
+  notifications:
+    email:                                         # Brevo (free tier) for transactional email
+      provider: ${APP_EMAIL_PROVIDER:log}          # set to 'brevo' to actually send
+      brevo-api-key: ${BREVO_API_KEY:}
+      from: ${APP_EMAIL_FROM:Serva <onboarding@example.com>}
+      admin-alert-to: ${APP_ADMIN_ALERT_EMAIL:}    # where 'new café signup' alerts go (optional)
+    sms:                                           # Infobip — deferred paid feature, integration ready
+      provider: ${APP_SMS_PROVIDER:log}            # set to 'infobip' to actually send
+      from: ${APP_SMS_FROM:Serva}                  # approved alphanumeric sender id (or number)
+      default-country-code: ${APP_SMS_COUNTRY_CODE:968}
+    infobip:                                       # SMS credentials
+      base-url: ${INFOBIP_BASE_URL:}               # your personalised host, e.g. xxxxx.api.infobip.com
+      api-key: ${INFOBIP_API_KEY:}

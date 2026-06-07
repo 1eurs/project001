@@ -10,7 +10,7 @@ import './site.css';
 
 const T: Dict = {
   ar: {
-    nav_idea: 'الفكرة', nav_how: 'كيف يعمل', nav_demo: 'العرض', nav_req: 'اطلب حسابك', nav_signin: 'دخول',
+    nav_idea: 'الفكرة', nav_how: 'كيف يعمل', nav_demo: 'العرض', nav_req: 'اطلب حسابك', nav_signin: 'دخول', cta_start: 'ابدأ الآن',
     kicker: 'طلبك على بُعد مسحة واحدة.',
     h1a: 'اطلب من', h1b: 'سيارتك', trans: 'Order from your car.',
     sub: 'أو من طاولتك — أينما كنت.',
@@ -33,10 +33,10 @@ const T: Dict = {
     f_cafe: 'اسم العربة / المقهى', f_name: 'اسمك', f_phone: 'رقم الجوال', f_city: 'المدينة', f_note: 'ملاحظة (اختياري)',
     f_send: 'أرسل الطلب', f_sending: 'جارٍ الإرسال…', f_okh: 'وصلنا طلبك ✓', f_okp: 'شكراً لك — سنتواصل معك قريباً.',
     foot_demo: 'العرض', foot_dash: 'لوحة العربة', foot_admin: 'لوحة المنصّة', foot_contact: 'تواصل',
-    foot_privacy: 'الخصوصية', foot_terms: 'الشروط', foot_made: 'صُنع لعربات ومقاهي عُمان', foot_rights: 'جميع الحقوق محفوظة',
+    foot_privacy: 'الخصوصية', foot_terms: 'الشروط', foot_refund: 'الاسترداد', foot_made: 'صُنع لعربات ومقاهي عُمان', foot_rights: 'جميع الحقوق محفوظة',
   },
   en: {
-    nav_idea: 'Idea', nav_how: 'How', nav_demo: 'Demo', nav_req: 'Request access', nav_signin: 'Sign in',
+    nav_idea: 'Idea', nav_how: 'How', nav_demo: 'Demo', nav_req: 'Request access', nav_signin: 'Sign in', cta_start: 'Start now',
     kicker: 'Your order, one scan away.',
     h1a: 'Order from', h1b: 'your car', trans: 'اطلب من سيارتك.',
     sub: 'or your table — wherever you are.',
@@ -59,7 +59,7 @@ const T: Dict = {
     f_cafe: 'Truck / café name', f_name: 'Your name', f_phone: 'Phone number', f_city: 'City', f_note: 'Note (optional)',
     f_send: 'Send request', f_sending: 'Sending…', f_okh: 'Got your request ✓', f_okp: 'Thank you — we’ll be in touch shortly.',
     foot_demo: 'Demo', foot_dash: 'Truck dashboard', foot_admin: 'Platform', foot_contact: 'Contact',
-    foot_privacy: 'Privacy', foot_terms: 'Terms', foot_made: 'Made for Omani trucks & cafés', foot_rights: 'All rights reserved',
+    foot_privacy: 'Privacy', foot_terms: 'Terms', foot_refund: 'Refunds', foot_made: 'Made for Omani trucks & cafés', foot_rights: 'All rights reserved',
   },
 };
 
@@ -90,6 +90,7 @@ export default function LandingPage() {
             <a href="#request">{t('nav_req')}</a>
           </div>
           <div className="ed-tools">
+            <Link className="ed-signin" to="/signup">{t('cta_start')}</Link>
             <Link className="ed-signin" to="/dashboard">{t('nav_signin')}</Link>
             <ThemeToggle /><LangToggle />
           </div>
@@ -102,7 +103,7 @@ export default function LandingPage() {
         <div className="ed-trans rv" style={{ animationDelay: '.12s' }}>{t('trans')} <span className="ed-or">{t('sub')}</span></div>
         <p className="ed-lead rv" style={{ animationDelay: '.18s' }}>{t('lead')}</p>
         <div className="ed-actions rv" style={{ animationDelay: '.24s' }}>
-          <a className="ed-link" href="#request">{t('cta_req')} ↗</a>
+          <Link className="ed-link" to="/signup">{t('cta_start')} ↗</Link>
           <Link className="ed-link alt" to={customerUrl}>{t('cta_demo')}</Link>
         </div>
         <div className="ed-stepline rv" style={{ animationDelay: '.3s' }}>
@@ -179,7 +180,7 @@ export default function LandingPage() {
           <span className="mono">© {new Date().getFullYear()} {BRAND.name}</span>
           <span>· {t('foot_rights')}</span>
           <span className="sp" />
-          <a href="#">{t('foot_privacy')}</a><a href="#">{t('foot_terms')}</a>
+          <Link to="/privacy">{t('foot_privacy')}</Link><Link to="/terms">{t('foot_terms')}</Link><Link to="/refund">{t('foot_refund')}</Link>
           <span>· {t('foot_made')}</span>
         </div>
       </footer>

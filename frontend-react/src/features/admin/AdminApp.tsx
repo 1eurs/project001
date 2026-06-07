@@ -6,7 +6,7 @@ import { useI18n, useT, LangToggle, type Dict } from '../../lib/i18n';
 import { ThemeToggle } from '../../lib/theme';
 import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
-import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle } from '../../lib/types';
+import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle, PendingOnboarding } from '../../lib/types';
 import { DEMO } from '../../lib/demo';
 import { BRAND } from '../../lib/brand';
 import Login from '../auth/Login';
@@ -19,20 +19,30 @@ const DICT: Dict = {
         thName: 'المطعم', thContact: 'التواصل', thVat: 'الضريبة', thStatus: 'الحالة', thCreated: 'الإنشاء',
         info: 'المعلومات', slug: 'المعرّف', phone: 'الهاتف', email: 'البريد', vat: 'القيمة المضافة', created: 'الإنشاء', currency: 'العملة',
         subscription: 'الاشتراك', plan: 'الخطة', cycle: 'الدورة', price: 'السعر', status: 'الحالة', noSub: 'لا يوجد اشتراك', addSub: 'إضافة اشتراك', editSub: 'تعديل الاشتراك',
+        endDate: 'ينتهي', renew: 'تجديد', renewed: 'تم التجديد الاشتراك', expired: 'منتهٍ', expiringSoon: 'قريب الانتهاء',
         activate: 'تفعيل', deactivate: 'إيقاف', save: 'حفظ', cancel: 'إلغاء', create: 'إنشاء',
         createT: 'إنشاء مطعم', createP: 'يُنشأ المطعم وحساب المالك (اختياري) معاً.',
         rName: 'اسم المطعم', rSlug: 'المعرّف (slug)', oName: 'اسم المالك', oEmail: 'بريد المالك', oPass: 'كلمة المرور',
-        loginTitle: 'منصّة Serva.', loginSub: 'دخول مدير المنصّة', createdOk: 'تم الإنشاء', saved: 'تم الحفظ', enabled: 'مفعّل', disabled: 'متوقف' },
+        loginTitle: 'منصّة Serva.', loginSub: 'دخول مدير المنصّة', createdOk: 'تم الإنشاء', saved: 'تم الحفظ', enabled: 'مفعّل', disabled: 'متوقف',
+        navRestaurants: 'المطاعم', navOnboarding: 'طلبات الاشتراك', onboarding: 'طلبات الاشتراك',
+        kPending: 'بانتظار الدفع', thCafe: 'المقهى', thOwner: 'المالك', thAmount: 'المبلغ', thRef: 'المرجع', thActions: 'إجراءات',
+        confirmPay: 'تأكيد الدفع', reject: 'رفض', confirmed: 'تم تأكيد الدفع', rejected: 'تم رفض الطلب', noPending: 'لا توجد طلبات بانتظار الدفع',
+        rejectConfirm: 'رفض هذا الطلب؟ سيبقى المقهى غير مُفعّل.' },
   en: { restaurants: 'Restaurants', cur: 'OMR', logoutT: 'Logout',
         kTotal: 'Total restaurants', kActive: 'Active', kInactive: 'Inactive', kNew: 'New this month',
         search: 'Search name or slug…', all: 'All', active: 'Active', inactive: 'Inactive', newR: '＋ New restaurant',
         thName: 'Restaurant', thContact: 'Contact', thVat: 'VAT', thStatus: 'Status', thCreated: 'Created',
         info: 'Details', slug: 'Slug', phone: 'Phone', email: 'Email', vat: 'VAT', created: 'Created', currency: 'Currency',
         subscription: 'Subscription', plan: 'Plan', cycle: 'Cycle', price: 'Price', status: 'Status', noSub: 'No subscription', addSub: 'Add subscription', editSub: 'Edit subscription',
+        endDate: 'Ends', renew: 'Renew', renewed: 'Subscription renewed', expired: 'Expired', expiringSoon: 'Expiring soon',
         activate: 'Activate', deactivate: 'Deactivate', save: 'Save', cancel: 'Cancel', create: 'Create',
         createT: 'Create restaurant', createP: 'Creates the restaurant and (optionally) the owner account.',
         rName: 'Restaurant name', rSlug: 'Slug', oName: 'Owner name', oEmail: 'Owner email', oPass: 'Password',
-        loginTitle: 'Serva. platform', loginSub: 'Platform admin sign-in', createdOk: 'Created', saved: 'Saved', enabled: 'On', disabled: 'Off' },
+        loginTitle: 'Serva. platform', loginSub: 'Platform admin sign-in', createdOk: 'Created', saved: 'Saved', enabled: 'On', disabled: 'Off',
+        navRestaurants: 'Restaurants', navOnboarding: 'Onboarding', onboarding: 'Onboarding',
+        kPending: 'Awaiting payment', thCafe: 'Café', thOwner: 'Owner', thAmount: 'Amount', thRef: 'Reference', thActions: 'Actions',
+        confirmPay: 'Confirm payment', reject: 'Reject', confirmed: 'Payment confirmed', rejected: 'Onboarding rejected', noPending: 'No cafés awaiting payment',
+        rejectConfirm: 'Reject this signup? The café stays inactive.' },
 };
 
 const SUB_STATUSES: SubscriptionStatus[] = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'EXPIRED'];
@@ -54,11 +64,20 @@ function AdminInner() {
   const toast = useToast();
   const qc = useQueryClient();
 
+  const [view, setView] = useState<'restaurants' | 'onboarding'>('restaurants');
+
   const { data: raw } = useQuery({
     queryKey: ['admin-restaurants'],
     queryFn: () => api.get<any>('/api/admin/restaurants'),
   });
   const restaurants: Restaurant[] = Array.isArray(raw) ? raw : raw?.content ?? [];
+
+  // Loaded always so the rail badge shows the pending count regardless of the active view.
+  const { data: pending } = useQuery({
+    queryKey: ['admin-onboarding'],
+    queryFn: () => api.get<PendingOnboarding[]>('/api/admin/onboarding'),
+  });
+  const pendingCount = pending?.length ?? 0;
 
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [query, setQuery] = useState('');
@@ -89,13 +108,18 @@ function AdminInner() {
     <div className="adm">
       <aside className="arail">
         <div className="logo">S.</div>
-        <nav className="nav"><button className="on">🏪</button></nav>
+        <nav className="nav">
+          <button className={view === 'restaurants' ? 'on' : ''} title={t('navRestaurants')} onClick={() => setView('restaurants')}>🏪</button>
+          <button className={view === 'onboarding' ? 'on' : ''} title={t('navOnboarding')} onClick={() => setView('onboarding')}>
+            ⏳{pendingCount > 0 && <span className="nbadge">{pendingCount}</span>}
+          </button>
+        </nav>
         <button className="out" title={t('logoutT')} onClick={() => logout()}>⏻</button>
       </aside>
 
       <div className="amain">
         <div className="atop">
-          <div><h2>{t('restaurants')}</h2><div className="crumb">/admin/restaurants</div></div>
+          <div><h2>{view === 'onboarding' ? t('onboarding') : t('restaurants')}</h2><div className="crumb">/admin/{view}</div></div>
           <div className="spacer" />
           <ThemeToggle />
           <LangToggle />
@@ -103,6 +127,10 @@ function AdminInner() {
         </div>
 
         <div className="acontent">
+          {view === 'onboarding' ? (
+            <OnboardingView t={t} />
+          ) : (
+          <>
           <div className="kpis">
             <Kpi color="var(--accent)" label={t('kTotal')} val={kpis.total} />
             <Kpi color="var(--green)" label={t('kActive')} val={kpis.active} />
@@ -139,6 +167,8 @@ function AdminInner() {
               ))}
             </tbody>
           </table>
+          </>
+          )}
         </div>
       </div>
 
@@ -157,8 +187,76 @@ const Kpi = ({ color, label, val }: { color: string; label: string; val: number 
   <div className="kpi"><div className="lab"><span className="ic" style={{ background: color }} />{label}</div><div className="val">{val}</div></div>
 );
 
+function OnboardingView({ t }: { t: (k: string) => string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [busy, setBusy] = useState<number | null>(null);
+
+  const { data } = useQuery({
+    queryKey: ['admin-onboarding'],
+    queryFn: () => api.get<PendingOnboarding[]>('/api/admin/onboarding'),
+  });
+  const rows = data ?? [];
+
+  const act = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'confirm' | 'reject' }) =>
+      api.post(`/api/admin/onboarding/${id}/${action}`),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['admin-onboarding'] });
+      qc.invalidateQueries({ queryKey: ['admin-restaurants'] });
+      toast(v.action === 'confirm' ? t('confirmed') : t('rejected'));
+    },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+    onSettled: () => setBusy(null),
+  });
+
+  return (
+    <>
+      <div className="kpis">
+        <Kpi color="var(--amber)" label={t('kPending')} val={rows.length} />
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--faint)' }}>{t('noPending')}</div>
+      ) : (
+        <table className="tbl">
+          <thead><tr>
+            <th>{t('thCafe')}</th><th className="hide-sm">{t('thOwner')}</th><th className="hide-sm">{t('thRef')}</th>
+            <th>{t('thAmount')}</th><th className="hide-sm">{t('thCreated')}</th><th>{t('thActions')}</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.restaurantId}>
+                <td><div className="rcell"><div className="rlogo" style={{ background: hue(r.restaurantId) }}>{r.cafeName.charAt(0)}</div>
+                  <div><div className="rname">{r.cafeName}</div><div className="rslug">{r.slug}</div></div></div></td>
+                <td className="hide-sm"><div>{r.ownerName || '—'}</div><div className="rslug">{r.ownerEmail || ''}</div></td>
+                <td className="hide-sm"><span className="num">{r.reference}</span></td>
+                <td><span className="num">{omr(r.amount)} {t('cur')}</span></td>
+                <td className="hide-sm"><span className="num" style={{ color: 'var(--muted)' }}>{r.createdAt?.slice(0, 10)}</span></td>
+                <td>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn sm" disabled={act.isPending}
+                            onClick={() => { setBusy(r.restaurantId); act.mutate({ id: r.restaurantId, action: 'confirm' }); }}>
+                      {busy === r.restaurantId && act.isPending ? '…' : t('confirmPay')}
+                    </button>
+                    <button className="btn sm danger" disabled={act.isPending}
+                            onClick={() => { if (window.confirm(t('rejectConfirm'))) { setBusy(r.restaurantId); act.mutate({ id: r.restaurantId, action: 'reject' }); } }}>
+                      {t('reject')}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
 function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onToggle: () => void; onEditSub: () => void; onClose: () => void }) {
   const t = useT(DICT);
+  const qc = useQueryClient();
+  const toast = useToast();
   const { data: sub } = useQuery({
     queryKey: ['sub', r.id],
     queryFn: async (): Promise<Subscription | null> => {
@@ -167,6 +265,21 @@ function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onTogg
     },
     retry: false,
   });
+
+  const renew = useMutation({
+    mutationFn: () => api.post(`/api/admin/onboarding/${r.id}/renew`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sub', r.id] });
+      qc.invalidateQueries({ queryKey: ['admin-restaurants'] });
+      toast(t('renewed'));
+    },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  // Days until the term ends (annual subs only; lifetime/ONE_TIME have no end date).
+  const daysLeft = sub?.endDate ? Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000) : null;
+  const expiryChip = daysLeft == null ? '' : daysLeft < 0 ? 'bad' : daysLeft <= 14 ? 'warn' : 'ok';
+  const expiryLabel = daysLeft == null ? '' : daysLeft < 0 ? t('expired') : daysLeft <= 14 ? t('expiringSoon') : '';
 
   return (
     <>
@@ -192,12 +305,18 @@ function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onTogg
               <div className="kv"><span className="k">{t('cycle')}</span><span className="v num">{sub.billingCycle}</span></div>
               <div className="kv"><span className="k">{t('price')}</span><span className="v num">{omr(sub.price)} {t('cur')}</span></div>
               <div className="kv"><span className="k">{t('status')}</span><span className="v"><span className={'chip ' + subClass(sub.status)}><span className="d" />{sub.status}</span></span></div>
+              {sub.endDate && (
+                <div className="kv"><span className="k">{t('endDate')}</span><span className="v num">
+                  {sub.endDate}{expiryLabel && <span className={'chip ' + expiryChip} style={{ marginInlineStart: 8 }}>{expiryLabel}</span>}
+                </span></div>
+              )}
             </div>
           ) : <div className="subbox" style={{ color: 'var(--faint)', fontSize: 13 }}>{t('noSub')}</div>}
         </div>
       </div>
       <div className="drawer-ft">
         {r.active ? <button className="btn danger" onClick={onToggle}>{t('deactivate')}</button> : <button className="btn" onClick={onToggle}>{t('activate')}</button>}
+        {sub?.endDate && <button className="btn" disabled={renew.isPending} onClick={() => renew.mutate()}>{renew.isPending ? '…' : t('renew')}</button>}
         <button className="btn ghost" onClick={onEditSub}>{sub ? t('editSub') : t('addSub')}</button>
       </div>
     </>

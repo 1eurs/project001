@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 
 @Entity
@@ -37,6 +38,27 @@ public class Subscription extends BaseEntity {
 
     @Column(name = "end_date")
     private LocalDate endDate;
+
+    /** How the café paid the platform. Null until a payment is recorded (e.g. self-serve onboarding). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private PaymentMethod paymentMethod;
+
+    /** Code the café cites in their bank transfer so an admin can reconcile it. */
+    @Column(name = "payment_reference", length = 40)
+    private String paymentReference;
+
+    /** When a platform admin confirmed the bank transfer was received. */
+    @Column(name = "payment_confirmed_at")
+    private Instant paymentConfirmedAt;
+
+    /** The platform admin (user id) who confirmed the payment. */
+    @Column(name = "payment_confirmed_by")
+    private Long paymentConfirmedBy;
+
+    /** Date a renewal reminder was last emailed, so the lifecycle job doesn't resend the same day. */
+    @Column(name = "last_reminder_on")
+    private LocalDate lastReminderOn;
 
     public Long getRestaurantId() {
         return restaurantId;
@@ -92,5 +114,45 @@ public class Subscription extends BaseEntity {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    public PaymentMethod getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(PaymentMethod paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public String getPaymentReference() {
+        return paymentReference;
+    }
+
+    public void setPaymentReference(String paymentReference) {
+        this.paymentReference = paymentReference;
+    }
+
+    public Instant getPaymentConfirmedAt() {
+        return paymentConfirmedAt;
+    }
+
+    public void setPaymentConfirmedAt(Instant paymentConfirmedAt) {
+        this.paymentConfirmedAt = paymentConfirmedAt;
+    }
+
+    public Long getPaymentConfirmedBy() {
+        return paymentConfirmedBy;
+    }
+
+    public void setPaymentConfirmedBy(Long paymentConfirmedBy) {
+        this.paymentConfirmedBy = paymentConfirmedBy;
+    }
+
+    public LocalDate getLastReminderOn() {
+        return lastReminderOn;
+    }
+
+    public void setLastReminderOn(LocalDate lastReminderOn) {
+        this.lastReminderOn = lastReminderOn;
     }
 }

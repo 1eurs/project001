@@ -141,3 +141,29 @@ html[data-theme="light"] .ed{
 .ed-ok-mk{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;margin:0 auto 16px;background:var(--accent);color:var(--accent-ink);font-size:24px;font-weight:700}
 .ed-ok h3{font-family:var(--font-disp);font-size:30px;font-weight:600}
 .ed-ok p{color:var(--muted);margin-top:8px}
+
+/* signup → bank-transfer instructions */
+.ed-pay{margin-top:32px;max-width:620px;animation:edrv .6s ease both}
+.ed-pay .ed-ok-mk{margin:0 0 18px}
+.ed-pay-h{font-family:var(--font-disp);font-size:30px;font-weight:600}
+.ed-pay-p{color:var(--muted);margin-top:8px;line-height:1.6;max-width:54ch}
+.ed-pay-hero{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:26px}
+@media(max-width:560px){.ed-pay-hero{grid-template-columns:1fr}}
+.ed-pay-amount,.ed-pay-ref{display:flex;flex-direction:column;gap:6px;padding:18px 20px;border:1px solid var(--line-2);border-radius:16px;background:var(--canvas);text-align:start}
+.ed-pay-ref{position:relative;cursor:pointer;transition:border-color .15s}
+.ed-pay-ref:hover{border-color:var(--accent)}
+.ed-pay-hero .lab{font-size:12px;letter-spacing:.04em;color:var(--faint)}
+.ed-pay-amount .val{font-family:var(--font-disp);font-size:38px;font-weight:600;line-height:1}
+.ed-pay-amount .val small{font-size:16px;color:var(--muted);font-family:var(--font-mono)}
+.ed-pay-ref .val{font-family:var(--font-mono);font-size:24px;color:var(--accent-text);letter-spacing:.02em}
+.ed-pay-ref .cp{position:absolute;inset-inline-end:14px;top:14px;font-size:11px;color:var(--faint)}
+.ed-pay-rows{margin-top:18px;border-top:1px solid var(--line)}
+.ed-pay-row{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
+.ed-pay-row .k{font-size:13px;color:var(--muted);min-width:120px}
+.ed-pay-row .v{flex:1;color:var(--text);font-size:15px;word-break:break-word}
+.ed-copy{border:1px solid var(--line-2);background:transparent;color:var(--muted);border-radius:8px;width:30px;height:30px;cursor:pointer;transition:.15s;flex:0 0 auto}
+.ed-copy:hover{border-color:var(--accent);color:var(--accent-text)}
+.ed-pay-next{margin-top:26px;padding:22px;border:1px dashed var(--line-2);border-radius:16px}
+.ed-pay-next h4{font-size:14px;letter-spacing:.02em}
+.ed-pay-next p{color:var(--muted);margin-top:6px;line-height:1.55;font-size:14.5px}
+.ed-pay-next .ed-link{margin-top:14px;font-size:15px}

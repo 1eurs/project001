@@ -1,15 +1,19 @@
 package com.cafeqr.auth;
 
+import com.cafeqr.auth.domain.PasswordResetToken;
 import com.cafeqr.auth.domain.RefreshToken;
 import com.cafeqr.auth.dto.AuthResponse;
 import com.cafeqr.auth.dto.LoginRequest;
 import com.cafeqr.auth.dto.RefreshRequest;
 import com.cafeqr.auth.dto.RegisterPlatformAdminRequest;
 import com.cafeqr.auth.dto.UserResponse;
+import com.cafeqr.auth.event.PasswordResetRequestedEvent;
+import com.cafeqr.auth.repository.PasswordResetTokenRepository;
 import com.cafeqr.auth.repository.RefreshTokenRepository;
 import com.cafeqr.auth.security.CustomUserDetails;
 import com.cafeqr.auth.security.JwtService;
 import com.cafeqr.common.config.AppProperties;
+import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
@@ -18,6 +22,7 @@ import com.cafeqr.common.util.Tokens;
 import com.cafeqr.users.domain.Role;
 import com.cafeqr.users.domain.User;
 import com.cafeqr.users.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -31,24 +36,33 @@ import java.time.temporal.ChronoUnit;
 @Service
 public class AuthService {
 
+    /** How long a password-reset link stays valid. */
+    private static final long RESET_TTL_MINUTES = 60;
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final ApplicationEventPublisher events;
     private final long refreshTtlDays;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
+                       PasswordResetTokenRepository passwordResetTokenRepository,
                        JwtService jwtService,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
+                       ApplicationEventPublisher events,
                        AppProperties appProperties) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
+        this.events = events;
         this.refreshTtlDays = appProperties.jwt().refreshTokenTtlDays();
     }
 
@@ -107,6 +121,48 @@ public class AuthService {
     @Transactional
     public void logout(Long userId) {
         refreshTokenRepository.revokeAllForUser(userId);
+    }
+
+    /**
+     * Issues a single-use reset token and emails a link. Always returns normally regardless of
+     * whether the email exists, so callers can't enumerate accounts.
+     */
+    @Transactional
+    public void forgotPassword(String email) {
+        userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
+            if (!user.isActive()) {
+                return; // disabled accounts (e.g. awaiting onboarding payment) can't reset
+            }
+            passwordResetTokenRepository.invalidateAllForUser(user.getId());
+
+            PasswordResetToken token = new PasswordResetToken();
+            token.setUserId(user.getId());
+            token.setToken(Tokens.random(48));
+            token.setExpiresAt(Instant.now().plus(RESET_TTL_MINUTES, ChronoUnit.MINUTES));
+            token.setUsed(false);
+            token.setCreatedAt(Instant.now());
+            passwordResetTokenRepository.save(token);
+
+            // Emailed after commit (so a rollback never sends a live reset link).
+            events.publishEvent(new PasswordResetRequestedEvent(
+                    user.getEmail(), user.getFullName(), token.getToken()));
+        });
+    }
+
+    /** Consumes a reset token, sets the new password, and revokes existing sessions. */
+    @Transactional
+    public void resetPassword(String rawToken, String newPassword) {
+        PasswordResetToken token = passwordResetTokenRepository.findByToken(rawToken)
+                .filter(PasswordResetToken::isUsable)
+                .orElseThrow(() -> new BadRequestException(
+                        ErrorCode.TOKEN_INVALID, "This reset link is invalid or has expired"));
+
+        User user = userRepository.findById(token.getUserId())
+                .orElseThrow(() -> ResourceNotFoundException.of("User", token.getUserId()));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+
+        token.setUsed(true);
+        refreshTokenRepository.revokeAllForUser(user.getId()); // force re-login everywhere
     }
 
     @Transactional(readOnly = true)

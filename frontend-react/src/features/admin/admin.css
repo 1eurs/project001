@@ -6,6 +6,7 @@
 .arail .nav{display:flex;flex-direction:column;gap:4px;flex:1;align-items:center;margin-top:10px}
 .arail .nav button{width:48px;height:48px;border-radius:13px;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;position:relative;display:grid;place-items:center;transition:.2s}
 .arail .nav button.on{background:var(--surface-2);color:var(--accent)}
+.arail .nav button .nbadge{position:absolute;top:3px;inset-inline-end:3px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--bad);color:#fff;font-family:var(--font-mono);font-size:10px;font-weight:700;display:grid;place-items:center;line-height:1}
 .arail .out{width:48px;height:48px;border-radius:13px;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}
 
 .amain{flex:1;display:flex;flex-direction:column;min-width:0}

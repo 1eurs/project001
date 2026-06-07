@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { login, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useI18n, LangToggle } from '../../lib/i18n';
@@ -32,8 +33,8 @@ export default function Login({ mark = '◆', title, subtitle, demo }: Props) {
   }
 
   const L = lang === 'ar'
-    ? { email: 'البريد الإلكتروني', pass: 'كلمة المرور', enter: 'دخول', note: 'عرض تجريبي' }
-    : { email: 'Email', pass: 'Password', enter: 'Sign in', note: 'Demo' };
+    ? { email: 'البريد الإلكتروني', pass: 'كلمة المرور', enter: 'دخول', note: 'عرض تجريبي', forgot: 'نسيت كلمة المرور؟' }
+    : { email: 'Email', pass: 'Password', enter: 'Sign in', note: 'Demo', forgot: 'Forgot password?' };
 
   return (
     <div className="login">
@@ -46,6 +47,7 @@ export default function Login({ mark = '◆', title, subtitle, demo }: Props) {
         <div className="field"><label>{L.pass}</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></div>
         <button className="btn full" disabled={loading}>{loading ? '…' : L.enter}</button>
+        <div className="demo-note"><Link to="/forgot-password">{L.forgot}</Link></div>
         {demo && <div className="demo-note">{L.note} · {demo.email}</div>}
       </form>
     </div>

@@ -42,6 +42,24 @@ public class RestaurantService {
         return RestaurantResponse.from(restaurantRepository.save(restaurant));
     }
 
+    /**
+     * Creates an <b>inactive</b> restaurant for self-serve onboarding (reusing slug resolution).
+     * It stays inactive — and its public menu offline — until an admin confirms payment.
+     */
+    @Transactional
+    public Restaurant createPending(String name, String slug, String phone, String email) {
+        Restaurant restaurant = new Restaurant();
+        restaurant.setName(name);
+        restaurant.setSlug(resolveSlug(slug, name));
+        restaurant.setPhone(phone);
+        restaurant.setEmail(email);
+        restaurant.setCurrency("OMR");
+        restaurant.setVatEnabled(true);
+        restaurant.setVatRate(new BigDecimal("5"));
+        restaurant.setActive(false);
+        return restaurantRepository.save(restaurant);
+    }
+
     @Transactional(readOnly = true)
     public Page<RestaurantResponse> list(Boolean active, Pageable pageable) {
         Page<Restaurant> page = (active == null)

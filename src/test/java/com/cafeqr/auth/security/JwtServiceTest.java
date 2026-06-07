@@ -14,7 +14,7 @@ class JwtServiceTest {
 
     private final JwtService jwtService = new JwtService(new AppProperties(
             new AppProperties.Jwt(SECRET, 60, 30, "cafeqr"),
-            null, "http://localhost:8080", null, null));
+            null, "http://localhost:8080", null, null, null, null, null, null));
 
     @Test
     void generatesAndParsesTokenPreservingClaims() {

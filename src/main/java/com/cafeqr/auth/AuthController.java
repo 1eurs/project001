@@ -1,9 +1,11 @@
 package com.cafeqr.auth;
 
 import com.cafeqr.auth.dto.AuthResponse;
+import com.cafeqr.auth.dto.ForgotPasswordRequest;
 import com.cafeqr.auth.dto.LoginRequest;
 import com.cafeqr.auth.dto.RefreshRequest;
 import com.cafeqr.auth.dto.RegisterPlatformAdminRequest;
+import com.cafeqr.auth.dto.ResetPasswordRequest;
 import com.cafeqr.auth.dto.UserResponse;
 import com.cafeqr.auth.security.CustomUserDetails;
 import com.cafeqr.auth.security.SecurityUtils;
@@ -46,6 +48,21 @@ public class AuthController {
     @PostMapping("/refresh")
     public ApiResponse<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         return ApiResponse.ok(authService.refresh(request));
+    }
+
+    @Operation(summary = "Request a password-reset link (always succeeds; no account enumeration)",
+            security = {})
+    @PostMapping("/forgot-password")
+    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request.email());
+        return ApiResponse.message("If that email is registered, we've sent a reset link.");
+    }
+
+    @Operation(summary = "Set a new password using a reset token", security = {})
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.newPassword());
+        return ApiResponse.message("Password updated — you can now sign in.");
     }
 
     @Operation(summary = "Revoke all refresh tokens for the current user",

@@ -7,7 +7,8 @@ export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'CAR';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type PaymentMethod = 'CASH' | 'CARD' | 'ONLINE' | 'OTHER';
-export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
+export type SubscriptionStatus = 'PENDING_PAYMENT' | 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
+export type SubscriptionPaymentMethod = 'BANK_TRANSFER';
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -116,4 +117,18 @@ export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
 export interface Subscription {
   id: number; restaurantId: number; planName: string; billingCycle: BillingCycle; price: number;
   status: SubscriptionStatus; startDate?: string | null; endDate?: string | null; currentlyActive?: boolean;
+  paymentMethod?: SubscriptionPaymentMethod | null; paymentReference?: string | null; paymentConfirmedAt?: string | null;
+}
+
+/* ---- self-serve onboarding ---- */
+// Bank-transfer instructions returned after a public signup (POST /api/public/onboarding).
+export interface OnboardingInstructions {
+  slug: string; reference: string; amount: number; currency: string;
+  bankName: string; accountName: string; accountNumber: string; iban: string;
+}
+// A café awaiting payment confirmation, in the admin queue (GET /api/admin/onboarding).
+export interface PendingOnboarding {
+  restaurantId: number; cafeName: string; slug: string;
+  ownerName?: string | null; ownerEmail?: string | null; phone?: string | null;
+  amount: number; reference: string; createdAt: string;
 }
