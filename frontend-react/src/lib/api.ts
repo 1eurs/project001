@@ -66,8 +66,10 @@ async function raw<T>(path: string, opts: Opts, retry = true): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (res.status === 401 && auth && retry && refreshToken) {
-    if (await tryRefresh()) return raw<T>(path, opts, false);
+  // An expired/invalid token on an authed request: try one silent refresh, and if that can't
+  // recover, clear the session so the app cleanly drops to the login screen (instead of looping 401s).
+  if (res.status === 401 && auth && retry) {
+    if (refreshToken && (await tryRefresh())) return raw<T>(path, opts, false);
     clearSession();
   }
 
