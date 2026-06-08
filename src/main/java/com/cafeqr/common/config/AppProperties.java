@@ -126,15 +126,14 @@ public record AppProperties(
             }
         }
 
-        /** Transactional email (onboarding instructions, activation, admin alerts) via Brevo. */
+        /** Transactional email via SMTP (Brevo relay). Credentials live in {@code spring.mail.*}. */
         public record Email(
-                String provider,        // "brevo" to enable; anything else = log only
-                String brevoApiKey,
-                String from,            // e.g. "Serva <onboarding@yourdomain.com>"
+                String provider,        // "smtp" to enable; anything else = log only
+                String from,            // e.g. "Serva <onboarding@yourdomain.com>" (Brevo-verified sender)
                 String adminAlertTo     // where new-signup alerts go (optional)
         ) {
-            public boolean brevoEnabled() {
-                return "brevo".equalsIgnoreCase(provider) && brevoApiKey != null && !brevoApiKey.isBlank();
+            public boolean smtpEnabled() {
+                return "smtp".equalsIgnoreCase(provider);
             }
         }
 

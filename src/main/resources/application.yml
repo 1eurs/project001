@@ -31,6 +31,18 @@ spring:
     default-property-inclusion: non_null
     serialization:
       write-dates-as-timestamps: false
+  # SMTP (Brevo relay) for transactional email. Credentials come from the environment — never commit them.
+  mail:
+    host: ${BREVO_SMTP_HOST:smtp-relay.brevo.com}
+    port: ${BREVO_SMTP_PORT:587}
+    username: ${BREVO_SMTP_LOGIN:}
+    password: ${BREVO_SMTP_KEY:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.connectiontimeout: 8000
+      mail.smtp.timeout: 8000
+      mail.smtp.writetimeout: 8000
 
 server:
   port: 8080
@@ -46,6 +58,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      enabled: false   # don't probe SMTP on the health endpoint
 
 springdoc:
   swagger-ui:
@@ -89,10 +104,9 @@ app:
     public-per-minute: ${APP_RATE_LIMIT_PUBLIC:8}
   # Outbound channels. Each stays 'log' (no real sending) until its provider + credentials are set.
   notifications:
-    email:                                         # Brevo (free tier) for transactional email
-      provider: ${APP_EMAIL_PROVIDER:log}          # set to 'brevo' to actually send
-      brevo-api-key: ${BREVO_API_KEY:}
-      from: ${APP_EMAIL_FROM:Serva <onboarding@example.com>}
+    email:                                         # Brevo SMTP relay (creds in spring.mail.* above)
+      provider: ${APP_EMAIL_PROVIDER:log}          # set to 'smtp' to actually send
+      from: ${APP_EMAIL_FROM:Serva <onboarding@example.com>}   # must be a Brevo-verified sender
       admin-alert-to: ${APP_ADMIN_ALERT_EMAIL:}    # where 'new café signup' alerts go (optional)
     sms:                                           # Infobip — deferred paid feature, integration ready
       provider: ${APP_SMS_PROVIDER:log}            # set to 'infobip' to actually send

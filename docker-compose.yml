@@ -28,8 +28,8 @@ services:
       SPRING_DATASOURCE_USERNAME: cafeqr
       SPRING_DATASOURCE_PASSWORD: cafeqr
       APP_JWT_SECRET: "Y2FmZXFyLXN1cGVyLXNlY3JldC1rZXktY2hhbmdlLW1lLWluLXByb2R1Y3Rpb24tMTIzNDU2"
-      APP_PUBLIC_BASE_URL: "https://m7m2od.com"
-      APP_CORS_ORIGINS: "https://m7m2od.com,https://www.m7m2od.com,http://localhost:3000,http://localhost:5173"
+      APP_PUBLIC_BASE_URL: "https://serva.om"
+      APP_CORS_ORIGINS: "https://serva.om,https://www.serva.om,https://m7m2od.com,https://www.m7m2od.com,http://localhost:3000,http://localhost:5173"
     ports:
       - "8080:8080"
     volumes:

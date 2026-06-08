@@ -4,7 +4,7 @@ set -euo pipefail
 PI_USER="${PI_USER:-pi}"
 PI_HOST="${PI_HOST:-192.168.1.52}"
 PI_DIR="${PI_DIR:-~/cafeqr}"
-BASE_PATH="${BASE_PATH:-/serva}"
+BASE_PATH="${BASE_PATH:-/}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> Building frontend with base: $BASE_PATH"
@@ -85,6 +85,61 @@ echo "==> Adding include to nginx default site (if missing)"
 ssh "$PI_USER@$PI_HOST" "grep -q 'cafeqr-paths' /etc/nginx/sites-enabled/default || sudo sed -i '/include snippets\/law-stack-paths.conf;/a\    include snippets/cafeqr-paths.conf;' /etc/nginx/sites-enabled/default"
 
 echo ""
+echo "==> Uploading nginx server block for serva.om"
+ssh "$PI_USER@$PI_HOST" "sudo tee /etc/nginx/sites-available/serva.om > /dev/null" <<'SERVA'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name serva.om www.serva.om;
+
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 131.0.72.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    real_ip_header CF-Connecting-IP;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        client_max_body_size 50M;
+    }
+
+    location /files/ {
+        proxy_pass http://127.0.0.1:8080/files/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        client_max_body_size 50M;
+    }
+
+    location / {
+        root /home/pi/cafeqr/frontend-react/dist;
+        try_files $uri $uri/ /index.html;
+        location ~ ^/assets/ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+}
+SERVA
+ssh "$PI_USER@$PI_HOST" "sudo ln -sf /etc/nginx/sites-available/serva.om /etc/nginx/sites-enabled/serva.om"
+
+echo ""
 echo "==> Testing nginx config"
 ssh "$PI_USER@$PI_HOST" "sudo nginx -t"
 
@@ -115,4 +170,4 @@ cd "$ROOT/frontend-react"
 API_BASE="http://$PI_HOST:8080" node scripts/seed.mjs
 
 echo ""
-echo "==> Done! Deployed at https://m7m2od.com$BASE_PATH"
+echo "==> Done! Deployed at https://serva.om (and https://m7m2od.com/serva)"
