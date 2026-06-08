@@ -120,6 +120,16 @@ export interface Subscription {
   paymentMethod?: SubscriptionPaymentMethod | null; paymentReference?: string | null; paymentConfirmedAt?: string | null;
 }
 
+/* ---- live QR activity (dashboard Tables tab) ---- */
+export interface QrLive { present: number; ordering: number; } // present includes ordering
+export interface QrDayStat { orders: number; revenue: number; }
+export interface QrActivity {
+  totalPresent: number;
+  totalOrdering: number;
+  liveByKey: Record<string, QrLive>;        // keyed by table qrCodeToken / "car" / "takeaway"
+  todayByKey: Record<string, QrDayStat>;    // keyed by table id (string) / "car" / "takeaway"
+}
+
 /* ---- self-serve onboarding ---- */
 // Bank-transfer instructions returned after a public signup (POST /api/public/onboarding).
 export interface OnboardingInstructions {

@@ -90,4 +90,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                 @Param("branchId") Long branchId,
                                 @Param("from") Instant from,
                                 @Param("to") Instant to);
+
+    /** Orders + revenue grouped per (table, type) for a branch since {@code from} — for QR activity. */
+    @Query("""
+            SELECT o.tableId, o.orderType, COUNT(o), COALESCE(SUM(o.total), 0) FROM Order o
+            WHERE o.restaurantId = :restaurantId
+              AND o.branchId = :branchId
+              AND o.status NOT IN :excluded
+              AND o.createdAt >= :from AND o.createdAt < :to
+            GROUP BY o.tableId, o.orderType
+            """)
+    List<Object[]> qrActivityToday(@Param("restaurantId") Long restaurantId,
+                                   @Param("branchId") Long branchId,
+                                   @Param("excluded") List<OrderStatus> excluded,
+                                   @Param("from") Instant from,
+                                   @Param("to") Instant to);
 }

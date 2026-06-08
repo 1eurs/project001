@@ -9,6 +9,7 @@ import { useToast } from '../../lib/toast';
 import { useCartStore, useCart } from '../../lib/cart';
 import { CAR_COLORS } from '../../lib/carColors';
 import { useVenue, cartKeyOf, menuPathOf, menuUrlOf } from './venue';
+import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 
 const DICT: Dict = {
@@ -39,6 +40,9 @@ export default function CartPage() {
   const toast = useToast();
   const { slug, branchId, tableToken, orderType: venueOrderType, restaurant } = useVenue();
   const orderType: OrderType = tableToken ? 'DINE_IN' : venueOrderType === 'CAR' ? 'CAR' : 'TAKEAWAY';
+
+  // At checkout they're firmly "ordering".
+  usePresence(branchId, tableToken ?? (orderType === 'CAR' ? 'car' : 'takeaway'), true);
 
   const menuPath = menuPathOf(slug, branchId, tableToken, orderType);
   const cartKey = cartKeyOf(slug, branchId, tableToken, orderType);

@@ -9,6 +9,7 @@ import { ThemeToggle } from '../../lib/theme';
 import { useCartStore, useCart } from '../../lib/cart';
 import { useToast } from '../../lib/toast';
 import { useVenue, cartKeyOf, menuUrlOf } from './venue';
+import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 import { resolveThemeId } from './menuThemes';
 
@@ -61,6 +62,9 @@ export default function MenuPage() {
 
   const count = cart.reduce((s, l) => s + l.qty, 0);
   const subtotal = cart.reduce((s, l) => s + (itemsById.get(l.id)?.price ?? 0) * l.qty, 0);
+
+  // Report live presence: "viewing" while browsing, "ordering" once they've added items.
+  usePresence(bId, token ?? (orderType === 'CAR' ? 'car' : 'takeaway'), count > 0);
 
   // sticky category nav highlight
   const scrollRef = useRef<HTMLDivElement>(null);

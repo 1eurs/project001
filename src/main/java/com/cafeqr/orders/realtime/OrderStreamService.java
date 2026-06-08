@@ -43,6 +43,16 @@ public class OrderStreamService {
         return "order:" + trackingToken;
     }
 
+    /** Live QR-activity channel for one branch (dashboard Tables tab). */
+    public static String qaChannel(Long branchId) {
+        return "qa:" + branchId;
+    }
+
+    public boolean hasSubscribers(String channel) {
+        List<SseEmitter> emitters = channels.get(channel);
+        return emitters != null && !emitters.isEmpty();
+    }
+
     public SseEmitter subscribe(String channel) {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
         channels.computeIfAbsent(channel, key -> new CopyOnWriteArrayList<>()).add(emitter);

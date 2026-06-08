@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n, LangToggle } from '../../lib/i18n';
 import { KIT_PAGES, PAGE_META, type KitPage } from './data';
 import D1Onyx from './designs/D1Onyx';
 import D2Daylight from './designs/D2Daylight';
@@ -18,6 +19,7 @@ const DESIGNS = [
 ];
 
 export default function DashboardGallery() {
+  const { lang } = useI18n();
   const params = new URLSearchParams(window.location.search);
   const initial = Math.min(6, Math.max(1, Number(params.get('d')) || 1));
   const [idx, setIdx] = useState(initial - 1);
@@ -48,7 +50,7 @@ export default function DashboardGallery() {
 
   return (
     <div className="dz-gallery" dir="ltr">
-      <div className="dz-stage">
+      <div className="dz-stage" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <Current key={idx} page={page} setPage={setPage} />
       </div>
 
@@ -71,6 +73,7 @@ export default function DashboardGallery() {
         </div>
         <button className="dz-arrow" onClick={() => setIdx((i) => (i + 1) % DESIGNS.length)} aria-label="Next">›</button>
         <div className="dz-meta"><b>{DESIGNS[idx].name}</b><span>{DESIGNS[idx].note}</span></div>
+        <LangToggle />
       </div>
     </div>
   );

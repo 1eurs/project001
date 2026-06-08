@@ -12,7 +12,7 @@ import { useOrderSound, SoundToggle, notify } from '../../lib/alerts';
 import { useWakeLock } from '../../lib/wakeLock';
 import { omr, fmtElapsed } from '../../lib/format';
 import { carColorOf } from '../../lib/carColors';
-import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant } from '../../lib/types';
+import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity } from '../../lib/types';
 import { DEMO } from '../../lib/demo';
 import { BRAND } from '../../lib/brand';
 import Login from '../auth/Login';
@@ -22,7 +22,7 @@ import RestaurantProfile from './RestaurantProfile';
 import './dashboard.css';
 
 const DICT: Dict = {
-  ar: { title: 'شاشة المطبخ — مباشر', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
+  ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
         nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_profile: 'ملف المطعم',
         col_PENDING: 'جديد', col_ACCEPTED: 'مقبول', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', takeaway: 'سفري', car: 'خدمة السيارة', note: 'ملاحظة',
@@ -34,8 +34,9 @@ const DICT: Dict = {
         print: 'طباعة الكل', printOne: 'طباعة الرمز', regenerate: 'تجديد الرمز', del: 'حذف', scan: 'امسح للطلب', copy: 'نسخ الرابط', copied: 'تم النسخ', carQr: 'رمز سيارات الخارج',
         noTables: 'لا توجد طاولات بعد', regenWarn: 'سيتوقف الرمز القديم عن العمل. متابعة؟', delWarn: 'حذف هذه الطاولة؟',
         reconnect: 'إعادة الاتصال…', newOrder: 'طلب جديد', newOrders: 'طلبات جديدة', tapView: 'اضغط للعرض',
-        loginTitle: 'لوحة Serva.', loginSub: 'سجّل الدخول لإدارة الطلبات المباشرة', saved: 'تم الحفظ' },
-  en: { title: 'Kitchen Display — Live', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
+        loginTitle: 'لوحة Serva.', loginSub: 'سجّل الدخول لإدارة الطلبات المباشرة', saved: 'تم الحفظ',
+        orderingNow: 'يطلبون الآن', qaNow: 'الآن', qaToday: 'اليوم', qaOrders: 'طلب' },
+  en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
         nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_profile: 'Restaurant profile',
         col_PENDING: 'New', col_ACCEPTED: 'Accepted', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', takeaway: 'Takeaway', car: 'Outdoor car', note: 'Note',
@@ -47,7 +48,8 @@ const DICT: Dict = {
         print: 'Print all', printOne: 'Print QR', regenerate: 'Regenerate', del: 'Delete', scan: 'Scan to order', copy: 'Copy link', copied: 'Copied', carQr: 'Outdoor car QR',
         noTables: 'No tables yet', regenWarn: 'The old QR will stop working. Continue?', delWarn: 'Delete this table?',
         reconnect: 'Reconnecting…', newOrder: 'New order', newOrders: 'new orders', tapView: 'Tap to view',
-        loginTitle: 'Serva. dashboard', loginSub: 'Sign in to manage live orders', saved: 'Saved' },
+        loginTitle: 'Serva. dashboard', loginSub: 'Sign in to manage live orders', saved: 'Saved',
+        orderingNow: 'ordering now', qaNow: 'now', qaToday: 'Today', qaOrders: 'orders' },
 };
 
 const COLS: { st: OrderStatus; color: string }[] = [
@@ -424,6 +426,42 @@ function TablesPage({ branchId }: { branchId?: number }) {
   const carUrl = branchId && restaurantSlug ? carUrlOf(restaurantSlug, branchId) : null;
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tables', branchId] });
 
+  // Live "ordering now" + today's orders per QR. Initial fetch + 30s safety poll; the SSE below
+  // pushes instant updates into this same cache.
+  const { data: activity } = useQuery({
+    queryKey: ['qr-activity', branchId],
+    queryFn: () => api.get<QrActivity>(`/api/dashboard/qr-activity?branchId=${branchId}`),
+    enabled: !!branchId,
+    refetchInterval: 30_000,
+  });
+  // Realtime: push fresh snapshots straight into the query cache (no polling delay).
+  useEffect(() => {
+    if (!branchId) return;
+    const token = accessTokenValue();
+    const url = `/api/dashboard/qr-activity/stream?branchId=${branchId}${token ? `&access_token=${encodeURIComponent(token)}` : ''}`;
+    const es = new EventSource(url);
+    const onMsg = (e: MessageEvent) => {
+      try { qc.setQueryData(['qr-activity', branchId], JSON.parse(e.data) as QrActivity); } catch { /* ignore */ }
+    };
+    es.addEventListener('qr-activity', onMsg as EventListener);
+    return () => { es.removeEventListener('qr-activity', onMsg as EventListener); es.close(); };
+  }, [branchId, qc]);
+  const todayOf = (key?: string) => (key ? activity?.todayByKey[key] : undefined);
+  const ActivityRow = ({ liveKey, todayKey }: { liveKey: string; todayKey: string }) => {
+    const live = activity?.liveByKey[liveKey];
+    const day = todayOf(todayKey);
+    return (
+      <div className="qa-row">
+        {live && live.present > 0 && (
+          <span className="qa-live" title={t('qaNow')}>
+            👀 {live.present}{live.ordering > 0 && <> · 🛒 {live.ordering}</>}
+          </span>
+        )}
+        <span className="qa-today">{t('qaToday')}: {day?.orders ?? 0} {t('qaOrders')} · <span className="num">{omr(day?.revenue ?? 0)}</span> {t('cur')}</span>
+      </div>
+    );
+  };
+
   const create = useMutation({
     mutationFn: () => api.post(`/api/branches/${branchId}/tables`, { tableNumber: num.trim() }),
     onSuccess: () => { setNum(''); invalidate(); },
@@ -460,6 +498,9 @@ function TablesPage({ branchId }: { branchId?: number }) {
           <input className="input" style={{ maxWidth: 160 }} value={num} onChange={(e) => setNum(e.target.value)} placeholder={t('tableNumber')} />
           <button className="btn sm" disabled={!num.trim() || create.isPending}>{t('add')}</button>
         </form>
+        {!!activity?.totalPresent && (
+          <span className="qa-total"><span className="qa-d" />👀 {activity.totalPresent}{activity.totalOrdering > 0 && <> · 🛒 {activity.totalOrdering}</>} {t('orderingNow')}</span>
+        )}
         <div style={{ flex: 1 }} />
         <button className="btn sm ghost" disabled={!tables.length && !carUrl} onClick={printAll}>🖨 {t('print')}</button>
       </div>
@@ -473,6 +514,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
                 <div className="tcard-hd"><span className="tnum">🚗 {t('carQr')}</span></div>
                 <div className="qrtile"><BrandedQrCode value={carUrl} size={150} /></div>
                 <button className="tlink" title={carUrl} onClick={() => { navigator.clipboard?.writeText(carUrl); toast(t('copied')); }}>{t('copy')} ⧉</button>
+                <ActivityRow liveKey="car" todayKey="car" />
                 <div className="tcard-actions">
                   <button className="btn sm ghost" onClick={() => printOne({ title: t('carQr'), subtitle: restaurantSlug ?? '', value: carUrl })}>🖨 {t('printOne')}</button>
                 </div>
@@ -485,6 +527,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
                   <div className="tcard-hd"><span className="tnum num">{tb.tableNumber}</span>{!tb.active && <span className="chip">off</span>}</div>
                   <div className="qrtile"><BrandedQrCode value={url} size={150} /></div>
                   <button className="tlink" title={url} onClick={() => { navigator.clipboard?.writeText(url); toast(t('copied')); }}>{t('copy')} ⧉</button>
+                  <ActivityRow liveKey={tb.qrCodeToken} todayKey={String(tb.id)} />
                   <div className="tcard-actions">
                     <button className="btn sm ghost" onClick={() => printOne({ title: `${t('table')} ${tb.tableNumber}`, subtitle: slugOf(tb), value: url })}>🖨 {t('printOne')}</button>
                     <button className="btn sm ghost" onClick={() => { if (confirm(t('regenWarn'))) regen.mutate(tb.id); }}>↻ {t('regenerate')}</button>

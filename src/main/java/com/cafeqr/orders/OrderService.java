@@ -24,6 +24,8 @@ import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.notifications.NotificationPayload;
 import com.cafeqr.notifications.NotificationService;
 import com.cafeqr.notifications.NotificationType;
+import com.cafeqr.presence.event.PresenceChangedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.tables.domain.RestaurantTable;
@@ -57,6 +59,7 @@ public class OrderService {
     private final AccessGuard accessGuard;
     private final NotificationService notificationService;
     private final OrderStreamService streamService;
+    private final ApplicationEventPublisher events;
 
     public OrderService(OrderRepository orderRepository,
                         RestaurantService restaurantService,
@@ -65,7 +68,8 @@ public class OrderService {
                         MenuService menuService,
                         AccessGuard accessGuard,
                         NotificationService notificationService,
-                        OrderStreamService streamService) {
+                        OrderStreamService streamService,
+                        ApplicationEventPublisher events) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
         this.branchService = branchService;
@@ -74,6 +78,7 @@ public class OrderService {
         this.accessGuard = accessGuard;
         this.notificationService = notificationService;
         this.streamService = streamService;
+        this.events = events;
     }
 
     // ============================================================ customer (public)
@@ -129,6 +134,7 @@ public class OrderService {
 
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New order " + saved.getOrderNumber() + " received");
+        events.publishEvent(new PresenceChangedEvent(saved.getBranchId())); // bump live QR activity
         return OrderTrackingResponse.from(saved);
     }
 

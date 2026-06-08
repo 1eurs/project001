@@ -50,13 +50,14 @@ class OrderServiceTest {
     @Mock private AccessGuard accessGuard;
     @Mock private NotificationService notificationService;
     @Mock private OrderStreamService streamService;
+    @Mock private org.springframework.context.ApplicationEventPublisher events;
 
     private OrderService orderService;
 
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
-                menuService, accessGuard, notificationService, streamService);
+                menuService, accessGuard, notificationService, streamService, events);
     }
 
     private Restaurant restaurant() {

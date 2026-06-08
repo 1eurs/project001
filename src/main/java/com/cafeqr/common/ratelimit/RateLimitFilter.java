@@ -39,10 +39,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         if (enabled && "POST".equalsIgnoreCase(request.getMethod())) {
             String path = request.getRequestURI();
-            Integer limit = AUTH_PATHS.contains(path) ? authPerMinute
-                    : PUBLIC_PATHS.contains(path) ? publicPerMinute : null;
+            // Note: keep these as separate ifs — a mixed int/Integer ternary would unbox null → NPE.
+            Integer limit = null;
+            String bucket = null;
+            if (AUTH_PATHS.contains(path)) {
+                limit = authPerMinute;
+                bucket = "auth";
+            } else if (PUBLIC_PATHS.contains(path)) {
+                limit = publicPerMinute;
+                bucket = "public";
+            }
             if (limit != null) {
-                String bucket = AUTH_PATHS.contains(path) ? "auth" : "public";
                 String key = bucket + ':' + clientIp(request);
                 if (!limiter.allow(key, limit, WINDOW_SECONDS)) {
                     reject(response);
