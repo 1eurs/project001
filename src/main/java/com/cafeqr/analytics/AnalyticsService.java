@@ -3,7 +3,10 @@ package com.cafeqr.analytics;
 import com.cafeqr.analytics.dto.AnalyticsSummaryResponse;
 import com.cafeqr.analytics.dto.BestSellingItem;
 import com.cafeqr.analytics.dto.HourlyCount;
+import com.cafeqr.analytics.dto.RestaurantStatsResponse;
 import com.cafeqr.auth.security.AccessGuard;
+import com.cafeqr.branches.repository.BranchRepository;
+import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.repository.OrderItemRepository;
 import com.cafeqr.orders.repository.OrderRepository;
@@ -12,10 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class AnalyticsService {
@@ -25,13 +34,19 @@ public class AnalyticsService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final BranchRepository branchRepository;
+    private final MenuItemRepository menuItemRepository;
     private final AccessGuard accessGuard;
 
     public AnalyticsService(OrderRepository orderRepository,
                             OrderItemRepository orderItemRepository,
+                            BranchRepository branchRepository,
+                            MenuItemRepository menuItemRepository,
                             AccessGuard accessGuard) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.branchRepository = branchRepository;
+        this.menuItemRepository = menuItemRepository;
         this.accessGuard = accessGuard;
     }
 
@@ -78,6 +93,65 @@ public class AnalyticsService {
                         ((Number) row[3]).longValue(),
                         (BigDecimal) row[4]))
                 .toList();
+    }
+
+    /**
+     * Per-restaurant snapshot for the platform admin console — three grouped scans
+     * (orders, branches, menu items) merged in memory, regardless of restaurant count.
+     */
+    @Transactional(readOnly = true)
+    public List<RestaurantStatsResponse> platformRestaurantStats() {
+        Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant windowStart = Instant.now().minus(Duration.ofDays(30));
+
+        Map<Long, Long> branches = countMap(branchRepository.countPerRestaurant());
+        Map<Long, Long> menuItems = countMap(menuItemRepository.countPerRestaurant());
+        List<Object[]> orderRows = orderRepository.platformOrderStats(windowStart, todayStart);
+
+        Set<Long> ids = new HashSet<>(branches.keySet());
+        ids.addAll(menuItems.keySet());
+
+        Map<Long, RestaurantStatsResponse> stats = new HashMap<>();
+        for (Object[] row : orderRows) {
+            Long restaurantId = ((Number) row[0]).longValue();
+            ids.remove(restaurantId);
+            stats.put(restaurantId, new RestaurantStatsResponse(
+                    restaurantId,
+                    ((Number) row[3]).longValue(),
+                    ((Number) row[1]).longValue(),
+                    (BigDecimal) row[2],
+                    ((Number) row[4]).longValue(),
+                    toInstant(row[5]),
+                    branches.getOrDefault(restaurantId, 0L),
+                    menuItems.getOrDefault(restaurantId, 0L)));
+        }
+        // Restaurants that have branches/items but no orders yet still get a row.
+        for (Long restaurantId : ids) {
+            stats.put(restaurantId, new RestaurantStatsResponse(
+                    restaurantId, 0, 0, BigDecimal.ZERO, 0, null,
+                    branches.getOrDefault(restaurantId, 0L),
+                    menuItems.getOrDefault(restaurantId, 0L)));
+        }
+        return List.copyOf(stats.values());
+    }
+
+    /** Native timestamptz values arrive as different temporal types depending on the JDBC mapping. */
+    private static Instant toInstant(Object value) {
+        return switch (value) {
+            case null -> null;
+            case Instant i -> i;
+            case java.sql.Timestamp ts -> ts.toInstant();
+            case java.time.OffsetDateTime odt -> odt.toInstant();
+            default -> throw new IllegalStateException("Unexpected timestamp type: " + value.getClass());
+        };
+    }
+
+    private static Map<Long, Long> countMap(List<Object[]> rows) {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+        return map;
     }
 
     private Map<OrderStatus, Long> statusCounts(Long restaurantId, Long branchId, Instant from, Instant to) {

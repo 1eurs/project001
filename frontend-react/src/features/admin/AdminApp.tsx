@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
-import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle, PendingOnboarding } from '../../lib/types';
+import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle, PendingOnboarding, AdminRestaurantStats } from '../../lib/types';
 import { BRAND } from '../../lib/brand';
 import Login from '../auth/Login';
 import './admin.css';
@@ -14,8 +14,13 @@ import './admin.css';
 const DICT: Dict = {
   ar: { restaurants: 'المطاعم', cur: 'ر.ع', logoutT: 'خروج',
         kTotal: 'إجمالي المطاعم', kActive: 'نشِطة', kInactive: 'موقوفة', kNew: 'جديدة هذا الشهر',
+        kOrders30: 'طلبات آخر ٣٠ يوم', kRevenue30: 'إيرادات آخر ٣٠ يوم',
         search: 'ابحث بالاسم أو المعرّف…', all: 'الكل', active: 'نشِط', inactive: 'موقوف', newR: '＋ مطعم جديد',
         thName: 'المطعم', thContact: 'التواصل', thVat: 'الضريبة', thStatus: 'الحالة', thCreated: 'الإنشاء',
+        thOrders30: 'طلبات ٣٠ يوم', thRevenue30: 'إيراد ٣٠ يوم', thLastOrder: 'آخر طلب',
+        activity: 'النشاط', aToday: 'طلبات اليوم', a30d: 'طلبات آخر ٣٠ يوم', aRev30: 'إيرادات آخر ٣٠ يوم (مكتملة)',
+        aTotal: 'إجمالي الطلبات', aBranches: 'الفروع', aItems: 'أصناف القائمة', aLast: 'آخر طلب',
+        never: 'لا طلبات بعد', justNow: 'الآن', minAgo: 'د', hrAgo: 'س', dayAgo: 'يوم',
         info: 'المعلومات', slug: 'المعرّف', phone: 'الهاتف', email: 'البريد', vat: 'القيمة المضافة', created: 'الإنشاء', currency: 'العملة',
         subscription: 'الاشتراك', plan: 'الخطة', cycle: 'الدورة', price: 'السعر', status: 'الحالة', noSub: 'لا يوجد اشتراك', addSub: 'إضافة اشتراك', editSub: 'تعديل الاشتراك',
         oneTime: 'دفع مرة واحدة', lifetime: 'مدى الحياة',
@@ -30,8 +35,13 @@ const DICT: Dict = {
         rejectConfirm: 'رفض هذا الطلب؟ سيبقى المقهى غير مُفعّل.' },
   en: { restaurants: 'Restaurants', cur: 'OMR', logoutT: 'Logout',
         kTotal: 'Total restaurants', kActive: 'Active', kInactive: 'Inactive', kNew: 'New this month',
+        kOrders30: 'Orders · 30 days', kRevenue30: 'Revenue · 30 days',
         search: 'Search name or slug…', all: 'All', active: 'Active', inactive: 'Inactive', newR: '＋ New restaurant',
         thName: 'Restaurant', thContact: 'Contact', thVat: 'VAT', thStatus: 'Status', thCreated: 'Created',
+        thOrders30: 'Orders 30d', thRevenue30: 'Revenue 30d', thLastOrder: 'Last order',
+        activity: 'Activity', aToday: 'Orders today', a30d: 'Orders · last 30 days', aRev30: 'Revenue · last 30 days (completed)',
+        aTotal: 'Orders all-time', aBranches: 'Branches', aItems: 'Menu items', aLast: 'Last order',
+        never: 'No orders yet', justNow: 'just now', minAgo: 'm', hrAgo: 'h', dayAgo: 'd',
         info: 'Details', slug: 'Slug', phone: 'Phone', email: 'Email', vat: 'VAT', created: 'Created', currency: 'Currency',
         subscription: 'Subscription', plan: 'Plan', cycle: 'Cycle', price: 'Price', status: 'Status', noSub: 'No subscription', addSub: 'Add subscription', editSub: 'Edit subscription',
         oneTime: 'One-time access', lifetime: 'Lifetime',
@@ -50,6 +60,22 @@ const SUB_STATUSES: SubscriptionStatus[] = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANC
 const CYCLES: BillingCycle[] = ['MONTHLY', 'YEARLY', 'ONE_TIME'];
 const subClass = (s?: SubscriptionStatus) => s === 'ACTIVE' ? 'ok' : s === 'TRIAL' ? 'warn' : s === 'PAST_DUE' ? 'bad' : '';
 const hue = (id: number) => `hsl(${(id * 67) % 360} 70% 60%)`;
+
+/** Compact relative time for "last order": just now / 12m / 3h / 5d. */
+const ago = (iso: string | null | undefined, t: (k: string) => string) => {
+  if (!iso) return t('never');
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return t('justNow');
+  if (mins < 60) return `${mins}${t('minAgo')}`;
+  if (mins < 60 * 24) return `${Math.floor(mins / 60)}${t('hrAgo')}`;
+  return `${Math.floor(mins / 1440)} ${t('dayAgo')}`;
+};
+/** Activity pulse: green when ordering today-ish, amber within a week, red/grey beyond. */
+const pulseClass = (iso: string | null | undefined) => {
+  if (!iso) return '';
+  const hrs = (Date.now() - new Date(iso).getTime()) / 3600000;
+  return hrs <= 24 ? 'ok' : hrs <= 24 * 7 ? 'warn' : 'bad';
+};
 
 export default function AdminApp() {
   const { authed, user } = useAuth();
@@ -81,6 +107,14 @@ function AdminInner() {
   });
   const pendingCount = pending?.length ?? 0;
 
+  // Per-cafe activity (orders, revenue, last order…), one cheap grouped query server-side.
+  const { data: statsRaw } = useQuery({
+    queryKey: ['admin-restaurant-stats'],
+    queryFn: () => api.get<AdminRestaurantStats[]>('/api/admin/restaurants/stats'),
+    refetchInterval: 60_000,
+  });
+  const stats = useMemo(() => new Map((statsRaw ?? []).map((s) => [s.restaurantId, s])), [statsRaw]);
+
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Restaurant | null>(null);
@@ -91,8 +125,10 @@ function AdminInner() {
     const total = restaurants.length;
     const active = restaurants.filter((r) => r.active).length;
     const fresh = restaurants.filter((r) => r.createdAt && new Date(r.createdAt).getMonth() === now.getMonth() && new Date(r.createdAt).getFullYear() === now.getFullYear()).length;
-    return { total, active, inactive: total - active, fresh };
-  }, [restaurants]);
+    const orders30 = (statsRaw ?? []).reduce((s, x) => s + x.orders30d, 0);
+    const revenue30 = (statsRaw ?? []).reduce((s, x) => s + Number(x.revenue30d || 0), 0);
+    return { total, active, inactive: total - active, fresh, orders30, revenue30 };
+  }, [restaurants, statsRaw]);
 
   const rows = restaurants
     .filter((r) => filter === 'all' || (filter === 'active' ? r.active : !r.active))
@@ -136,6 +172,8 @@ function AdminInner() {
             <Kpi color="var(--green)" label={t('kActive')} val={kpis.active} />
             <Kpi color="var(--bad)" label={t('kInactive')} val={kpis.inactive} />
             <Kpi color="var(--blue)" label={t('kNew')} val={kpis.fresh} />
+            <Kpi color="var(--amber)" label={t('kOrders30')} val={kpis.orders30} />
+            <Kpi color="var(--green)" label={t('kRevenue30')} val={`${omr(kpis.revenue30)} ${t('cur')}`} />
           </div>
 
           <div className="toolbar">
@@ -151,20 +189,26 @@ function AdminInner() {
 
           <table className="tbl">
             <thead><tr>
-              <th>{t('thName')}</th><th className="hide-sm">{t('thContact')}</th><th className="hide-sm">{t('thVat')}</th>
-              <th>{t('thStatus')}</th><th className="hide-sm">{t('thCreated')}</th>
+              <th>{t('thName')}</th><th className="hide-sm">{t('thContact')}</th>
+              <th>{t('thOrders30')}</th><th className="hide-sm">{t('thRevenue30')}</th>
+              <th>{t('thLastOrder')}</th><th>{t('thStatus')}</th>
             </tr></thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} onClick={() => setSelected(r)}>
-                  <td><div className="rcell"><div className="rlogo" style={{ background: hue(r.id) }}>{r.name.charAt(0)}</div>
-                    <div><div className="rname">{r.name}</div><div className="rslug">{r.slug}</div></div></div></td>
-                  <td className="hide-sm"><div>{r.phone || '—'}</div><div className="rslug">{r.email || ''}</div></td>
-                  <td className="hide-sm"><span className="num">{r.vatEnabled ? `${r.vatRate}%` : '—'}</span></td>
-                  <td><span className={'chip ' + (r.active ? 'ok' : '')}><span className="d" />{r.active ? t('active') : t('inactive')}</span></td>
-                  <td className="hide-sm"><span className="num" style={{ color: 'var(--muted)' }}>{r.createdAt?.slice(0, 10)}</span></td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const s = stats.get(r.id);
+                return (
+                  <tr key={r.id} onClick={() => setSelected(r)}>
+                    <td><div className="rcell"><div className="rlogo" style={{ background: hue(r.id) }}>{r.name.charAt(0)}</div>
+                      <div><div className="rname">{r.name}</div><div className="rslug">{r.slug}</div></div></div></td>
+                    <td className="hide-sm"><div>{r.phone || '—'}</div><div className="rslug">{r.email || ''}</div></td>
+                    <td><span className="num" style={{ fontWeight: 600 }}>{s ? s.orders30d : '—'}</span>
+                      {s && s.ordersToday > 0 && <span className="rslug"> · {t('aToday')}: <span className="num">{s.ordersToday}</span></span>}</td>
+                    <td className="hide-sm"><span className="num">{s ? `${omr(Number(s.revenue30d))} ${t('cur')}` : '—'}</span></td>
+                    <td><span className={'chip ' + pulseClass(s?.lastOrderAt)}><span className="d" />{ago(s?.lastOrderAt, t)}</span></td>
+                    <td><span className={'chip ' + (r.active ? 'ok' : '')}><span className="d" />{r.active ? t('active') : t('inactive')}</span></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           </>
@@ -174,7 +218,7 @@ function AdminInner() {
 
       <div className={'drawer-bg' + (selected ? ' open' : '')} onClick={() => setSelected(null)} />
       <aside className={'drawer' + (selected ? ' open' : '')}>
-        {selected && <DrawerBody r={selected} onToggle={() => toggleActive.mutate(selected)} onEditSub={() => setModal('sub')} onClose={() => setSelected(null)} />}
+        {selected && <DrawerBody r={selected} stats={stats.get(selected.id)} onToggle={() => toggleActive.mutate(selected)} onEditSub={() => setModal('sub')} onClose={() => setSelected(null)} />}
       </aside>
 
       {modal === 'create' && <CreateModal onClose={() => setModal(null)} onDone={() => { qc.invalidateQueries({ queryKey: ['admin-restaurants'] }); setModal(null); toast(t('createdOk')); }} />}
@@ -183,7 +227,7 @@ function AdminInner() {
   );
 }
 
-const Kpi = ({ color, label, val }: { color: string; label: string; val: number }) => (
+const Kpi = ({ color, label, val }: { color: string; label: string; val: number | string }) => (
   <div className="kpi"><div className="lab"><span className="ic" style={{ background: color }} />{label}</div><div className="val">{val}</div></div>
 );
 
@@ -253,7 +297,7 @@ function OnboardingView({ t }: { t: (k: string) => string }) {
   );
 }
 
-function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onToggle: () => void; onEditSub: () => void; onClose: () => void }) {
+function DrawerBody({ r, stats, onToggle, onEditSub, onClose }: { r: Restaurant; stats?: AdminRestaurantStats; onToggle: () => void; onEditSub: () => void; onClose: () => void }) {
   const t = useT(DICT);
   const qc = useQueryClient();
   const toast = useToast();
@@ -298,6 +342,20 @@ function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onTogg
           <div className="kv"><span className="k">{t('currency')}</span><span className="v num">{r.currency}</span></div>
           <div className="kv"><span className="k">{t('vat')}</span><span className="v num">{r.vatEnabled ? `${r.vatRate}%` : '—'}</span></div>
           <div className="kv"><span className="k">{t('created')}</span><span className="v num">{r.createdAt?.slice(0, 10)}</span></div>
+        </div>
+        <div className="sect"><h4>{t('activity')}</h4>
+          {stats ? (
+            <>
+              <div className="kv"><span className="k">{t('aLast')}</span><span className="v">
+                <span className={'chip ' + pulseClass(stats.lastOrderAt)}><span className="d" />{ago(stats.lastOrderAt, t)}</span></span></div>
+              <div className="kv"><span className="k">{t('aToday')}</span><span className="v num">{stats.ordersToday}</span></div>
+              <div className="kv"><span className="k">{t('a30d')}</span><span className="v num">{stats.orders30d}</span></div>
+              <div className="kv"><span className="k">{t('aRev30')}</span><span className="v num">{omr(Number(stats.revenue30d))} {t('cur')}</span></div>
+              <div className="kv"><span className="k">{t('aTotal')}</span><span className="v num">{stats.ordersTotal}</span></div>
+              <div className="kv"><span className="k">{t('aBranches')}</span><span className="v num">{stats.branches}</span></div>
+              <div className="kv"><span className="k">{t('aItems')}</span><span className="v num">{stats.menuItems}</span></div>
+            </>
+          ) : <div className="subbox" style={{ color: 'var(--faint)', fontSize: 13 }}>{t('never')}</div>}
         </div>
         <div className="sect"><h4>{t('subscription')}</h4>
           {sub ? (

@@ -28,4 +28,8 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
             """)
     List<MenuItem> findForBranch(@Param("restaurantId") Long restaurantId,
                                  @Param("branchId") Long branchId);
+
+    /** {@code [restaurantId, itemCount]} for the platform admin console. */
+    @Query("SELECT i.restaurantId, COUNT(i) FROM MenuItem i GROUP BY i.restaurantId")
+    List<Object[]> countPerRestaurant();
 }

@@ -118,6 +118,12 @@ export interface ReturningCustomer {
   lastOrder?: { createdAt: string; items: LastOrderItem[] } | null;
 }
 
+/* ---- platform admin: per-restaurant stats ---- */
+export interface AdminRestaurantStats {
+  restaurantId: number; ordersToday: number; orders30d: number; revenue30d: number;
+  ordersTotal: number; lastOrderAt?: string | null; branches: number; menuItems: number;
+}
+
 /* ---- blocked phones (dashboard) ---- */
 export interface BlockedPhone { id: number; phone: string; reason?: string | null; blockedBy?: string | null; createdAt: string; }
 

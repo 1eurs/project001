@@ -101,6 +101,26 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                 @Param("from") Instant from,
                                 @Param("to") Instant to);
 
+    /**
+     * Platform-wide per-restaurant order stats for the admin console, one grouped scan:
+     * {@code [restaurantId, ordersInWindow, completedRevenueInWindow, ordersToday, ordersTotal, lastOrderAt]}.
+     * Declined/cancelled orders are excluded from counts; revenue counts COMPLETED only.
+     */
+    @Query(value = """
+            SELECT o.restaurant_id,
+                   COUNT(*) FILTER (WHERE o.created_at >= :from
+                                      AND o.status NOT IN ('DECLINED','CANCELLED'))           AS orders_window,
+                   COALESCE(SUM(o.total) FILTER (WHERE o.created_at >= :from
+                                                   AND o.status = 'COMPLETED'), 0)            AS revenue_window,
+                   COUNT(*) FILTER (WHERE o.created_at >= :today
+                                      AND o.status NOT IN ('DECLINED','CANCELLED'))           AS orders_today,
+                   COUNT(*) FILTER (WHERE o.status NOT IN ('DECLINED','CANCELLED'))           AS orders_total,
+                   MAX(o.created_at)                                                          AS last_order_at
+            FROM orders o
+            GROUP BY o.restaurant_id
+            """, nativeQuery = true)
+    List<Object[]> platformOrderStats(@Param("from") Instant from, @Param("today") Instant today);
+
     /** Orders + revenue grouped per (table, type) for a branch since {@code from} — for QR activity. */
     @Query("""
             SELECT o.tableId, o.orderType, COUNT(o), COALESCE(SUM(o.total), 0) FROM Order o
