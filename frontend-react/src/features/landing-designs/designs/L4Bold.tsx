@@ -1,19 +1,28 @@
 import { Link } from 'react-router-dom';
-import { COPY, DEMO_LINKS, useLeadForm, type Lang } from '../content';
-import { PhoneMock } from '../bits';
+import { LangToggle } from '../../../lib/i18n';
+import { COPY, useLeadForm, type Lang } from '../content';
+import { PhoneMock, QrMotif } from '../bits';
 import './l4.css';
 
-export default function L4Bold({ lang }: { lang: Lang }) {
+export default function L4Bold({ lang, showTools = false }: { lang: Lang; showTools?: boolean }) {
   const c = COPY[lang];
   const form = useLeadForm();
-  const marquee = [c.sub, c.kicker, c.h1b, c.ctaSecondary, c.foot.made];
+  const home = lang === 'ar'
+    ? { links: 'روابط', dashboard: 'لوحة الإدارة', admin: 'لوحة المنصّة', contact: 'تواصل', legal: 'القانوني', privacy: 'الخصوصية', terms: 'الشروط', refund: 'الاسترداد', language: 'اللغة' }
+    : { links: 'Links', dashboard: 'Dashboard', admin: 'Platform', contact: 'Contact', legal: 'Legal', privacy: 'Privacy', terms: 'Terms', refund: 'Refunds', language: 'Language' };
+  const marquee = [c.sub, c.kicker, c.h1b, c.ctaPrimary, c.foot.made];
 
   return (
     <div className="lz-screen b4" dir={c.dir}>
       <nav className="b4-nav">
         <div className="b4-brand">SERVA<span>.</span></div>
-        <div className="b4-links"><a href="#how">{c.nav.how}</a><a href="#feat">{c.nav.features}</a><a href="#demo">{c.nav.demo}</a></div>
-        <a href="#request" className="b4-btn">{c.nav.request}</a>
+        <div className="b4-links"><a href="#how">{c.nav.how}</a><a href="#feat">{c.nav.features}</a><a href="#request">{c.nav.request}</a></div>
+        {showTools && (
+          <div className="b4-tools">
+            <Link to="/dashboard" className="b4-signin">{c.nav.signin}</Link>
+          </div>
+        )}
+        {showTools ? <Link to="/signup" className="b4-btn">{c.nav.request}</Link> : <a href="#request" className="b4-btn">{c.nav.request}</a>}
       </nav>
 
       <header className="b4-hero">
@@ -23,13 +32,20 @@ export default function L4Bold({ lang }: { lang: Lang }) {
           <p className="b4-sub">{c.sub}</p>
           <p className="b4-lead">{c.lead}</p>
           <div className="b4-cta">
-            <a href="#request" className="b4-btn lg">{c.ctaPrimary} →</a>
-            <Link to={DEMO_LINKS.customer} className="b4-btn alt lg">{c.ctaSecondary}</Link>
+            {showTools ? <Link to="/signup" className="b4-btn lg">{c.ctaPrimary} →</Link> : <a href="#request" className="b4-btn lg">{c.ctaPrimary} →</a>}
           </div>
         </div>
         <div className="b4-hero-r">
-          <div className="b4-frame"><PhoneMock c={c} className="b4-phone" /></div>
-          <span className="b4-sticker s1">NO APP</span>
+          <div className="b4-scan">
+            <div className="b4-frame"><PhoneMock c={c} className="b4-phone" /></div>
+            <div className="b4-tent" aria-hidden="true">
+              <div className="b4-tent-hd"><b>{c.phone.brand}</b><i>{c.phone.scan}</i></div>
+              <div className="b4-tent-qr"><QrMotif size={120} /><span className="b4-beam" /></div>
+              <div className="b4-tent-ft">SERVA<span>.</span></div>
+            </div>
+            <span className="b4-trace" aria-hidden="true"><i /></span>
+          </div>
+          <span className="b4-sticker s1">{lang === 'ar' ? 'بدون تطبيق' : 'NO APP'}</span>
           <span className="b4-sticker s2">QR ✦</span>
         </div>
       </header>
@@ -54,15 +70,6 @@ export default function L4Bold({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <section className="b4-sec" id="demo">
-        <div className="b4-seclbl">{c.demoLbl}</div>
-        <h2 className="b4-h2">{c.demoH}</h2>
-        <div className="b4-demos">
-          <Link to={DEMO_LINKS.customer} className="b4-democard"><span className="t">{c.demoGuest}</span><span className="cc">{c.demoGuestC}</span><span className="go">↗</span></Link>
-          <Link to={DEMO_LINKS.dashboard} className="b4-democard alt"><span className="t">{c.demoDash}</span><span className="cc">{c.demoDashC}</span><span className="go">↗</span></Link>
-        </div>
-      </section>
-
       <section className="b4-sec" id="request">
         <div className="b4-reqcard">
           <div className="b4-reqcopy">
@@ -70,7 +77,11 @@ export default function L4Bold({ lang }: { lang: Lang }) {
             <h2 className="b4-h2">{c.reqH}</h2>
             <p className="b4-lead">{c.reqP}</p>
           </div>
-          {form.done ? (
+          {showTools ? (
+            <div className="b4-signup-card">
+              <Link to="/signup" className="b4-btn lg full">{c.ctaPrimary} →</Link>
+            </div>
+          ) : form.done ? (
             <div className="b4-ok"><div className="b4-okmk">✓</div><h3>{c.form.okh}</h3><p>{c.form.okp}</p></div>
           ) : (
             <form className="b4-form" onSubmit={form.submit}>
@@ -85,7 +96,37 @@ export default function L4Bold({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <footer className="b4-foot">
+      <footer className={'b4-foot' + (showTools ? ' home' : '')}>
+        {showTools && (
+          <div className="b4-footgrid">
+            <div className="b4-footbrand">
+              <div className="b4-brand">SERVA<span>.</span></div>
+              <p>{c.foot.made}</p>
+              <div className="b4-footlang">
+                <h4>{home.language}</h4>
+                <LangToggle />
+              </div>
+            </div>
+            <div>
+              <h4>{home.links}</h4>
+              <Link to="/signup">{c.ctaPrimary}</Link>
+              <Link to="/dashboard">{home.dashboard}</Link>
+              <Link to="/admin">{home.admin}</Link>
+            </div>
+            <div>
+              <h4>{home.contact}</h4>
+              <a href="mailto:hello@serva.app">hello@serva.app</a>
+              <a href="tel:+96890000000">+968 9000 0000</a>
+              <Link to="/signup">{c.ctaPrimary}</Link>
+            </div>
+            <div>
+              <h4>{home.legal}</h4>
+              <Link to="/privacy">{home.privacy}</Link>
+              <Link to="/terms">{home.terms}</Link>
+              <Link to="/refund">{home.refund}</Link>
+            </div>
+          </div>
+        )}
         <div className="b4-bignme">SERVA.</div>
         <div className="b4-footbar"><span>© {new Date().getFullYear()} SERVA</span><span>{c.foot.made}</span><span>{c.foot.rights}</span></div>
       </footer>

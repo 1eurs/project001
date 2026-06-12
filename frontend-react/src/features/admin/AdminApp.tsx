@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, logout } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { useI18n, useT, LangToggle, type Dict } from '../../lib/i18n';
-import { ThemeToggle } from '../../lib/theme';
+import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
 import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle, PendingOnboarding } from '../../lib/types';
-import { DEMO } from '../../lib/demo';
 import { BRAND } from '../../lib/brand';
 import Login from '../auth/Login';
 import './admin.css';
@@ -19,6 +18,7 @@ const DICT: Dict = {
         thName: 'المطعم', thContact: 'التواصل', thVat: 'الضريبة', thStatus: 'الحالة', thCreated: 'الإنشاء',
         info: 'المعلومات', slug: 'المعرّف', phone: 'الهاتف', email: 'البريد', vat: 'القيمة المضافة', created: 'الإنشاء', currency: 'العملة',
         subscription: 'الاشتراك', plan: 'الخطة', cycle: 'الدورة', price: 'السعر', status: 'الحالة', noSub: 'لا يوجد اشتراك', addSub: 'إضافة اشتراك', editSub: 'تعديل الاشتراك',
+        oneTime: 'دفع مرة واحدة', lifetime: 'مدى الحياة',
         endDate: 'ينتهي', renew: 'تجديد', renewed: 'تم التجديد الاشتراك', expired: 'منتهٍ', expiringSoon: 'قريب الانتهاء',
         activate: 'تفعيل', deactivate: 'إيقاف', save: 'حفظ', cancel: 'إلغاء', create: 'إنشاء',
         createT: 'إنشاء مطعم', createP: 'يُنشأ المطعم وحساب المالك (اختياري) معاً.',
@@ -34,6 +34,7 @@ const DICT: Dict = {
         thName: 'Restaurant', thContact: 'Contact', thVat: 'VAT', thStatus: 'Status', thCreated: 'Created',
         info: 'Details', slug: 'Slug', phone: 'Phone', email: 'Email', vat: 'VAT', created: 'Created', currency: 'Currency',
         subscription: 'Subscription', plan: 'Plan', cycle: 'Cycle', price: 'Price', status: 'Status', noSub: 'No subscription', addSub: 'Add subscription', editSub: 'Edit subscription',
+        oneTime: 'One-time access', lifetime: 'Lifetime',
         endDate: 'Ends', renew: 'Renew', renewed: 'Subscription renewed', expired: 'Expired', expiringSoon: 'Expiring soon',
         activate: 'Activate', deactivate: 'Deactivate', save: 'Save', cancel: 'Cancel', create: 'Create',
         createT: 'Create restaurant', createP: 'Creates the restaurant and (optionally) the owner account.',
@@ -51,9 +52,10 @@ const subClass = (s?: SubscriptionStatus) => s === 'ACTIVE' ? 'ok' : s === 'TRIA
 const hue = (id: number) => `hsl(${(id * 67) % 360} 70% 60%)`;
 
 export default function AdminApp() {
-  const { authed } = useAuth();
+  const { authed, user } = useAuth();
   const t = useT(DICT);
-  if (!authed) return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} demo={{ email: DEMO.adminEmail, password: DEMO.adminPassword }} />;
+  if (!authed) return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} />;
+  if (user?.role !== 'PLATFORM_ADMIN') return <Navigate to="/dashboard" replace />;
   return <AdminInner />;
 }
 
@@ -121,8 +123,6 @@ function AdminInner() {
         <div className="atop">
           <div><h2>{view === 'onboarding' ? t('onboarding') : t('restaurants')}</h2><div className="crumb">/admin/{view}</div></div>
           <div className="spacer" />
-          <ThemeToggle />
-          <LangToggle />
           <div className="who"><div className="av">{initials}</div><div><div className="nm">{user?.fullName}</div><div className="rl">PLATFORM_ADMIN</div></div></div>
         </div>
 
@@ -276,7 +276,8 @@ function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onTogg
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  // Days until the term ends (annual subs only; lifetime/ONE_TIME have no end date).
+  const isOneTime = sub?.billingCycle === 'ONE_TIME';
+  // Days until the term ends (recurring subs only; lifetime/ONE_TIME should have no end date).
   const daysLeft = sub?.endDate ? Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000) : null;
   const expiryChip = daysLeft == null ? '' : daysLeft < 0 ? 'bad' : daysLeft <= 14 ? 'warn' : 'ok';
   const expiryLabel = daysLeft == null ? '' : daysLeft < 0 ? t('expired') : daysLeft <= 14 ? t('expiringSoon') : '';
@@ -301,11 +302,14 @@ function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onTogg
         <div className="sect"><h4>{t('subscription')}</h4>
           {sub ? (
             <div className="subbox">
-              <div className="kv"><span className="k">{t('plan')}</span><span className="v">{sub.planName}</span></div>
+              <div className="kv"><span className="k">{t('plan')}</span><span className="v">{isOneTime ? t('oneTime') : sub.planName}</span></div>
               <div className="kv"><span className="k">{t('cycle')}</span><span className="v num">{sub.billingCycle}</span></div>
               <div className="kv"><span className="k">{t('price')}</span><span className="v num">{omr(sub.price)} {t('cur')}</span></div>
               <div className="kv"><span className="k">{t('status')}</span><span className="v"><span className={'chip ' + subClass(sub.status)}><span className="d" />{sub.status}</span></span></div>
-              {sub.endDate && (
+              {isOneTime && (
+                <div className="kv"><span className="k">{t('endDate')}</span><span className="v num">{t('lifetime')}</span></div>
+              )}
+              {!isOneTime && sub.endDate && (
                 <div className="kv"><span className="k">{t('endDate')}</span><span className="v num">
                   {sub.endDate}{expiryLabel && <span className={'chip ' + expiryChip} style={{ marginInlineStart: 8 }}>{expiryLabel}</span>}
                 </span></div>
@@ -316,7 +320,7 @@ function DrawerBody({ r, onToggle, onEditSub, onClose }: { r: Restaurant; onTogg
       </div>
       <div className="drawer-ft">
         {r.active ? <button className="btn danger" onClick={onToggle}>{t('deactivate')}</button> : <button className="btn" onClick={onToggle}>{t('activate')}</button>}
-        {sub?.endDate && <button className="btn" disabled={renew.isPending} onClick={() => renew.mutate()}>{renew.isPending ? '…' : t('renew')}</button>}
+        {sub && !isOneTime && sub.endDate && <button className="btn" disabled={renew.isPending} onClick={() => renew.mutate()}>{renew.isPending ? '…' : t('renew')}</button>}
         <button className="btn ghost" onClick={onEditSub}>{sub ? t('editSub') : t('addSub')}</button>
       </div>
     </>
@@ -381,6 +385,14 @@ function SubModal({ restaurant, onClose, onDone }: { restaurant: Restaurant; onC
   const [f, setF] = useState({ planName: 'Pro', billingCycle: 'MONTHLY' as BillingCycle, price: '25', status: 'ACTIVE' as SubscriptionStatus });
   // hydrate from existing once loaded
   useEffect(() => { if (existing) setF({ planName: existing.planName, billingCycle: existing.billingCycle, price: String(existing.price), status: existing.status }); }, [existing]);
+  const setCycle = (billingCycle: BillingCycle) => {
+    setF((p) => ({
+      ...p,
+      billingCycle,
+      planName: billingCycle === 'ONE_TIME' && ['Pro', 'Annual'].includes(p.planName) ? 'Lifetime' : p.planName,
+      status: billingCycle === 'ONE_TIME' && p.status === 'TRIAL' ? 'ACTIVE' : p.status,
+    }));
+  };
 
   const save = useMutation({
     mutationFn: () => {
@@ -403,7 +415,7 @@ function SubModal({ restaurant, onClose, onDone }: { restaurant: Restaurant; onC
           <div className="field"><label>{t('price')} ({t('cur')})</label><input className="num" type="number" step="0.001" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></div>
         </div>
         <div className="row2">
-          <div className="field"><label>{t('cycle')}</label><select value={f.billingCycle} onChange={(e) => setF({ ...f, billingCycle: e.target.value as BillingCycle })}>{CYCLES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div className="field"><label>{t('cycle')}</label><select value={f.billingCycle} onChange={(e) => setCycle(e.target.value as BillingCycle)}>{CYCLES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
           <div className="field"><label>{t('status')}</label><select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value as SubscriptionStatus })}>{SUB_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
         </div>
         <div className="modal-actions">

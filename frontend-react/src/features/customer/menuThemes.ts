@@ -162,9 +162,10 @@ export function customThemeVars(custom: MenuThemeCustom): Record<string, string>
     '--accent-2': custom.accent2,
     '--accent-ink': readableOn(custom.accent),
     '--accent-glow': hexAlpha(custom.accent, 0.26),
-    // Prices/labels render in accent ON paper — nudge it toward the text colour so a
-    // bright accent (yellow, lime, cyan) stays legible instead of washing out.
-    '--accent-text': mix(custom.accent, custom.text, 0.24),
+    // Prices/totals/labels render in accent ON paper & surface. Keep the accent's hue
+    // but push its lightness until it clears WCAG AA, so a bright accent (yellow, lime,
+    // cyan, light gold) can never wash out to invisible on the menu or basket pages.
+    '--accent-text': readableText(custom.accent, 4.5, custom.paper, custom.surface),
     '--canvas': custom.canvas,
     '--glass': hexAlpha(custom.paper, 0.78),
     '--ring': hexAlpha(custom.text, 0.08),
@@ -176,7 +177,8 @@ export function customThemeVars(custom: MenuThemeCustom): Record<string, string>
     '--cart-accent': custom.accent2,
     '--cart-accent-2': custom.accent,
     '--cart-accent-ink': readableOn(custom.accent2),
-    '--cart-accent-text': custom.accent2,
+    // Cart-bar total + count sit on the dark/light --cart-bg — guarantee legibility too.
+    '--cart-accent-text': readableText(custom.accent2, 4.5, custom.cartBg),
     '--cart-sub': hexAlpha(readableOn(custom.cartBg), 0.68),
     '--cart-count-bg': custom.cartBg,
   };
@@ -273,6 +275,65 @@ function mix(a: string, b: string, weight: number): string {
 function readableOn(hex: string): string {
   const { r, g, b } = toRgb(hex);
   return (r * 0.299 + g * 0.587 + b * 0.114) > 160 ? '#171109' : '#FFF9EF';
+}
+
+// Keep a colour's hue but push its lightness until it clears `min` WCAG contrast
+// against every background it sits on. Used so accent-derived TEXT (prices, totals)
+// stays readable no matter how light or saturated the randomized/edited accent is.
+function readableText(fg: string, min: number, ...bgs: string[]): string {
+  const ok = (c: string) => bgs.every((bg) => contrastRatio(c, bg) >= min);
+  if (ok(fg)) return fg;
+  const { h, s } = hexToHsl(fg);
+  const avgLum = bgs.reduce((sum, bg) => sum + relLuminance(bg), 0) / Math.max(1, bgs.length);
+  const lighten = avgLum < 0.4; // dark surface → lighter text, light surface → darker text
+  for (let i = 0; i <= 100; i += 3) {
+    const cand = hslToHex(h, s, lighten ? i : 100 - i);
+    if (ok(cand)) return cand;
+  }
+  return lighten ? '#FFFFFF' : '#0B0B0B';
+}
+
+function contrastRatio(a: string, b: string): number {
+  const la = relLuminance(a);
+  const lb = relLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+function relLuminance(hex: string): number {
+  const { r, g, b } = toRgb(hex);
+  const lin = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const { r: r255, g: g255, b: b255 } = toRgb(hex);
+  const r = r255 / 255, g = g255 / 255, b = b255 / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sN = s / 100, lN = l / 100;
+  const c = (1 - Math.abs(2 * lN - 1)) * sN;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lN - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return `#${toHex(Math.round((r + m) * 255))}${toHex(Math.round((g + m) * 255))}${toHex(Math.round((b + m) * 255))}`;
 }
 
 function clamp(value: number, min: number, max: number): number {

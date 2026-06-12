@@ -1,5 +1,5 @@
-/* Landing gallery chrome — floating switcher + AR/EN toggle over full-bleed
-   landing concepts. Neutral so it never clashes with the design on stage. */
+/* Landing gallery chrome — floating switcher over full-bleed landing concepts.
+   Neutral so it never clashes with the design on stage. */
 .lz-gallery { position: fixed; inset: 0; overflow: hidden; }
 .lz-stage { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
 .lz-screen { min-height: 100%; width: 100%; }
@@ -15,10 +15,6 @@
   backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
   font-family: 'Sora', system-ui, sans-serif; max-width: calc(100vw - 20px);
 }
-.lz-lang { display: flex; gap: 2px; background: rgba(255,255,255,.06); border-radius: 999px; padding: 3px; flex: 0 0 auto; }
-.lz-lang button { border: 0; background: transparent; color: rgba(255,255,255,.6); font-weight: 700; font-size: 12px; padding: 6px 11px; border-radius: 999px; cursor: pointer; transition: .15s; }
-.lz-lang button.on { background: #fff; color: #111; }
-.lz-div { width: 1px; height: 24px; background: rgba(255,255,255,.12); flex: 0 0 auto; }
 .lz-arrow { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 999px; cursor: pointer; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: #fff; font-size: 18px; display: grid; place-items: center; transition: .18s; }
 .lz-arrow:hover { background: rgba(255,255,255,.12); }
 .lz-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }

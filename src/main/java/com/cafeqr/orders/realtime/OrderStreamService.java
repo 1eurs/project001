@@ -1,7 +1,9 @@
 package com.cafeqr.orders.realtime;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -27,7 +29,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class OrderStreamService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderStreamService.class);
-    private static final long TIMEOUT_MS = 30 * 60 * 1000L; // 30 minutes
+    // Long-lived on purpose: a kitchen tablet keeps the board open all day, and every server-side
+    // recycle shows up as a reconnect blip on the dashboard. Liveness doesn't depend on this —
+    // dead connections are reaped by the 20s heartbeat the moment a send fails.
+    private static final long TIMEOUT_MS = 6 * 60 * 60 * 1000L; // 6 hours
 
     private final Map<String, List<SseEmitter>> channels = new ConcurrentHashMap<>();
 
@@ -86,6 +91,38 @@ public class OrderStreamService {
 
     public void publishAll(Collection<String> targetChannels, OrderEvent event) {
         targetChannels.forEach(channel -> publish(channel, event));
+    }
+
+    /**
+     * Keep-alive heartbeat. Idle SSE connections are cut by reverse proxies
+     * (nginx {@code proxy_read_timeout} defaults to 60s; Cloudflare ~100s), which
+     * is why the dashboard's "Live" pill flips to "Reconnecting" between orders in
+     * production. A periodic comment ping keeps every stream warm. Comments
+     * ({@code :ping}) are ignored by the browser's EventSource, so no client-side
+     * handler fires. Dead emitters are pruned as they surface.
+     */
+    @Scheduled(fixedDelay = 20_000L)
+    public void heartbeat() {
+        channels.forEach((channel, emitters) -> {
+            for (SseEmitter emitter : emitters) {
+                try {
+                    emitter.send(SseEmitter.event().comment("ping"));
+                } catch (Exception e) {
+                    remove(channel, emitter);
+                }
+            }
+        });
+    }
+
+    /**
+     * Marks an SSE response as un-bufferable so reverse proxies stream it through
+     * immediately. {@code X-Accel-Buffering: no} disables nginx response buffering
+     * for this one response (no nginx.conf change needed); {@code no-transform}
+     * stops Cloudflare from compressing/altering the event stream.
+     */
+    public static void disableProxyBuffering(HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
     }
 
     private void remove(String channel, SseEmitter emitter) {

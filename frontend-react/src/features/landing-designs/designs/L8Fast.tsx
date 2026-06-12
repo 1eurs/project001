@@ -15,9 +15,9 @@ const C8 = {
     steps: [['أنشئ حسابك', 'بريد ورقم جوال، وانطلق.'], ['أضف أصنافك', 'اسم، سعر، صورة — بلمسة.'], ['اطبع رمز QR', 'للطاولة أو للسيارة.'], ['استقبل الطلبات', 'تصل فوراً لشاشة المطبخ.']],
     bottomH: 'يعمل على الهاتف الذي لديك.',
     bottomP: 'لا حاجة لجهاز كاشير ولا طابعة خاصة. أي هاتف أو جهاز لوحي يكفي.',
-    reqH: 'جرّبها الآن.', reqP: 'اترك بياناتك ونجهّز حسابك خلال يوم عمل.',
-    fCafe: 'اسم العربة / المقهى', fName: 'اسمك', fPhone: 'رقم الجوال', fSend: 'ابدأ', fSending: 'جارٍ الإرسال…', okh: 'وصلنا طلبك ✓', okp: 'سنجهّز حسابك ونتواصل معك.',
-    foot: 'صُنع لعربات ومقاهي عُمان',
+    reqH: 'جرّبها الآن.', reqP: 'أنشئ حسابك وأكمل خطوات التسجيل والدفع بنفسك.',
+    fCafe: 'اسم المقهى / النشاط', fName: 'اسمك', fPhone: 'رقم الجوال', fSend: 'ابدأ', fSending: 'جارٍ الإرسال…', okh: 'وصلنا طلبك ✓', okp: 'أكمل خطوات الدفع وسنفعّل حسابك بعد التأكيد.',
+    foot: 'صُنع لمقاهي وأنشطة عُمان الغذائية',
   },
   en: {
     dir: 'ltr' as const, brand: 'Serva.', signin: 'Sign in', request: 'Start free',
@@ -30,9 +30,9 @@ const C8 = {
     steps: [['Create your account', 'Email and a phone number — go.'], ['Add your items', 'Name, price, photo — in a tap.'], ['Print your QR', 'For the table or the car.'], ['Take orders', 'They hit the kitchen screen instantly.']],
     bottomH: 'Works on the phone you already have.',
     bottomP: 'No till machine, no special printer. Any phone or tablet will do.',
-    reqH: 'Try it now.', reqP: 'Leave your details and we’ll set you up within a business day.',
-    fCafe: 'Truck / café name', fName: 'Your name', fPhone: 'Phone number', fSend: 'Start', fSending: 'Sending…', okh: 'Got it ✓', okp: 'We’ll set up your account and reach out.',
-    foot: 'Made for Omani trucks & cafés',
+    reqH: 'Try it now.', reqP: 'Create your account and complete onboarding yourself.',
+    fCafe: 'Business / café name', fName: 'Your name', fPhone: 'Phone number', fSend: 'Start', fSending: 'Sending…', okh: 'Got it ✓', okp: 'Complete payment and we’ll activate your account after confirmation.',
+    foot: 'Made for Omani cafés and food businesses',
   },
 };
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useI18n, LangToggle } from '../../lib/i18n';
+import { useI18n } from '../../lib/i18n';
 import { KIT_PAGES, PAGE_META, type KitPage } from './data';
 import D1Onyx from './designs/D1Onyx';
 import D2Daylight from './designs/D2Daylight';
@@ -73,7 +73,6 @@ export default function DashboardGallery() {
         </div>
         <button className="dz-arrow" onClick={() => setIdx((i) => (i + 1) % DESIGNS.length)} aria-label="Next">›</button>
         <div className="dz-meta"><b>{DESIGNS[idx].name}</b><span>{DESIGNS[idx].note}</span></div>
-        <LangToggle />
       </div>
     </div>
   );

@@ -1,54 +1,62 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { login, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
-import { useI18n, LangToggle } from '../../lib/i18n';
-import { ThemeToggle } from '../../lib/theme';
+import { useI18n } from '../../lib/i18n';
 import './login.css';
 
 interface Props {
   mark?: string;
   title: string;
   subtitle: string;
-  demo?: { email: string; password: string };
 }
 
-export default function Login({ mark = '◆', title, subtitle, demo }: Props) {
+export default function Login({ mark = '◆', title, subtitle }: Props) {
   const { lang } = useI18n();
   const toast = useToast();
-  const [email, setEmail] = useState(demo?.email ?? '');
-  const [password, setPassword] = useState(demo?.password ?? '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState<string | undefined>();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setError('');
+    setErrorCode(undefined);
     setLoading(true);
     try {
       await login(email, password); // App re-renders via useAuth on success
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Login failed');
+      const code = err instanceof ApiError ? err.errorCode : undefined;
+      const message = code === 'ACCOUNT_DISABLED'
+        ? L.pending
+        : err instanceof ApiError ? err.message : 'Login failed';
+      setError(message);
+      setErrorCode(code);
+      if (code !== 'ACCOUNT_DISABLED') toast(message);
     } finally {
       setLoading(false);
     }
   }
 
   const L = lang === 'ar'
-    ? { email: 'البريد الإلكتروني', pass: 'كلمة المرور', enter: 'دخول', note: 'عرض تجريبي', forgot: 'نسيت كلمة المرور؟' }
-    : { email: 'Email', pass: 'Password', enter: 'Sign in', note: 'Demo', forgot: 'Forgot password?' };
+    ? { email: 'البريد الإلكتروني', pass: 'كلمة المرور', enter: 'دخول',
+        pending: 'حسابك بانتظار تأكيد التحويل البنكي. سنفعّله بعد تأكيد الدفع من لوحة المنصّة.' }
+    : { email: 'Email', pass: 'Password', enter: 'Sign in',
+        pending: 'Your account is waiting for bank-transfer confirmation. Sign-in unlocks after a platform admin confirms payment.' };
 
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <div className="login-top"><div className="mark">{mark}</div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><ThemeToggle /><LangToggle /></div></div>
+        <div className="login-top"><div className="mark">{mark}</div></div>
         <h1>{title}</h1>
         <div className="sub">{subtitle}</div>
         <div className="field"><label>{L.email}</label>
           <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></div>
         <div className="field"><label>{L.pass}</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></div>
+        {error && <div className={'login-error' + (errorCode === 'ACCOUNT_DISABLED' ? ' pending' : '')}>{error}</div>}
         <button className="btn full" disabled={loading}>{loading ? '…' : L.enter}</button>
-        <div className="demo-note"><Link to="/forgot-password">{L.forgot}</Link></div>
-        {demo && <div className="demo-note">{L.note} · {demo.email}</div>}
       </form>
     </div>
   );

@@ -6,16 +6,17 @@ import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
 import { carColorOf, carColorLabel } from '../../lib/carColors';
 import type { OrderSummaryResponse, PageResponse, OrderResponse, OrderStatus } from '../../lib/types';
+import InvoicePrint from './InvoicePrint';
 
 const DICT: Dict = {
   ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', takeaway: 'سفري', car: 'خدمة السيارة', carPlate: 'لوحة السيارة', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
         prev: 'السابق', next: 'التالي', page: 'صفحة', none: 'لا طلبات', markPaid: 'تحديد كمدفوع', paid: 'مدفوع', unpaid: 'غير مدفوع', items: 'الأصناف', timeline: 'التسلسل الزمني',
-        customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب',
+        customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب', printInv: 'طباعة الفاتورة',
         st_PENDING: 'جديد', st_ACCEPTED: 'مقبول', st_PREPARING: 'تحضير', st_READY: 'جاهز', st_COMPLETED: 'مكتمل', st_DECLINED: 'مرفوض', st_CANCELLED: 'ملغى',
         ts_createdAt: 'أُنشئ', ts_acceptedAt: 'قُبل', ts_preparingAt: 'بدأ التحضير', ts_readyAt: 'جاهز', ts_completedAt: 'اكتمل', ts_declinedAt: 'رُفض', ts_cancelledAt: 'أُلغي' },
   en: { cur: 'OMR', all: 'All', table: 'Table', takeaway: 'Takeaway', car: 'Outdoor car', carPlate: 'Car plate', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
         prev: 'Prev', next: 'Next', page: 'Page', none: 'No orders', markPaid: 'Mark paid', paid: 'Paid', unpaid: 'Unpaid', items: 'Items', timeline: 'Timeline',
-        customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail',
+        customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail', printInv: 'Print invoice',
         st_PENDING: 'New', st_ACCEPTED: 'Accepted', st_PREPARING: 'Preparing', st_READY: 'Ready', st_COMPLETED: 'Completed', st_DECLINED: 'Declined', st_CANCELLED: 'Cancelled',
         ts_createdAt: 'Created', ts_acceptedAt: 'Accepted', ts_preparingAt: 'Preparing', ts_readyAt: 'Ready', ts_completedAt: 'Completed', ts_declinedAt: 'Declined', ts_cancelledAt: 'Cancelled' },
 };
@@ -100,6 +101,7 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
   const { lang } = useI18n();
   const toast = useToast();
   const qc = useQueryClient();
+  const [printing, setPrinting] = useState(false);
   const { data: o } = useQuery({ queryKey: ['order', id], queryFn: () => api.get<OrderResponse>(`/api/dashboard/orders/${id}`) });
 
   const pay = useMutation({
@@ -153,10 +155,12 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
         </div>
       </div>
       <div className="drawer-ft">
+        <button className="btn ghost" onClick={() => setPrinting(true)}>🖨 {t('printInv')}</button>
         {o.paymentStatus === 'PAID'
           ? <button className="btn ghost" disabled>✓ {t('paid')}{o.paymentMethod ? ` · ${o.paymentMethod}` : ''}</button>
           : <button className="btn" disabled={pay.isPending} onClick={() => pay.mutate()}>{t('markPaid')}</button>}
       </div>
+      {printing && <InvoicePrint order={o} onDone={() => setPrinting(false)} />}
     </>
   );
 }

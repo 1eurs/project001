@@ -22,7 +22,7 @@ let refreshToken: string | null = localStorage.getItem(REFRESH_KEY);
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
-export const onAuthChange = (l: Listener) => { listeners.add(l); return () => listeners.delete(l); };
+export const onAuthChange = (l: Listener) => { listeners.add(l); return () => { listeners.delete(l); }; };
 const emit = () => listeners.forEach((l) => l());
 
 // cached so useSyncExternalStore gets a stable snapshot reference
@@ -83,6 +83,25 @@ async function raw<T>(path: string, opts: Opts, retry = true): Promise<T> {
   return env.data as T;
 }
 
+/** Seconds until this JWT expires (Infinity when it can't be parsed). */
+function jwtSecondsLeft(token: string): number {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' ? payload.exp - Date.now() / 1000 : Infinity;
+  } catch { return Infinity; }
+}
+
+/**
+ * Access token safe to open a long-lived stream with. EventSource bakes the token into its
+ * URL and can't change it on auto-reconnect, so callers must rebuild the URL through this —
+ * it refreshes first whenever the current token is expired or about to be.
+ */
+export async function freshStreamToken(): Promise<string | null> {
+  if (accessToken && jwtSecondsLeft(accessToken) > 120) return accessToken;
+  if (refreshToken) await tryRefresh();
+  return accessToken;
+}
+
 let refreshing: Promise<boolean> | null = null;
 function tryRefresh(): Promise<boolean> {
   if (refreshing) return refreshing;
@@ -128,6 +147,14 @@ export async function upload<T = { url: string }>(path: string, file: File, retr
 
 export async function login(email: string, password: string): Promise<UserResponse> {
   const auth = await raw<AuthResponse>('/api/auth/login', { method: 'POST', auth: false, body: { email, password } });
+  setSession(auth);
+  return auth.user;
+}
+export async function changeEmail(currentPassword: string, newEmail: string): Promise<UserResponse> {
+  const auth = await raw<AuthResponse>('/api/auth/change-email', {
+    method: 'POST',
+    body: { currentPassword, newEmail },
+  });
   setSession(auth);
   return auth.user;
 }

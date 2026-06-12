@@ -5,19 +5,46 @@ import type { Lang } from './types';
 
 interface I18nValue { lang: Lang; dir: 'rtl' | 'ltr'; setLang: (l: Lang) => void; toggle: () => void; }
 const Ctx = createContext<I18nValue>({ lang: 'ar', dir: 'rtl', setLang: () => {}, toggle: () => {} });
+const LANG_KEY = 'cafeqr_lang';
+const LANG_MANUAL_KEY = 'cafeqr_lang_manual';
+
+function isLang(value: string | null): value is Lang {
+  return value === 'ar' || value === 'en';
+}
+
+function deviceLang(): Lang {
+  const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+  return langs.some((l) => l.toLowerCase().startsWith('ar')) ? 'ar' : 'en';
+}
+
+function initialLang(): Lang {
+  const saved = localStorage.getItem(LANG_KEY);
+  const manual = localStorage.getItem(LANG_MANUAL_KEY) === '1';
+  return manual && isLang(saved) ? saved : deviceLang();
+}
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>((localStorage.getItem('cafeqr_lang') as Lang) || 'ar');
+  const [lang, setLangState] = useState<Lang>(initialLang);
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
 
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = dir;
-    localStorage.setItem('cafeqr_lang', lang);
   }, [lang, dir]);
 
-  const setLang = (l: Lang) => setLangState(l);
-  const toggle = () => setLangState((p) => (p === 'ar' ? 'en' : 'ar'));
+  const setLang = (l: Lang) => {
+    localStorage.setItem(LANG_MANUAL_KEY, '1');
+    localStorage.setItem(LANG_KEY, l);
+    setLangState(l);
+  };
+  const toggle = () => {
+    setLangState((p) => {
+      const next = p === 'ar' ? 'en' : 'ar';
+      localStorage.setItem(LANG_MANUAL_KEY, '1');
+      localStorage.setItem(LANG_KEY, next);
+      return next;
+    });
+  };
   return <Ctx.Provider value={{ lang, dir, setLang, toggle }}>{children}</Ctx.Provider>;
 }
 

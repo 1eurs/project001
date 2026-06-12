@@ -5,7 +5,7 @@ import './l7.css';
 const C7 = {
   ar: {
     dir: 'rtl' as const, brand: 'Serva.', signin: 'دخول', request: 'احجز عرضاً',
-    kicker: 'لأصحاب المقاهي وعربات الطعام',
+    kicker: 'لأصحاب المقاهي والأنشطة الغذائية',
     h1a: 'حوّل كل طاولة', h1b: 'إلى نقطة بيع.',
     lead: 'كل رمز QR هو كاشير صغير: يطلب الزبون بنفسه، يصل الطلب مكتوباً للمطبخ، وتتابع المبيعات لحظياً من هاتفك.',
     cta1: 'احجز عرضاً', cta2: 'افتح اللوحة',
@@ -17,11 +17,11 @@ const C7 = {
     trust: 'بلا أجهزة · بلا عقود · يعمل على الهاتف لديك',
     reqH: 'احجز عرضاً مباشراً.', reqP: 'نريك Serva على قائمتك أنت خلال ١٥ دقيقة.',
     fCafe: 'اسم المقهى', fName: 'اسمك', fPhone: 'رقم الجوال', fSend: 'احجز العرض', fSending: 'جارٍ الإرسال…', okh: 'تم الحجز ✓', okp: 'سنتواصل معك لتحديد الموعد.',
-    foot: 'صُنع لعربات ومقاهي عُمان',
+    foot: 'صُنع لمقاهي وأنشطة عُمان الغذائية',
   },
   en: {
     dir: 'ltr' as const, brand: 'Serva.', signin: 'Sign in', request: 'Book a demo',
-    kicker: 'For café & food-truck owners',
+    kicker: 'For café and food-business owners',
     h1a: 'Turn every table', h1b: 'into a checkout.',
     lead: 'Every QR code is a tiny till: guests order themselves, the kitchen gets a clean written ticket, and you watch sales live from your phone.',
     cta1: 'Book a demo', cta2: 'Open the dashboard',
@@ -33,7 +33,7 @@ const C7 = {
     trust: 'No hardware · No contracts · Works on the phone you have',
     reqH: 'Book a live demo.', reqP: 'We’ll show you Serva on your own menu in 15 minutes.',
     fCafe: 'Café name', fName: 'Your name', fPhone: 'Phone number', fSend: 'Book demo', fSending: 'Sending…', okh: 'Booked ✓', okp: 'We’ll reach out to schedule.',
-    foot: 'Made for Omani trucks & cafés',
+    foot: 'Made for Omani cafés and food businesses',
   },
 };
 

@@ -165,6 +165,50 @@ public class AuthService {
         refreshTokenRepository.revokeAllForUser(user.getId()); // force re-login everywhere
     }
 
+    /**
+     * Changes the signed-in user's password after verifying the current one. The active session is
+     * left intact (the user stays logged in on this device); existing sessions expire naturally.
+     */
+    @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new BadRequestException(ErrorCode.INVALID_CREDENTIALS, "Current password is incorrect");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new BadRequestException(ErrorCode.VALIDATION_ERROR, "New password must be different");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+    }
+
+    /**
+     * Changes the signed-in user's login email after verifying their current password.
+     * Returns a fresh token pair so the browser stores a JWT with the new email claim.
+     */
+    @Transactional
+    public AuthResponse changeEmail(Long userId, String currentPassword, String newEmail) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new BadRequestException(ErrorCode.INVALID_CREDENTIALS, "Current password is incorrect");
+        }
+
+        String normalizedEmail = newEmail.trim();
+        if (user.getEmail().equalsIgnoreCase(normalizedEmail)) {
+            throw new BadRequestException(ErrorCode.VALIDATION_ERROR, "New email must be different");
+        }
+        userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .filter(existing -> !existing.getId().equals(userId))
+                .ifPresent(existing -> {
+                    throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered");
+                });
+
+        user.setEmail(normalizedEmail);
+        refreshTokenRepository.revokeAllForUser(userId);
+        return issueTokens(CustomUserDetails.from(user), user);
+    }
+
     @Transactional(readOnly = true)
     public UserResponse currentUser(Long userId) {
         return userRepository.findById(userId)

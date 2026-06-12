@@ -1,9 +1,11 @@
 package com.cafeqr.presence;
 
 import com.cafeqr.common.api.ApiResponse;
+import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.presence.dto.QrActivityResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,7 +32,8 @@ public class QrActivityController {
 
     @Operation(summary = "Realtime QR activity stream (SSE) — pushes a snapshot on every change")
     @GetMapping(value = "/api/dashboard/qr-activity/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@RequestParam(required = false) Long branchId) {
+    public SseEmitter stream(@RequestParam(required = false) Long branchId, HttpServletResponse response) {
+        OrderStreamService.disableProxyBuffering(response);
         return qrActivityService.streamForDashboard(branchId);
     }
 }

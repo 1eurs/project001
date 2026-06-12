@@ -45,6 +45,32 @@ public class BranchService {
         return BranchResponse.from(branchRepository.save(branch));
     }
 
+    /**
+     * Creates a café's first branch during self-serve onboarding. Skips the access-guard
+     * check because onboarding runs unauthenticated (no principal yet) — callers must only
+     * pass a {@code restaurantId} they just created themselves.
+     */
+    @Transactional
+    public BranchResponse createDefault(Long restaurantId, String name) {
+        Branch branch = new Branch();
+        branch.setRestaurantId(restaurantId);
+        branch.setName(name);
+        branch.setActive(true);
+        return BranchResponse.from(branchRepository.save(branch));
+    }
+
+    /**
+     * Guarantees the restaurant has at least one branch (idempotent). Used to heal cafés that
+     * were onboarded before branches were auto-created, so the dashboard's Tables &amp; QR page
+     * — which needs a branch — is never dead for them.
+     */
+    @Transactional
+    public void ensureDefaultBranch(Long restaurantId, String name) {
+        if (branchRepository.findByRestaurantIdOrderByNameAsc(restaurantId).isEmpty()) {
+            createDefault(restaurantId, name);
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<BranchResponse> listByRestaurant(Long restaurantId) {
         accessGuard.requireRestaurantAccess(restaurantId);

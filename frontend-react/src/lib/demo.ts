@@ -1,11 +1,8 @@
-// Demo entry points (created by scripts/seed.mjs). Re-running the seed prints
-// fresh values; the table token is stable unless the DB is reset or QR regenerated.
+// Demo menu entry point used only for the internal /apps hub link. The table token
+// is stable unless the DB is reset or the QR is regenerated. No credentials live here
+// anymore — login no longer autofills, so demo passwords aren't shipped in the bundle.
 export const DEMO = {
   slug: 'mutrah-coffee',
   branchId: 1,
   tableToken: 'Ymlr-a-6yIXejL60DOWdP4-b',
-  ownerEmail: 'owner@mutrah.coffee',
-  ownerPassword: 'Owner123!',
-  adminEmail: 'admin@cafeqr.local',
-  adminPassword: 'Admin123!',
 };

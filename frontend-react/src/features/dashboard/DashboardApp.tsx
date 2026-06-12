@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QRCodeSVG } from 'qrcode.react';
-import { api, ApiError, logout, accessTokenValue } from '../../lib/api';
+import { create as createQrMatrix } from 'qrcode/lib/core/qrcode.js';
+import { api, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken, onAuthChange } from '../../lib/api';
 import { useAuth, isManager, canAcceptOrders } from '../../lib/auth';
-import { useI18n, useT, LangToggle, type Dict } from '../../lib/i18n';
-import { ThemeToggle } from '../../lib/theme';
+import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useOrderStream, type StreamStatus } from '../../lib/sse';
 import { useOrderSound, SoundToggle, notify } from '../../lib/alerts';
@@ -13,12 +12,12 @@ import { useWakeLock } from '../../lib/wakeLock';
 import { omr, fmtElapsed } from '../../lib/format';
 import { carColorOf } from '../../lib/carColors';
 import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity } from '../../lib/types';
-import { DEMO } from '../../lib/demo';
 import { BRAND } from '../../lib/brand';
 import Login from '../auth/Login';
 import MenuManager, { MenuLookManager } from './MenuManager';
 import OrdersPage from './OrdersPage';
 import RestaurantProfile from './RestaurantProfile';
+import InvoicePrint from './InvoicePrint';
 import './dashboard.css';
 
 const DICT: Dict = {
@@ -31,11 +30,19 @@ const DICT: Dict = {
         acceptT: 'قبول الطلب', acceptP: 'كم دقيقة للتحضير؟', declineT: 'رفض الطلب', declineP: 'سبب الرفض (يظهر للعميل)',
         cancelT: 'إلغاء الطلب', cancelP: 'سبب الإلغاء (اختياري)', reason: 'السبب',
         tablesTitle: 'الطاولات ورموز QR', addTable: '＋ طاولة', tableNumber: 'رقم الطاولة', add: 'إضافة',
-        print: 'طباعة الكل', printOne: 'طباعة الرمز', regenerate: 'تجديد الرمز', del: 'حذف', scan: 'امسح للطلب', copy: 'نسخ الرابط', copied: 'تم النسخ', carQr: 'رمز سيارات الخارج',
+        print: 'طباعة الكل', printOne: 'طباعة الرمز', printInv: 'طباعة الفاتورة', regenerate: 'تجديد الرمز', del: 'حذف', scan: 'امسح للطلب', copy: 'نسخ الرابط', copied: 'تم النسخ', carQr: 'رمز سيارات الخارج',
         noTables: 'لا توجد طاولات بعد', regenWarn: 'سيتوقف الرمز القديم عن العمل. متابعة؟', delWarn: 'حذف هذه الطاولة؟',
-        reconnect: 'إعادة الاتصال…', newOrder: 'طلب جديد', newOrders: 'طلبات جديدة', tapView: 'اضغط للعرض',
+        syncing: 'مزامنة الطلبات', autoRefresh: 'التحديث التلقائي يعمل', newOrder: 'طلب جديد', newOrders: 'طلبات جديدة', tapView: 'اضغط للعرض',
         loginTitle: 'لوحة Serva.', loginSub: 'سجّل الدخول لإدارة الطلبات المباشرة', saved: 'تم الحفظ',
-        orderingNow: 'يطلبون الآن', qaNow: 'الآن', qaToday: 'اليوم', qaOrders: 'طلب' },
+        orderingNow: 'يطلبون الآن', qaNow: 'الآن', qaToday: 'اليوم', qaOrders: 'طلب',
+        account: 'الحساب', email: 'البريد', language: 'اللغة', arabic: 'العربية', english: 'English', changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
+        changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', currentPw: 'كلمة المرور الحالية',
+        changeEmailSub: 'أدخل كلمة المرور الحالية والبريد الجديد.', newEmail: 'البريد الجديد',
+        newPw: 'كلمة المرور الجديدة', confirmPw: 'تأكيد كلمة المرور', save: 'حفظ',
+        pwChanged: 'تم تغيير كلمة المرور', pwTooShort: 'كلمة المرور 8 أحرف على الأقل', pwMismatch: 'كلمتا المرور غير متطابقتين',
+        emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
+        role_PLATFORM_ADMIN: 'مشرف المنصة', role_RESTAURANT_OWNER: 'مالك المطعم', role_BRANCH_MANAGER: 'مدير الفرع',
+        role_STAFF: 'موظف', role_KITCHEN_STAFF: 'مطبخ' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
         nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_profile: 'Restaurant profile',
         col_PENDING: 'New', col_ACCEPTED: 'Accepted', col_PREPARING: 'Preparing', col_READY: 'Ready',
@@ -45,11 +52,19 @@ const DICT: Dict = {
         acceptT: 'Accept order', acceptP: 'How many minutes to prepare?', declineT: 'Decline order', declineP: 'Reason (shown to customer)',
         cancelT: 'Cancel order', cancelP: 'Cancel reason (optional)', reason: 'Reason',
         tablesTitle: 'Tables & QR codes', addTable: '＋ Table', tableNumber: 'Table number', add: 'Add',
-        print: 'Print all', printOne: 'Print QR', regenerate: 'Regenerate', del: 'Delete', scan: 'Scan to order', copy: 'Copy link', copied: 'Copied', carQr: 'Outdoor car QR',
+        print: 'Print all', printOne: 'Print QR', printInv: 'Print invoice', regenerate: 'Regenerate', del: 'Delete', scan: 'Scan to order', copy: 'Copy link', copied: 'Copied', carQr: 'Outdoor car QR',
         noTables: 'No tables yet', regenWarn: 'The old QR will stop working. Continue?', delWarn: 'Delete this table?',
-        reconnect: 'Reconnecting…', newOrder: 'New order', newOrders: 'new orders', tapView: 'Tap to view',
+        syncing: 'Syncing orders', autoRefresh: 'Auto-refresh on', newOrder: 'New order', newOrders: 'new orders', tapView: 'Tap to view',
         loginTitle: 'Serva. dashboard', loginSub: 'Sign in to manage live orders', saved: 'Saved',
-        orderingNow: 'ordering now', qaNow: 'now', qaToday: 'Today', qaOrders: 'orders' },
+        orderingNow: 'ordering now', qaNow: 'now', qaToday: 'Today', qaOrders: 'orders',
+        account: 'Account', email: 'Email', language: 'Language', arabic: 'Arabic', english: 'English', changePassword: 'Change password', changeEmail: 'Change email',
+        changePwSub: 'Enter your current password, then a new one.', currentPw: 'Current password',
+        changeEmailSub: 'Enter your current password and new email.', newEmail: 'New email',
+        newPw: 'New password', confirmPw: 'Confirm new password', save: 'Save',
+        pwChanged: 'Password changed', pwTooShort: 'Use at least 8 characters', pwMismatch: 'Passwords don’t match',
+        emailChanged: 'Email changed', emailInvalid: 'Enter a valid email',
+        role_PLATFORM_ADMIN: 'Platform admin', role_RESTAURANT_OWNER: 'Owner', role_BRANCH_MANAGER: 'Branch manager',
+        role_STAFF: 'Staff', role_KITCHEN_STAFF: 'Kitchen' },
 };
 
 const COLS: { st: OrderStatus; color: string }[] = [
@@ -65,12 +80,34 @@ export default function DashboardApp() {
   const { user, authed } = useAuth();
   const t = useT(DICT);
   if (!authed || !user) {
-    return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} demo={{ email: DEMO.ownerEmail, password: DEMO.ownerPassword }} />;
+    return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} />;
   }
   return <Shell />;
 }
 
 type Page = 'board' | 'orders' | 'menu' | 'look' | 'profile' | 'tables';
+
+function LivePill({ stream, t }: { stream: StreamStatus; t: (k: string) => string }) {
+  if (stream === 'open') {
+    return <span className="dlive"><span className="d" />{t('live')}</span>;
+  }
+  if (stream === 'connecting') {
+    return <span className="dlive sync"><span className="d" />{t('syncing')}</span>;
+  }
+  return <span className="dlive fallback"><span className="d" />{t('autoRefresh')}</span>;
+}
+
+/* Reconnects normally complete in under a second — only show a degraded pill state
+   when it actually persists, so routine stream recycles never flicker the UI. */
+function useCalmStream(stream: StreamStatus, delayMs = 5_000): StreamStatus {
+  const [shown, setShown] = useState(stream);
+  useEffect(() => {
+    if (stream === 'open') { setShown('open'); return; }
+    const id = window.setTimeout(() => setShown(stream), delayMs);
+    return () => window.clearTimeout(id);
+  }, [stream, delayMs]);
+  return shown;
+}
 
 function Shell() {
   const { user } = useAuth();
@@ -79,6 +116,7 @@ function Shell() {
   const [page, setPage] = useState<Page>('board');
   const sound = useOrderSound();
   const [stream, setStream] = useState<StreamStatus>('connecting');
+  const calmStream = useCalmStream(stream);
   const titles: Record<string, string> = { board: t('title'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), profile: t('nav_profile'), tables: t('tablesTitle') };
 
   const navItems = ([
@@ -86,21 +124,44 @@ function Shell() {
     { key: 'orders', icon: '🧾', label: t('nav_orders'), show: true },
     { key: 'menu', icon: '📋', label: t('nav_menu'), show: isManager(role) },
     { key: 'look', icon: '🎨', label: t('nav_look'), show: isManager(role) },
-    { key: 'profile', icon: '🏪', label: t('nav_profile'), show: isManager(role) },
     { key: 'tables', icon: '🔳', label: t('nav_tables'), show: isManager(role) },
   ] as { key: Page; icon: string; label: string; show: boolean }[]).filter((i) => i.show);
 
-  const { data: branchesRaw } = useQuery({
+  const qc = useQueryClient();
+  const branchesQ = useQuery({
     queryKey: ['branches', user!.restaurantId],
     queryFn: () => api.get<any>(`/api/restaurants/${user!.restaurantId}/branches`),
     enabled: isManager(role) && !!user!.restaurantId,
   });
+  const branchesRaw = branchesQ.data;
   const branches: BranchResponse[] = Array.isArray(branchesRaw) ? branchesRaw : branchesRaw?.content ?? [];
 
   const [branchId, setBranchId] = useState<number | undefined>(user!.branchId ?? undefined);
   useEffect(() => { if (branchId == null && branches.length) setBranchId(branches[0].id); }, [branches]); // eslint-disable-line
 
-  const initials = user!.fullName.split(' ').map((s) => s[0]).slice(0, 2).join('');
+  // Self-heal: a café onboarded before branches were auto-created has none — and without one
+  // the Tables & QR page is dead. When an owner lands here with zero branches, provision a
+  // default branch (named after the café) so QR codes work immediately.
+  const canMakeBranch = role === 'RESTAURANT_OWNER' || role === 'PLATFORM_ADMIN';
+  const needsBranch = canMakeBranch && branchesQ.isSuccess && branches.length === 0;
+  const restaurantQ = useQuery({
+    queryKey: ['restaurant', user!.restaurantId],
+    queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
+    enabled: needsBranch && !!user!.restaurantId,
+  });
+  const madeBranchRef = useRef(false);
+  const makeBranch = useMutation({
+    mutationFn: (name: string) => api.post<BranchResponse>(`/api/restaurants/${user!.restaurantId}/branches`, { name }),
+    onSuccess: (b) => {
+      qc.setQueryData(['branches', user!.restaurantId], (p: any) => (Array.isArray(p) ? [...p, b] : [b]));
+      setBranchId(b.id);
+    },
+  });
+  useEffect(() => {
+    if (madeBranchRef.current || !needsBranch || !restaurantQ.data) return;
+    madeBranchRef.current = true;
+    makeBranch.mutate(restaurantQ.data.name);
+  }, [needsBranch, restaurantQ.data]); // eslint-disable-line
 
   return (
     <div className="dash">
@@ -119,11 +180,7 @@ function Shell() {
       <div className="dmain">
         <div className="dtop">
           <h2>{titles[page]}</h2>
-          {page === 'board' && (
-            stream === 'open'
-              ? <span className="dlive"><span className="d" />{t('live')}</span>
-              : <span className="dlive off"><span className="d" />{t('reconnect')}</span>
-          )}
+          {page === 'board' && <LivePill stream={calmStream} t={t} />}
           <div className="spacer" />
           {isManager(role) && branches.length > 0 && (
             <select className="select" value={branchId ?? ''} onChange={(e) => setBranchId(Number(e.target.value))}>
@@ -131,9 +188,12 @@ function Shell() {
             </select>
           )}
           <SoundToggle soundOn={sound.soundOn} onToggle={sound.toggle} />
-          <ThemeToggle />
-          <LangToggle />
-          <div className="who"><div className="av">{initials}</div><div className="who-txt"><div className="nm">{user!.fullName}</div><div className="rl">{role}</div></div></div>
+          <AccountMenu
+            t={t}
+            showProfile={isManager(role)}
+            profileActive={page === 'profile'}
+            onProfile={() => setPage('profile')}
+          />
         </div>
 
         {page === 'board' && <KdsBoard branchId={branchId} ping={sound.ping} onStatus={setStream} />}
@@ -151,6 +211,165 @@ function Shell() {
           </button>
         ))}
       </nav>
+    </div>
+  );
+}
+
+/* ============================ ACCOUNT MENU ============================ */
+function AccountMenu({
+  t,
+  showProfile,
+  profileActive,
+  onProfile,
+}: {
+  t: (k: string) => string;
+  showProfile: boolean;
+  profileActive: boolean;
+  onProfile: () => void;
+}) {
+  const { user } = useAuth();
+  const { lang, setLang } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const initials = user!.fullName.split(' ').map((s) => s[0]).slice(0, 2).join('');
+  const roleLabel = t('role_' + user!.role);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  return (
+    <div className="who" ref={ref}>
+      <button className="who-btn" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>
+        <div className="av">{initials}</div>
+        <div className="who-txt"><div className="nm">{user!.fullName}</div><div className="rl">{roleLabel}</div></div>
+        <span className="who-caret" aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div className="acct-menu" role="menu">
+          <div className="acct-head">
+            <div className="av lg">{initials}</div>
+            <div className="acct-id">
+              <div className="acct-name">{user!.fullName}</div>
+              <div className="acct-mail" title={user!.email}>{user!.email}</div>
+              <span className="acct-role">{roleLabel}</span>
+            </div>
+          </div>
+          <div className="acct-sep" />
+          {showProfile && (
+            <button className={'acct-item' + (profileActive ? ' on' : '')} role="menuitem" onClick={() => { onProfile(); setOpen(false); }}>
+              <span className="ai-ic">🏪</span>{t('nav_profile')}
+            </button>
+          )}
+          <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setPwOpen(true); }}>
+            <span className="ai-ic">🔒</span>{t('changePassword')}
+          </button>
+          <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setEmailOpen(true); }}>
+            <span className="ai-ic">@</span>{t('changeEmail')}
+          </button>
+          <div className="acct-sep" />
+          <div className="acct-lang" role="group" aria-label={t('language')}>
+            <span>{t('language')}</span>
+            <div className="acct-lang-btns">
+              <button className={lang === 'ar' ? 'on' : ''} onClick={() => setLang('ar')}>{t('arabic')}</button>
+              <button className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>{t('english')}</button>
+            </div>
+          </div>
+          <button className="acct-item danger" role="menuitem" onClick={() => logout()}>
+            <span className="ai-ic">⏻</span>{t('logoutT')}
+          </button>
+        </div>
+      )}
+      {pwOpen && <ChangePasswordModal t={t} onClose={() => setPwOpen(false)} />}
+      {emailOpen && <ChangeEmailModal t={t} onClose={() => setEmailOpen(false)} />}
+    </div>
+  );
+}
+
+function ChangePasswordModal({ t, onClose }: { t: (k: string) => string; onClose: () => void }) {
+  const toast = useToast();
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+
+  const change = useMutation({
+    mutationFn: () => api.post('/api/auth/change-password', { currentPassword: cur, newPassword: next }),
+    onSuccess: () => { toast(t('pwChanged')); onClose(); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const tooShort = next.length > 0 && next.length < 8;
+  const mismatch = confirm.length > 0 && next !== confirm;
+  const canSave = !!cur && next.length >= 8 && next === confirm && !change.isPending;
+
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card">
+        <h3>{t('changePassword')}</h3>
+        <div className="ph">{t('changePwSub')}</div>
+        <div className="pwform">
+          <input className="input" type="password" autoComplete="current-password" placeholder={t('currentPw')}
+            value={cur} onChange={(e) => setCur(e.target.value)} />
+          <input className="input" type="password" autoComplete="new-password" placeholder={t('newPw')}
+            value={next} onChange={(e) => setNext(e.target.value)} />
+          {tooShort && <div className="pwhint bad">{t('pwTooShort')}</div>}
+          <input className="input" type="password" autoComplete="new-password" placeholder={t('confirmPw')}
+            value={confirm} onChange={(e) => setConfirm(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSave) change.mutate(); }} />
+          {mismatch && <div className="pwhint bad">{t('pwMismatch')}</div>}
+        </div>
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" disabled={!canSave} onClick={() => change.mutate()}>{change.isPending ? '…' : t('save')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangeEmailModal({ t, onClose }: { t: (k: string) => string; onClose: () => void }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState(user!.email);
+  const email = next.trim();
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const change = useMutation({
+    mutationFn: () => changeEmail(cur, email),
+    onSuccess: () => { toast(t('emailChanged')); onClose(); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const invalid = email.length > 0 && !validEmail;
+  const unchanged = email.toLowerCase() === user!.email.toLowerCase();
+  const canSave = !!cur && validEmail && !unchanged && !change.isPending;
+
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card">
+        <h3>{t('changeEmail')}</h3>
+        <div className="ph">{t('changeEmailSub')}</div>
+        <div className="pwform">
+          <input className="input" type="password" autoComplete="current-password" placeholder={t('currentPw')}
+            value={cur} onChange={(e) => setCur(e.target.value)} />
+          <input className="input" type="email" autoComplete="username" placeholder={t('newEmail')}
+            value={next} onChange={(e) => setNext(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSave) change.mutate(); }} />
+          {invalid && <div className="pwhint bad">{t('emailInvalid')}</div>}
+        </div>
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" disabled={!canSave} onClick={() => change.mutate()}>{change.isPending ? '…' : t('save')}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -188,9 +407,33 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
 
   const [unacked, setUnacked] = useState(0);
   const [mobileCol, setMobileCol] = useState<OrderStatus>('PENDING');
+  const lastStreamFallbackRefresh = useRef(0);
+  const prevStreamStatus = useRef<StreamStatus | null>(null);
 
-  const token = accessTokenValue();
-  const streamUrl = branchId && token ? `/api/dashboard/orders/stream?branchId=${branchId}&access_token=${encodeURIComponent(token)}` : null;
+  // EventSource bakes the JWT into its URL and can't change it on auto-reconnect, so when
+  // the token rotates (or expires mid-stream) we rebuild the URL ourselves and the effect
+  // reconnects with fresh credentials.
+  const [streamToken, setStreamToken] = useState(accessTokenValue);
+  useEffect(() => onAuthChange(() => setStreamToken(accessTokenValue())), []);
+
+  const streamUrl = branchId && streamToken ? `/api/dashboard/orders/stream?branchId=${branchId}&access_token=${encodeURIComponent(streamToken)}` : null;
+  const handleStreamStatus = (status: StreamStatus) => {
+    onStatus(status);
+    const prev = prevStreamStatus.current;
+    prevStreamStatus.current = status;
+    if (status === 'open') {
+      // Back after a real drop → resync once; events from the gap never replay on their own.
+      if (prev === 'reconnecting') qc.invalidateQueries({ queryKey: liveKey });
+      return;
+    }
+    const now = Date.now();
+    if (now - lastStreamFallbackRefresh.current > 5_000) {
+      lastStreamFallbackRefresh.current = now;
+      qc.invalidateQueries({ queryKey: liveKey });
+      // An expired JWT is the other common drop cause — swap in a fresh one if needed.
+      freshStreamToken().then((tk) => { if (tk) setStreamToken((p) => (tk !== p ? tk : p)); });
+    }
+  };
   useOrderStream(
     streamUrl,
     (name, data) => {
@@ -213,7 +456,7 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
         notify(t('newOrder'), o?.orderNumber ? `#${o.orderNumber}` : '');
       }
     },
-    onStatus,
+    handleStreamStatus,
   );
 
   // flash the tab title with the unread count when the dashboard is in the background
@@ -244,6 +487,7 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
 
   const [modal, setModal] = useState<Modal>(null);
   const [field, setField] = useState('');
+  const [invoice, setInvoice] = useState<OrderResponse | null>(null);
 
   const act = useMutation({
     mutationFn: ({ path, body }: { path: string; body?: unknown }) => api.patch<OrderResponse>(path, body),
@@ -301,13 +545,15 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
                     onPreparing={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/preparing` })}
                     onReady={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/ready` })}
                     onComplete={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` })}
-                    onPay={() => pay.mutate(o.id)} />
+                    onPay={() => pay.mutate(o.id)} onPrint={() => setInvoice(o)} />
                 ))}
               </div>
             </div>
           );
         })}
       </div>
+
+      {invoice && <InvoicePrint order={invoice} onDone={() => setInvoice(null)} />}
 
       {modal && (
         <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
@@ -335,7 +581,7 @@ function CarColorTag({ color, lang }: { color?: string | null; lang: string }) {
   return <span className="carcol"><span className="cc-dot" style={{ background: cc.hex }} />{lang === 'ar' ? cc.ar : cc.en}</span>;
 }
 
-function OrderCard({ o, tableNo, t, lang, canAccept, onAccept, onDecline, onCancel, onPreparing, onReady, onComplete, onPay }: any) {
+function OrderCard({ o, tableNo, t, lang, canAccept, onAccept, onDecline, onCancel, onPreparing, onReady, onComplete, onPay, onPrint }: any) {
   const el = fmtElapsed(o.createdAt);
   const mins = (Date.now() - new Date(o.createdAt).getTime()) / 60000;
   const where = o.orderType === 'DINE_IN'
@@ -345,7 +591,8 @@ function OrderCard({ o, tableNo, t, lang, canAccept, onAccept, onDecline, onCanc
     : <span className="where">🥡 <span className="tg">{t('takeaway')}</span></span>;
   return (
     <div className="ocard">
-      <div className="ocard-top"><span className="ordno">{o.orderNumber}</span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span></div>
+      <div className="ocard-top"><span className="ordno">{o.orderNumber}</span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
+        <button className="oprint" title={t('printInv')} aria-label={t('printInv')} onClick={onPrint}>🖨</button></div>
       {where}
       {o.status === 'ACCEPTED' && o.prepTimeMinutes ? <span className="where" style={{ color: 'var(--accepted)' }}>⏱ ~ <span className="num">{o.prepTimeMinutes}</span> {t('min')}</span> : null}
       <div className="olines">
@@ -376,29 +623,74 @@ const customerUrlOf = (tb: TableResponse) => {
 };
 const carUrlOf = (slug: string, branchId: number) => `${window.location.origin}/r/${slug}/b/${branchId}/car`;
 const slugOf = (tb: TableResponse) => { try { return new URL(tb.qrCodeUrl!).pathname.split('/')[2] ?? ''; } catch { return ''; } };
-const servaQrLogo = `data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 44">
-  <rect width="120" height="44" rx="10" fill="white"/>
-  <text x="60" y="29" text-anchor="middle" font-family="Sora, Arial, sans-serif" font-size="23" font-weight="800" fill="#10b981">Serva.</text>
-</svg>
-`)}`;
+/* Bold-style QR: we render the matrix ourselves as inline SVG so the pattern
+   matches the landing poster — ink "dot" modules, rounded finder eyes — and the
+   center "Serva." badge is real inline <text> in Bricolage (an embedded <image>
+   logo renders in a font sandbox and silently falls back to Arial). Error
+   correction stays at H so the rounded modules + cleared badge area still scan. */
+const fmt = (v: number) => Math.round(v * 100) / 100;
+const roundRectPath = (x: number, y: number, w: number, h: number, r: number) => {
+  const rad = Math.min(r, w / 2, h / 2);
+  return `M${fmt(x + rad)} ${fmt(y)}h${fmt(w - 2 * rad)}a${fmt(rad)} ${fmt(rad)} 0 0 1 ${fmt(rad)} ${fmt(rad)}`
+    + `v${fmt(h - 2 * rad)}a${fmt(rad)} ${fmt(rad)} 0 0 1 ${fmt(-rad)} ${fmt(rad)}`
+    + `h${fmt(-(w - 2 * rad))}a${fmt(rad)} ${fmt(rad)} 0 0 1 ${fmt(-rad)} ${fmt(-rad)}`
+    + `v${fmt(-(h - 2 * rad))}a${fmt(rad)} ${fmt(rad)} 0 0 1 ${fmt(rad)} ${fmt(-rad)}z`;
+};
 
-function BrandedQrCode({ value, size, fgColor = '#0E0F12', marginSize = 1 }: { value: string; size: number; fgColor?: string; marginSize?: number }) {
+function BrandedQrCode({ value, size, fgColor = '#0a1712', marginSize = 1, badge = true }:
+  { value: string; size: number; fgColor?: string; marginSize?: number; badge?: boolean }) {
+  const { cells, eyes, cell } = useMemo(() => {
+    const { modules } = createQrMatrix(value, { errorCorrectionLevel: 'H' });
+    const n = modules.size;
+    const dim = n + marginSize * 2;
+    const cell = size / dim;
+    const off = marginSize * cell;
+    const px = (i: number) => off + i * cell;
+    const isFinder = (r: number, c: number) =>
+      (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+    // center badge knockout (px) — skip modules underneath so the mark sits clean
+    const bw = badge ? size * 0.3 : 0, bh = badge ? size * 0.135 : 0;
+    const bx = (size - bw) / 2, by = (size - bh) / 2, bpad = cell * 0.7;
+    const inBadge = (cx: number, cy: number) =>
+      badge && cx > bx - bpad && cx < bx + bw + bpad && cy > by - bpad && cy < by + bh + bpad;
+
+    // Soft "rounded square" modules at full cell size: corners are rounded but
+    // straight edges keep neighbours touching, so finder/timing runs stay solid
+    // and the code decodes like a normal QR (separated dots break detection).
+    let cells = '';
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (!modules.get(r, c) || isFinder(r, c)) continue;
+        const cx = px(c) + cell / 2, cy = px(r) + cell / 2;
+        if (inBadge(cx, cy)) continue;
+        cells += roundRectPath(px(c), px(r), cell, cell, cell * 0.35);
+      }
+    }
+    const eye = (gr: number, gc: number) => {
+      const x = px(gc), y = px(gr), s = cell * 7;
+      return `${roundRectPath(x, y, s, s, cell * 1.75)}${roundRectPath(x + cell, y + cell, cell * 5, cell * 5, cell * 1.2)}${roundRectPath(x + cell * 2, y + cell * 2, cell * 3, cell * 3, cell * 0.9)}`;
+    };
+    const eyes = `${eye(0, 0)}${eye(0, n - 7)}${eye(n - 7, 0)}`;
+    return { cells, eyes, cell };
+  }, [value, size, marginSize, badge]);
+
+  const bw = size * 0.3, bh = size * 0.135, bx = (size - bw) / 2, by = (size - bh) / 2;
   return (
-    <QRCodeSVG
-      value={value}
-      size={size}
-      bgColor="#ffffff"
-      fgColor={fgColor}
-      level="H"
-      marginSize={marginSize}
-      imageSettings={{
-        src: servaQrLogo,
-        width: Math.round(size * 0.3),
-        height: Math.round(size * 0.13),
-        excavate: true,
-      }}
-    />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" shapeRendering="geometricPrecision">
+      <rect width={size} height={size} fill="#ffffff" />
+      <path d={cells} fill={fgColor} />
+      {/* finder eyes: ink frame, white gap, ink pupil (even-odd lets one path nest) */}
+      <path d={eyes} fill={fgColor} fillRule="evenodd" />
+      {badge && (
+        <>
+          <path d={roundRectPath(bx - cell, by - cell, bw + cell * 2, bh + cell * 2, cell * 1.4)} fill="#ffffff" />
+          <path d={roundRectPath(bx, by, bw, bh, bh * 0.3)} fill="#34e2a4" stroke={fgColor} strokeWidth={Math.max(2, size * 0.013)} />
+          <text x={size / 2} y={size / 2 + bh * 0.02} textAnchor="middle" dominantBaseline="central" direction="ltr" unicodeBidi="bidi-override"
+            fontFamily="'Bricolage Grotesque','IBM Plex Sans Arabic',system-ui,sans-serif"
+            fontWeight={800} fontSize={bh * 0.6} letterSpacing="-0.02em" fill={fgColor}>{'Serva.\u200E'}</text>
+        </>
+      )}
+    </svg>
   );
 }
 type PrintQrJob = { title: string; subtitle?: string; value: string };
@@ -435,17 +727,19 @@ function TablesPage({ branchId }: { branchId?: number }) {
     refetchInterval: 30_000,
   });
   // Realtime: push fresh snapshots straight into the query cache (no polling delay).
+  // Rebuilds the stream when the JWT rotates — EventSource can't update its URL itself.
+  const [qaToken, setQaToken] = useState(accessTokenValue);
+  useEffect(() => onAuthChange(() => setQaToken(accessTokenValue())), []);
   useEffect(() => {
     if (!branchId) return;
-    const token = accessTokenValue();
-    const url = `/api/dashboard/qr-activity/stream?branchId=${branchId}${token ? `&access_token=${encodeURIComponent(token)}` : ''}`;
+    const url = `/api/dashboard/qr-activity/stream?branchId=${branchId}${qaToken ? `&access_token=${encodeURIComponent(qaToken)}` : ''}`;
     const es = new EventSource(url);
     const onMsg = (e: MessageEvent) => {
       try { qc.setQueryData(['qr-activity', branchId], JSON.parse(e.data) as QrActivity); } catch { /* ignore */ }
     };
     es.addEventListener('qr-activity', onMsg as EventListener);
     return () => { es.removeEventListener('qr-activity', onMsg as EventListener); es.close(); };
-  }, [branchId, qc]);
+  }, [branchId, qc, qaToken]);
   const todayOf = (key?: string) => (key ? activity?.todayByKey[key] : undefined);
   const ActivityRow = ({ liveKey, todayKey }: { liveKey: string; todayKey: string }) => {
     const live = activity?.liveByKey[liveKey];
@@ -548,6 +842,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
             <div className="print-single-qr">
               <BrandedQrCode value={singlePrint.value} size={560} fgColor="#000000" marginSize={2} />
             </div>
+            <div className="print-single-scan">{t('scan')}</div>
           </div>
         ) : (
           <div className="print-sheet">
@@ -577,4 +872,3 @@ function TablesPage({ branchId }: { branchId?: number }) {
     </div>
   );
 }
-

@@ -4,14 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { OrderType, PublicMenu, PublicItem } from '../../lib/types';
 import { omr } from '../../lib/format';
-import { LangToggle, useI18n, useT, pick, type Dict } from '../../lib/i18n';
-import { ThemeToggle } from '../../lib/theme';
+import { useI18n, useT, pick, LangToggle, type Dict } from '../../lib/i18n';
 import { useCartStore, useCart } from '../../lib/cart';
 import { useToast } from '../../lib/toast';
 import { useVenue, cartKeyOf, menuUrlOf } from './venue';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
-import { resolveThemeId } from './menuThemes';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د',
@@ -41,7 +39,6 @@ export default function MenuPage() {
     queryKey: ['menu', url],
     queryFn: () => api.get<PublicMenu>(url, { auth: false }),
   });
-  const themeId = resolveThemeId(data?.restaurant.theme);
 
   const setVenue = useVenue((s) => s.setVenue);
   useEffect(() => {
@@ -121,10 +118,7 @@ export default function MenuPage() {
               {secondaryRestaurantName && <div className="en">{secondaryRestaurantName}</div>}
             </div>
           </div>
-          <div className="c-actions">
-            {themeId === 'onyx' && <ThemeToggle />}
-            <LangToggle />
-          </div>
+          <LangToggle />
         </div>
         <div className="c-meta">
           {data.table
@@ -132,7 +126,7 @@ export default function MenuPage() {
             : orderType === 'CAR'
               ? <span className="c-table">🚗 {t('car')}</span>
             : <span className="c-table">🥡 {t('takeaway')}</span>}
-          {data.branch && <><span className="dot" /><span>{pick(data.branch, 'name', lang)}</span></>}
+          {data.branch && <span>{pick(data.branch, 'name', lang)}</span>}
         </div>
       </header>
 

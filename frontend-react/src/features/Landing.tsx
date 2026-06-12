@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom';
 import { DEMO } from '../lib/demo';
 import { BRAND } from '../lib/brand';
-import { LangToggle, useI18n } from '../lib/i18n';
-import { ThemeToggle } from '../lib/theme';
+import { useI18n } from '../lib/i18n';
 import './landing.css';
 
 const T = {
@@ -11,14 +10,14 @@ const T = {
     a: 'تطبيق العميل', aD: 'تصفّح القائمة، اطلب من الطاولة، وتتبّع طلبك مباشرة.',
     b: 'لوحة Serva.', bD: 'شاشة التحضير المباشرة، إدارة الطلبات والقائمة والطاولات.',
     c: 'لوحة المنصّة', cD: 'إدارة المطاعم والاشتراكات على مستوى المنصّة.',
-    open: 'فتح', creds: 'بيانات الدخول التجريبية',
+    open: 'فتح',
   },
   en: {
     tag: 'Serva. QR ordering platform',
     a: 'Customer app', aD: 'Browse the menu, order from the table, track live.',
     b: 'Serva. dashboard', bD: 'Live prep display, manage orders, menu & tables.',
     c: 'Platform admin', cD: 'Manage restaurants and subscriptions platform-wide.',
-    open: 'Open', creds: 'Demo credentials',
+    open: 'Open',
   },
 };
 
@@ -36,8 +35,6 @@ export default function Landing() {
             <div className="brand-name">{BRAND.name}</div>
             <h1>{t.tag}</h1>
           </div>
-          <ThemeToggle />
-          <LangToggle />
         </header>
         <p className="landing-sub">{BRAND.tagline[lang]}</p>
 
@@ -45,14 +42,6 @@ export default function Landing() {
           <Card to={customerUrl} accent="var(--accent)" icon="🍽" title={t.a} desc={t.aD} cta={t.open} />
           <Card to="/dashboard" accent="var(--blue)" icon="🟢" title={t.b} desc={t.bD} cta={t.open} />
           <Card to="/admin" accent="var(--violet, #B08CFF)" icon="🏪" title={t.c} desc={t.cD} cta={t.open} />
-        </div>
-
-        <div className="creds">
-          <div className="mono-lbl">{t.creds}</div>
-          <div className="creds-grid">
-            <span>{t.b}</span><code>{DEMO.ownerEmail} · {DEMO.ownerPassword}</code>
-            <span>{t.c}</span><code>{DEMO.adminEmail} · {DEMO.adminPassword}</code>
-          </div>
         </div>
       </div>
     </div>

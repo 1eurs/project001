@@ -37,7 +37,7 @@ public class SubscriptionService {
         subscription.setPrice(request.price());
         subscription.setStatus(request.status() != null ? request.status() : defaultStatus(request.billingCycle()));
         subscription.setStartDate(request.startDate() != null ? request.startDate() : LocalDate.now());
-        subscription.setEndDate(request.endDate());
+        subscription.setEndDate(request.billingCycle() == BillingCycle.ONE_TIME ? null : request.endDate());
         return SubscriptionResponse.from(subscriptionRepository.save(subscription));
     }
 
@@ -56,8 +56,9 @@ public class SubscriptionService {
         if (request.planName() != null) {
             subscription.setPlanName(request.planName());
         }
+        BillingCycle cycle = request.billingCycle() != null ? request.billingCycle() : subscription.getBillingCycle();
         if (request.billingCycle() != null) {
-            subscription.setBillingCycle(request.billingCycle());
+            subscription.setBillingCycle(cycle);
         }
         if (request.price() != null) {
             subscription.setPrice(request.price());
@@ -68,7 +69,10 @@ public class SubscriptionService {
         if (request.startDate() != null) {
             subscription.setStartDate(request.startDate());
         }
-        if (request.endDate() != null) {
+        if (cycle == BillingCycle.ONE_TIME) {
+            subscription.setEndDate(null);
+            subscription.setLastReminderOn(null);
+        } else if (request.endDate() != null) {
             subscription.setEndDate(request.endDate());
         }
         return SubscriptionResponse.from(subscription);

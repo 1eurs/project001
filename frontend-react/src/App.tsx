@@ -1,9 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import LandingPage from './features/site/LandingPage';
+import DefaultLandingPage from './features/site/DefaultLandingPage';
 import SignupPage from './features/site/SignupPage';
-import ForgotPassword from './features/auth/ForgotPassword';
-import ResetPassword from './features/auth/ResetPassword';
 import LegalPage from './features/site/LegalPage';
 import Landing from './features/Landing';
 import MenuPage from './features/customer/MenuPage';
@@ -20,10 +18,8 @@ const LandingGallery = lazy(() => import('./features/landing-designs/LandingGall
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<DefaultLandingPage />} />
       <Route path="/signup" element={<SignupPage />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/terms" element={<LegalPage doc="terms" />} />
       <Route path="/privacy" element={<LegalPage doc="privacy" />} />
       <Route path="/refund" element={<LegalPage doc="refund" />} />

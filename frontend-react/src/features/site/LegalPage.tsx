@@ -1,10 +1,8 @@
 // Template legal copy for launch. HAVE THIS REVIEWED BY COUNSEL and replace the contact details
 // + add your registered company legal name / CR number before relying on it in production.
 import { Link } from 'react-router-dom';
-import { useI18n, LangToggle } from '../../lib/i18n';
-import { ThemeToggle } from '../../lib/theme';
-import { BRAND } from '../../lib/brand';
-import './site.css';
+import { useI18n } from '../../lib/i18n';
+import '../landing-designs/designs/l4.css';
 
 type Doc = 'terms' | 'privacy' | 'refund';
 type Section = { h: string; p: string };
@@ -17,7 +15,7 @@ const DOCS: Record<Doc, Record<'ar' | 'en', Content>> = {
     en: {
       kicker: 'Legal', title: 'Terms of Service', updated: 'Last updated: June 2026',
       sections: [
-        { h: '1. The service', p: 'Serva provides a QR-code ordering platform that lets cafés and food trucks in Oman publish a digital menu and receive orders. By creating an account you agree to these terms.' },
+        { h: '1. The service', p: 'Serva provides a QR-code ordering platform that lets cafés and food businesses in Oman publish a digital menu and receive orders. By creating an account you agree to these terms.' },
         { h: '2. Your account', p: 'You are responsible for keeping your login secure and for the accuracy of your menu, prices and the orders you accept. You must not use the service for unlawful purposes.' },
         { h: '3. Subscription & payment', p: 'Access is sold as an annual subscription paid by bank transfer. Your account is activated once we confirm payment and stays active until the end of the paid term. If you do not renew, your public menu goes offline after a short grace period. Prices may change with notice for future terms.' },
         { h: '4. Availability', p: 'We work to keep the service available, but provide it “as is” without warranty of uninterrupted or error-free operation.' },
@@ -30,7 +28,7 @@ const DOCS: Record<Doc, Record<'ar' | 'en', Content>> = {
     ar: {
       kicker: 'قانوني', title: 'شروط الخدمة', updated: 'آخر تحديث: يونيو 2026',
       sections: [
-        { h: '١. الخدمة', p: 'تقدّم Serva منصّة طلب عبر رمز QR تتيح للمقاهي وعربات الطعام في عُمان نشر قائمة رقمية واستقبال الطلبات. بإنشائك حساباً فأنت توافق على هذه الشروط.' },
+        { h: '١. الخدمة', p: 'تقدّم Serva منصّة طلب عبر رمز QR تتيح للمقاهي والأنشطة الغذائية في عُمان نشر قائمة رقمية واستقبال الطلبات. بإنشائك حساباً فأنت توافق على هذه الشروط.' },
         { h: '٢. حسابك', p: 'أنت مسؤول عن الحفاظ على بيانات دخولك وعن دقّة قائمتك وأسعارك والطلبات التي تقبلها، ولا يجوز استخدام الخدمة لأغراض غير قانونية.' },
         { h: '٣. الاشتراك والدفع', p: 'يُباع الوصول كاشتراك سنوي يُدفع عبر التحويل البنكي. يُفعّل حسابك فور تأكيد الدفع ويبقى نشطاً حتى نهاية المدة المدفوعة. وإن لم تُجدّد تتوقّف قائمتك العامة بعد مهلة قصيرة. وقد تتغيّر الأسعار للمدد القادمة بإشعار مسبق.' },
         { h: '٤. التوفّر', p: 'نسعى لإبقاء الخدمة متاحة، لكنها تُقدَّم «كما هي» دون ضمان تشغيل متواصل أو خالٍ من الأخطاء.' },
@@ -96,29 +94,30 @@ export default function LegalPage({ doc }: { doc: Doc }) {
   const d = DOCS[doc][lang];
 
   return (
-    <div className="ed">
-      <nav className="ed-top">
-        <div className="ed-wrap row">
-          <Link className="ed-mark" to="/"><span className="mk">{BRAND.name.charAt(0)}</span><span>{BRAND.name}</span></Link>
-          <div className="ed-nav"><Link to="/">{lang === 'ar' ? '← الرئيسية' : '← Home'}</Link></div>
-          <div className="ed-tools"><ThemeToggle /><LangToggle /></div>
+    <div className="lz-screen b4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      <nav className="b4-nav b4-simple-nav">
+        <Link className="b4-brand" to="/">SERVA<span>.</span></Link>
+        <div className="b4-tools">
+          <Link className="b4-signin" to="/">{lang === 'ar' ? '← الرئيسية' : '← Home'}</Link>
         </div>
       </nav>
 
-      <section className="ed-sec ed-wrap" style={{ maxWidth: 820 }}>
-        <div className="ed-lbl"><span className="n">§</span>{d.kicker}</div>
-        <h1 className="ed-statement" style={{ fontSize: 'clamp(30px,5vw,56px)' }}>{d.title}</h1>
-        <p className="ed-lead" style={{ marginTop: 12 }}>{d.updated}</p>
+      <section className="b4-sec b4-page-main">
+        <div className="b4-pagecard b4-legal">
+          <div className="b4-seclbl">{d.kicker}</div>
+          <h1 className="b4-h2">{d.title}</h1>
+          <p className="b4-legal-meta">{d.updated}</p>
 
-        {d.sections.map((s) => (
-          <div key={s.h} style={{ marginTop: 28 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{s.h}</h3>
-            <p style={{ color: 'var(--muted)', lineHeight: 1.75 }}>{s.p}</p>
-          </div>
-        ))}
+          {d.sections.map((s) => (
+            <div className="b4-legal-section" key={s.h}>
+              <h3>{s.h}</h3>
+              <p>{s.p}</p>
+            </div>
+          ))}
 
-        <p className="ed-lead" style={{ marginTop: 34 }}>{d.contact}</p>
-        <Link className="ed-link" to="/" style={{ marginTop: 20 }}>{lang === 'ar' ? '← الرئيسية' : '← Home'}</Link>
+          <p className="b4-legal-contact">{d.contact}</p>
+          <Link className="b4-btn" to="/">{lang === 'ar' ? '← الرئيسية' : '← Home'}</Link>
+        </div>
       </section>
     </div>
   );

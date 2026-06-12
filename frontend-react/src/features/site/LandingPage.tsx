@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
-import { useI18n, useT, LangToggle, type Dict } from '../../lib/i18n';
-import { ThemeToggle } from '../../lib/theme';
+import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { BRAND } from '../../lib/brand';
 import { DEMO } from '../../lib/demo';
 import './site.css';
@@ -14,58 +13,58 @@ const T: Dict = {
     kicker: 'طلبك على بُعد مسحة واحدة.',
     h1a: 'اطلب من', h1b: 'سيارتك', trans: 'Order from your car.',
     sub: 'أو من طاولتك — أينما كنت.',
-    lead: 'لعربات الطعام والمقاهي في عُمان. يمسح الزبون الرمز من سيارته، يتصفّح القائمة بالعربية أو الإنجليزية، ويطلب — دون أي تطبيق.',
+    lead: 'للمقاهي والأنشطة الغذائية في عُمان. يمسح الزبون الرمز من سيارته أو طاولته، يتصفّح القائمة بالعربية أو الإنجليزية، ويطلب — دون أي تطبيق.',
     cta_req: 'اطلب حسابك', cta_demo: 'شاهد العرض', sl_scan: 'امسح', sl_order: 'اطلب', sl_track: 'استلم',
     m_lbl: 'الفكرة', m1: 'لا تطبيق. لا طابور.', m2: 'امسح الرمز واطلب.',
     how_lbl: 'كيف يعمل',
-    s1t: 'امسح الرمز', s1d: 'رمز QR على شبّاك العربة أو الطاولة يفتح القائمة فوراً في المتصفح — دون أي تنزيل.',
+    s1t: 'امسح الرمز', s1d: 'رمز QR عند الكاونتر أو الطاولة يفتح القائمة فوراً في المتصفح — دون أي تنزيل.',
     s2t: 'اختر واطلب', s2d: 'سلّة بسيطة بالعربية والإنجليزية، وأسعار بالريال العُماني، وإرسالٌ بضغطة واحدة.',
     s3t: 'استلم طلبك', s3d: 'يصل الطلب إلى نافذة التحضير لحظياً، وتتابع حالته حتى الاستلام.',
     cap_lbl: 'الإمكانات',
     i1t: 'عربي وإنجليزي', i1d: 'واجهة عربية أولاً مع تبديل فوري.',
     i2t: 'شاشة التحضير', i2d: 'طلبات لحظية مع تنبيه صوتي.',
     i3t: 'إدارة القائمة', i3d: 'أصناف وصور وتوفّر بلمسة.',
-    i4t: 'رموز QR', i4d: 'للعربة أو لكل طاولة — أنشئ واطبع.',
+    i4t: 'رموز QR', i4d: 'للكاونتر أو لكل طاولة — أنشئ واطبع.',
     i5t: 'الدفع اختياري', i5d: 'نقد أو بطاقة عند الاستلام.',
     i6t: 'تقارير', i6d: 'مبيعات اليوم وأكثر الأصناف.',
-    demo_lbl: 'العرض', demo_h: 'شاهده حياً', demo_guest: 'هكذا يراها زبونك', demo_guest_c: 'تجربة الطلب من السيارة', demo_dash: 'لوحة العربة', demo_dash_c: 'شاشة التحضير والإدارة',
-    req_lbl: 'اطلب حسابك', req_h: 'ابدأ مع عربتك.', req_p: 'اترك بياناتك ونتواصل معك لتجهيز حسابك أو عرضٍ مباشر.',
-    f_cafe: 'اسم العربة / المقهى', f_name: 'اسمك', f_phone: 'رقم الجوال', f_city: 'المدينة', f_note: 'ملاحظة (اختياري)',
+    demo_lbl: 'العرض', demo_h: 'شاهده حياً', demo_guest: 'هكذا يراها زبونك', demo_guest_c: 'تجربة الطلب من السيارة', demo_dash: 'لوحة الإدارة', demo_dash_c: 'شاشة التحضير والإدارة',
+    req_lbl: 'اطلب حسابك', req_h: 'ابدأ مع نشاطك.', req_p: 'أنشئ حسابك بنفسك، أكمل خطوات التسجيل والدفع، وسنفعّله فور تأكيد التحويل.',
+    f_cafe: 'اسم المقهى / النشاط', f_name: 'اسمك', f_phone: 'رقم الجوال', f_city: 'المدينة', f_note: 'ملاحظة (اختياري)',
     f_send: 'أرسل الطلب', f_sending: 'جارٍ الإرسال…', f_okh: 'وصلنا طلبك ✓', f_okp: 'شكراً لك — سنتواصل معك قريباً.',
-    foot_demo: 'العرض', foot_dash: 'لوحة العربة', foot_admin: 'لوحة المنصّة', foot_contact: 'تواصل',
-    foot_privacy: 'الخصوصية', foot_terms: 'الشروط', foot_refund: 'الاسترداد', foot_made: 'صُنع لعربات ومقاهي عُمان', foot_rights: 'جميع الحقوق محفوظة',
+    foot_demo: 'العرض', foot_dash: 'لوحة الإدارة', foot_admin: 'لوحة المنصّة', foot_contact: 'تواصل',
+    foot_privacy: 'الخصوصية', foot_terms: 'الشروط', foot_refund: 'الاسترداد', foot_made: 'صُنع لمقاهي وأنشطة عُمان الغذائية', foot_rights: 'جميع الحقوق محفوظة',
   },
   en: {
     nav_idea: 'Idea', nav_how: 'How', nav_demo: 'Demo', nav_req: 'Request access', nav_signin: 'Sign in', cta_start: 'Start now',
     kicker: 'Your order, one scan away.',
     h1a: 'Order from', h1b: 'your car', trans: 'اطلب من سيارتك.',
     sub: 'or your table — wherever you are.',
-    lead: 'For Omani food trucks & cafés. The guest scans from their car, browses the menu in Arabic or English, and orders — with no app at all.',
+    lead: 'For Omani cafés and food businesses. Guests scan from their car or table, browse the menu in Arabic or English, and order — with no app at all.',
     cta_req: 'Request access', cta_demo: 'See the demo', sl_scan: 'scan', sl_order: 'order', sl_track: 'pick up',
     m_lbl: 'Idea', m1: 'No app. No queue.', m2: 'Scan and order.',
     how_lbl: 'How it works',
-    s1t: 'Scan the code', s1d: 'A QR on the truck window or table opens the menu instantly in the browser — no download.',
+    s1t: 'Scan the code', s1d: 'A QR at the counter or table opens the menu instantly in the browser — no download.',
     s2t: 'Pick & order', s2d: 'A simple cart in Arabic or English, OMR pricing, and one-tap send.',
     s3t: 'Pick it up', s3d: 'The order hits the prep window in realtime; the guest tracks it until pickup.',
     cap_lbl: 'Capabilities',
     i1t: 'Arabic & English', i1d: 'RTL-first with an instant switch.',
     i2t: 'Prep display', i2d: 'Realtime orders with a sound cue.',
     i3t: 'Menu management', i3d: 'Items, photos, availability in a tap.',
-    i4t: 'QR codes', i4d: 'For the truck or each table — generate & print.',
+    i4t: 'QR codes', i4d: 'For the counter or each table — generate & print.',
     i5t: 'Payments optional', i5d: 'Cash or card on pickup.',
     i6t: 'Reports', i6d: "Today’s sales and best sellers.",
-    demo_lbl: 'Demo', demo_h: 'See it live', demo_guest: 'What your customer sees', demo_guest_c: 'The order-from-car experience', demo_dash: 'Truck dashboard', demo_dash_c: 'Prep display & management',
-    req_lbl: 'Request access', req_h: 'Start with your truck.', req_p: 'Leave your details and we’ll set up your account or a live demo.',
-    f_cafe: 'Truck / café name', f_name: 'Your name', f_phone: 'Phone number', f_city: 'City', f_note: 'Note (optional)',
+    demo_lbl: 'Demo', demo_h: 'See it live', demo_guest: 'What your customer sees', demo_guest_c: 'The order-from-car experience', demo_dash: 'Dashboard', demo_dash_c: 'Prep display & management',
+    req_lbl: 'Request access', req_h: 'Start with your business.', req_p: 'Create your account yourself, complete onboarding and payment, and we’ll activate it once the transfer is confirmed.',
+    f_cafe: 'Business / café name', f_name: 'Your name', f_phone: 'Phone number', f_city: 'City', f_note: 'Note (optional)',
     f_send: 'Send request', f_sending: 'Sending…', f_okh: 'Got your request ✓', f_okp: 'Thank you — we’ll be in touch shortly.',
-    foot_demo: 'Demo', foot_dash: 'Truck dashboard', foot_admin: 'Platform', foot_contact: 'Contact',
-    foot_privacy: 'Privacy', foot_terms: 'Terms', foot_refund: 'Refunds', foot_made: 'Made for Omani trucks & cafés', foot_rights: 'All rights reserved',
+    foot_demo: 'Demo', foot_dash: 'Dashboard', foot_admin: 'Platform', foot_contact: 'Contact',
+    foot_privacy: 'Privacy', foot_terms: 'Terms', foot_refund: 'Refunds', foot_made: 'Made for Omani cafés and food businesses', foot_rights: 'All rights reserved',
   },
 };
 
 const customerUrl = `/r/${DEMO.slug}/b/${DEMO.branchId}/t/${DEMO.tableToken}`;
 const N = ['01', '02', '03', '04', '05', '06'];
-const TICKER = ['قهوة', 'KARAK', 'لاتيه', 'ORDER', 'سيارتك', 'QR', 'إسبريسو', 'SCAN', 'حلوى', 'PICKUP', 'عربة', 'MENU'];
+const TICKER = ['قهوة', 'KARAK', 'لاتيه', 'ORDER', 'سيارتك', 'QR', 'إسبريسو', 'SCAN', 'حلوى', 'PICKUP', 'مقهى', 'MENU'];
 
 export default function LandingPage() {
   const { lang } = useI18n();
@@ -92,7 +91,6 @@ export default function LandingPage() {
           <div className="ed-tools">
             <Link className="ed-signin" to="/signup">{t('cta_start')}</Link>
             <Link className="ed-signin" to="/dashboard">{t('nav_signin')}</Link>
-            <ThemeToggle /><LangToggle />
           </div>
         </div>
       </nav>

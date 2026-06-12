@@ -15,9 +15,9 @@ const C6 = {
     old: ['وقوف في طابور طويل', 'أخطاء في الطلب الشفهي', 'كاشير مشغول طوال الوقت', 'زحام عند نافذة الطلب'],
     neu: ['طلب من المقعد بمسحة واحدة', 'طلب مكتوب وواضح دائماً', 'الطاقم يحضّر بدل أن يكتب', 'لا زحام — الكل يطلب من مكانه'],
     how: 'ثلاث خطوات', steps: [['يمسح الزبون الرمز', 'من الطاولة أو السيارة — تفتح القائمة فوراً'], ['يطلب من مكانه', 'سلّة بسيطة، أسعار بالريال، إرسال بضغطة'], ['تحضّرون وتسلّمون', 'يصل الطلب للمطبخ لحظياً مع تنبيه صوتي']],
-    reqH: 'جرّبها في عربتك.', reqP: 'اترك بياناتك ونجهّز لك حساباً أو عرضاً مباشراً.',
-    fCafe: 'اسم العربة / المقهى', fName: 'اسمك', fPhone: 'رقم الجوال', fSend: 'أرسل الطلب', fSending: 'جارٍ الإرسال…', okh: 'وصلنا طلبك ✓', okp: 'سنتواصل معك قريباً.',
-    foot: 'صُنع لعربات ومقاهي عُمان',
+    reqH: 'جرّبها في نشاطك.', reqP: 'أنشئ حسابك وأكمل خطوات التسجيل والدفع بنفسك.',
+    fCafe: 'اسم المقهى / النشاط', fName: 'اسمك', fPhone: 'رقم الجوال', fSend: 'أرسل الطلب', fSending: 'جارٍ الإرسال…', okh: 'وصلنا طلبك ✓', okp: 'سنتواصل معك قريباً.',
+    foot: 'صُنع لمقاهي وأنشطة عُمان الغذائية',
   },
   en: {
     dir: 'ltr' as const, brand: 'Serva.', signin: 'Sign in', request: 'Request access',
@@ -30,9 +30,9 @@ const C6 = {
     old: ['Standing in a long queue', 'Mistakes from spoken orders', 'The till is always busy', 'Crowding at the counter'],
     neu: ['Order from the seat in one scan', 'Always a clear written order', 'Staff prep instead of taking orders', 'No crowding — everyone orders in place'],
     how: 'Three steps', steps: [['Guest scans the code', 'From the table or car — the menu opens instantly'], ['Orders from their seat', 'Simple cart, OMR pricing, one-tap send'], ['You prep & hand off', 'The order hits the kitchen live with a sound cue']],
-    reqH: 'Try it in your truck.', reqP: 'Leave your details and we’ll set up an account or a live demo.',
-    fCafe: 'Truck / café name', fName: 'Your name', fPhone: 'Phone number', fSend: 'Send request', fSending: 'Sending…', okh: 'Got it ✓', okp: 'We’ll be in touch shortly.',
-    foot: 'Made for Omani trucks & cafés',
+    reqH: 'Try it in your business.', reqP: 'Create your account and complete onboarding yourself.',
+    fCafe: 'Business / café name', fName: 'Your name', fPhone: 'Phone number', fSend: 'Send request', fSending: 'Sending…', okh: 'Got it ✓', okp: 'We’ll be in touch shortly.',
+    foot: 'Made for Omani cafés and food businesses',
   },
 };
 

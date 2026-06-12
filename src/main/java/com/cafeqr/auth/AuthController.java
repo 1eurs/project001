@@ -1,6 +1,8 @@
 package com.cafeqr.auth;
 
 import com.cafeqr.auth.dto.AuthResponse;
+import com.cafeqr.auth.dto.ChangeEmailRequest;
+import com.cafeqr.auth.dto.ChangePasswordRequest;
 import com.cafeqr.auth.dto.ForgotPasswordRequest;
 import com.cafeqr.auth.dto.LoginRequest;
 import com.cafeqr.auth.dto.RefreshRequest;
@@ -63,6 +65,24 @@ public class AuthController {
     public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request.token(), request.newPassword());
         return ApiResponse.message("Password updated — you can now sign in.");
+    }
+
+    @Operation(summary = "Change the signed-in user's password",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(SecurityUtils.currentUser().getUserId(),
+                request.currentPassword(), request.newPassword());
+        return ApiResponse.message("Password updated");
+    }
+
+    @Operation(summary = "Change the signed-in user's login email",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @PostMapping("/change-email")
+    public ApiResponse<AuthResponse> changeEmail(@Valid @RequestBody ChangeEmailRequest request) {
+        AuthResponse auth = authService.changeEmail(SecurityUtils.currentUser().getUserId(),
+                request.currentPassword(), request.newEmail());
+        return ApiResponse.ok("Email updated", auth);
     }
 
     @Operation(summary = "Revoke all refresh tokens for the current user",

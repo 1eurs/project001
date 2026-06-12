@@ -23,9 +23,42 @@
 .dtop .spacer{flex:1}
 .select{background:var(--surface);border:1px solid var(--line-2);color:var(--text);border-radius:11px;padding:9px 12px;font-family:var(--font-ar);font-size:13px;cursor:pointer}
 .select:focus{outline:none;border-color:var(--accent)}
-.who{display:flex;align-items:center;gap:9px;padding-inline-start:6px}
-.who .av{width:34px;height:34px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line-2);display:grid;place-items:center;font-weight:600;font-size:13px}
+.who{position:relative;padding-inline-start:6px}
+.who-btn{display:flex;align-items:center;gap:9px;border:0;background:transparent;cursor:pointer;padding:3px 4px;border-radius:12px;color:var(--text)}
+.who-btn:hover{background:var(--surface)}
+.who .av{width:34px;height:34px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line-2);display:grid;place-items:center;font-weight:600;font-size:13px;flex:0 0 auto}
+.who .av.lg{width:42px;height:42px;font-size:15px;color:var(--accent)}
+.who-txt{text-align:start;line-height:1.25}
 .who .nm{font-size:12.5px;font-weight:600}.who .rl{font-size:11px;color:var(--faint)}
+.who-caret{font-size:10px;color:var(--muted)}
+/* account dropdown */
+.acct-menu{position:absolute;inset-block-start:calc(100% + 8px);inset-inline-end:0;z-index:60;min-width:260px;
+  background:var(--bg-2);border:1px solid var(--line-2);border-radius:14px;padding:6px;
+  box-shadow:0 22px 50px -22px rgba(0,0,0,.5);animation:pop .16s ease-out}
+.acct-head{display:flex;gap:11px;align-items:center;padding:10px 10px 12px}
+.acct-id{min-width:0}
+.acct-name{font-size:13.5px;font-weight:700}
+.acct-mail{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+.acct-role{display:inline-block;margin-top:5px;font-size:10.5px;font-weight:600;color:var(--accent-text);
+  background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px;padding:1px 8px}
+.acct-sep{height:1px;background:var(--line);margin:2px 4px 4px}
+.acct-item{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;cursor:pointer;
+  text-align:start;padding:10px;border-radius:10px;font-size:13px;font-weight:500;color:var(--text)}
+.acct-item:hover{background:var(--surface)}
+.acct-item.on{background:var(--surface-2);color:var(--accent-text);font-weight:700}
+.acct-item .ai-ic{font-size:15px;width:18px;text-align:center}
+.acct-item.danger{color:var(--bad)}
+.acct-item.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.acct-lang{padding:10px;border-radius:10px}
+.acct-lang>span{display:block;color:var(--muted);font-size:11px;font-weight:700;margin-bottom:7px}
+.acct-lang-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.acct-lang-btns button{border:1px solid var(--line-2);background:var(--surface);color:var(--text);border-radius:9px;padding:8px 9px;font-family:var(--font-ar);font-size:12px;font-weight:700;cursor:pointer}
+.acct-lang-btns button:hover{border-color:var(--accent)}
+.acct-lang-btns button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* change-password form */
+.pwform{display:flex;flex-direction:column;gap:10px}
+.pwhint{font-size:11.5px;margin-top:-4px}
+.pwhint.bad{color:var(--bad)}
 
 .board{flex:1;display:flex;gap:14px;overflow-x:auto;padding:18px 22px;align-items:flex-start}
 .board::-webkit-scrollbar{height:8px}.board::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
@@ -40,10 +73,13 @@
 
 .ocard{background:var(--surface);border:1px solid var(--line);border-inline-start:3px solid var(--col,var(--line-2));border-radius:var(--r-md);padding:13px;animation:opop .35s cubic-bezier(.2,.8,.2,1)}
 @keyframes opop{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
-.ocard-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ocard-top{display:flex;align-items:center;gap:8px}
+.ocard-top .elapsed{margin-inline-start:auto}
 .ordno{font-family:var(--font-mono);font-weight:600;font-size:14px}
 .elapsed{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 .elapsed.warn{color:var(--pending)}.elapsed.late{color:var(--bad)}
+.oprint{flex:0 0 auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--line-2);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;display:grid;place-items:center;transition:.15s}
+.oprint:hover{color:var(--text);border-color:var(--line)}
 .where{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:6px}
 .where .tg{background:var(--surface-2);border:1px solid var(--line-2);border-radius:7px;padding:2px 8px;font-weight:600;color:var(--text)}
 .carcol{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--text)}
@@ -93,6 +129,25 @@
   .print-single-title{font-size:34px;font-weight:800}
   .print-single-qr{line-height:0}
   .print-single-qr svg{width:min(82vw,82vh,680px);height:auto}
+  .print-single-scan{font-size:20px;font-weight:700;color:#000}
+}
+
+/* printable order invoice — 80mm receipt, portaled to <body> like the tents */
+.invoice-sheet{display:none}
+@media print{
+  .invoice-sheet{display:block !important;width:72mm;margin:0 auto;padding:2mm 0 6mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5}
+  .inv-name{text-align:center;font-size:16px;font-weight:800}
+  .inv-sub{text-align:center;font-size:11px;color:#333}
+  .inv-title{text-align:center;font-weight:700;margin:6px 0 8px;padding:3px 0;border-top:1px dashed #000;border-bottom:1px dashed #000}
+  .inv-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .inv-row .amt{font-family:var(--font-mono);white-space:nowrap}
+  .inv-item{margin:2px 0}
+  .inv-en{font-size:10px;color:#333}
+  .inv-note{font-size:10px;color:#333;padding-inline-start:16px}
+  .inv-hr{border-top:1px dashed #000;margin:6px 0}
+  .inv-total{font-weight:800;font-size:14px}
+  .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
+  .inv-brand{text-align:center;font-family:var(--font-mono);font-size:10px;color:#555;margin-top:2px}
 }
 
 /* ---- menu manager ---- */
@@ -164,6 +219,16 @@
 .profile-status{border:1px solid var(--line);background:var(--bg-2);border-radius:14px;padding:11px 14px;text-align:center}.profile-status span{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}.profile-status b{color:var(--ready);font-size:18px}
 .profile-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
 .profile-grid .field{margin:0}.profile-grid .field span{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}
+/* subscription strip */
+.profile-sub{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.psub-item{border:1px solid var(--line);background:var(--bg-2);border-radius:14px;padding:12px 14px}
+.psub-item span{display:block;color:var(--muted);font-size:11px;font-weight:700;margin-bottom:6px}
+.psub-item b{font-size:15px;font-weight:700}
+.sub-pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 11px;border:1px solid var(--line-2)}
+.sub-pill.st-ACTIVE,.sub-pill.st-TRIAL{color:var(--ready);background:color-mix(in srgb,var(--ready) 14%,transparent);border-color:color-mix(in srgb,var(--ready) 35%,transparent)}
+.sub-pill.st-PENDING_PAYMENT,.sub-pill.st-PAST_DUE{color:var(--pending);background:color-mix(in srgb,var(--pending) 14%,transparent);border-color:color-mix(in srgb,var(--pending) 35%,transparent)}
+.sub-pill.st-EXPIRED,.sub-pill.st-CANCELLED{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,transparent);border-color:color-mix(in srgb,var(--bad) 33%,transparent)}
+.branch-row{display:flex;gap:8px}.branch-row input{flex:1;min-width:0}
 .profile-check{align-self:end;border:1px solid var(--line);background:var(--surface);border-radius:13px;padding:11px 12px;margin:0;min-height:42px}
 @media(max-width:980px){
   .look-studio{grid-template-columns:1fr}
@@ -208,9 +273,10 @@
 .sndtgl:hover{background:var(--surface-2)}
 .sndtgl.on{border-color:var(--accent);color:var(--accent-text);background:rgba(16,185,129,.1)}
 
-/* reconnecting state for the live pill */
-.dlive.off{color:var(--pending)}
-.dlive.off .d{background:var(--pending);animation:dlp 1.2s infinite}
+/* non-alarming fallback states for the live pill; polling still keeps orders current */
+.dlive.sync,.dlive.fallback{color:var(--muted)}
+.dlive.sync .d{background:var(--blue);animation:dlp 1.6s infinite}
+.dlive.fallback .d{background:var(--blue);animation:none}
 
 /* new-order banner */
 .newbanner{margin:12px 22px 0;display:flex;align-items:center;gap:10px;border:0;cursor:pointer;width:calc(100% - 44px);
@@ -315,3 +381,102 @@
   border:1px solid rgba(61,224,160,.4);background:rgba(61,224,160,.1);border-radius:999px;padding:3px 9px}
 .qa-today{font-size:11.5px;color:var(--faint)}
 .qa-today .num{color:var(--muted);font-family:var(--font-mono)}
+
+/* =====================================================================
+   BOLD skin — carries the landing's neo-brutalist poster vibe into the
+   dashboard: paper + ink + lime, thick ink borders, hard offset shadows
+   (no blur), blocky corners, heavy Bricolage display type. Everything is
+   scoped to .dash so the customer menu, platform admin and auth screens
+   keep their own look. Higher specificity (.dash X) lets these override
+   the soft-SaaS rules above without reordering them.
+   ===================================================================== */
+.dash{
+  --paper:#f5efe3; --ink:#0a1712; --lime:#34e2a4;
+  --accent:#34e2a4; --accent-2:#12b886; --accent-ink:#062019;
+  --accent-text:#0a6b4d; --accent-glow:rgba(52,226,164,.30);
+  --canvas:#f5efe3; --bg-2:#fffaf1;
+  --surface:#fffaf1; --surface-2:#efe7d7;
+  --line:rgba(10,23,18,.24); --line-2:rgba(10,23,18,.42);
+  --text:#0a1712; --muted:#4d584f; --faint:#7a857b;
+  --rail-bg:#fffaf1; --glass:rgba(245,239,227,.9);
+  --r-lg:9px; --r-md:7px; --r-sm:6px;
+  --hard:4px 4px 0 var(--ink); --hard-sm:3px 3px 0 var(--ink);
+  --bold:'Bricolage Grotesque','IBM Plex Sans Arabic',system-ui,sans-serif;
+  /* grid-paper backdrop, same as the landing poster */
+  background:
+    linear-gradient(90deg,rgba(10,23,18,.05) 1px,transparent 1px) 0 0/34px 34px,
+    linear-gradient(180deg,rgba(10,23,18,.04) 1px,transparent 1px) 0 0/34px 34px,
+    var(--paper);
+}
+
+/* heavy display type on the chrome headings */
+.dash .dtop h2,.dash .col-head h3,.dash .mcat-hd h3,.dash .profile-title h3,
+.dash .look-controls-head h4,.dash .modal-card h3,.dash .ordno,.dash .tnum,
+.dash .acct-name,.dash .rail .logo{font-family:var(--bold);font-weight:800;letter-spacing:-.01em}
+.dash .col-head h3{text-transform:uppercase;letter-spacing:.02em}
+
+/* ---- shell: rail + top bar (flat, ink-edged) ---- */
+.dash .rail{border-inline-start:2px solid var(--ink);backdrop-filter:none}
+.dash .rail .logo{border-radius:8px;border:2px solid var(--ink);background:var(--lime);color:var(--ink);box-shadow:var(--hard-sm)}
+.dash .rail .nav button{border-radius:8px}
+.dash .rail .nav button.on{background:var(--lime);color:var(--ink);box-shadow:var(--hard-sm)}
+.dash .rail .nav button.on::before{display:none}
+.dash .dtop{border-bottom:2px solid var(--ink);backdrop-filter:none}
+
+/* ---- bold buttons (lime fill, ink border, hard shadow, press-in) ---- */
+.dash .btn{background:var(--lime);color:var(--ink);border:2px solid var(--ink);border-radius:6px;
+  font-family:var(--bold);font-weight:800;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
+.dash .btn:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
+.dash .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.dash .btn.ghost{background:var(--paper);color:var(--ink)}
+.dash .btn.danger{background:var(--paper);color:var(--bad);border-color:var(--bad)}
+.dash .btn.sm{border-radius:5px}
+.dash .btn:disabled{filter:none;opacity:.5;box-shadow:none;transform:none}
+
+/* ---- inputs / selects ---- */
+.dash .input,.dash .field input,.dash .field textarea,.dash .field select,.dash .select{
+  background:var(--paper);border:2px solid var(--ink);border-radius:6px}
+.dash .input:focus,.dash .field input:focus,.dash .field textarea:focus,
+.dash .field select:focus,.dash .select:focus{border-color:var(--ink);box-shadow:3px 3px 0 var(--lime)}
+.dash .select:hover{border-color:var(--ink);background:var(--surface-2)}
+
+/* ---- live board cards + columns ---- */
+.dash .ocard{border:2px solid var(--ink);border-inline-start:5px solid var(--col,var(--ink));
+  border-radius:7px;box-shadow:var(--hard-sm)}
+.dash .ocard:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--ink);border-color:var(--ink)}
+.dash .col-head .cnt{border:2px solid var(--ink);border-radius:6px;color:var(--ink);box-shadow:none;font-weight:800}
+.dash .col-empty{border:2px dashed var(--line-2);border-radius:7px}
+.dash .where .tg{border:1.5px solid var(--ink);border-radius:6px}
+.dash .newbanner{background:var(--lime);color:var(--ink);border:2px solid var(--ink);border-radius:8px;
+  box-shadow:var(--hard-sm);font-family:var(--bold)}
+.dash .newbanner .nb-dot{background:var(--ink)}
+
+/* ---- tables, menu, profile & look panels ---- */
+.dash .tcard,.dash .profile-hero,.dash .psub-item,.dash .profile-status,.dash .profile-check,
+.dash .look-control-block,.dash .look-controls-head{border:2px solid var(--ink);border-radius:8px;box-shadow:var(--hard-sm)}
+.dash .tcard:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--ink);border-color:var(--ink)}
+.dash .qrtile{position:relative;background:#fff;border:2.5px solid var(--ink);border-radius:8px;padding:12px;box-shadow:var(--hard)}
+.dash .qrtile::after{content:"SCAN ✦";position:absolute;top:-11px;inset-inline-end:-9px;
+  background:var(--lime);color:var(--ink);border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink);
+  font-family:var(--bold);font-weight:800;font-size:10px;letter-spacing:.04em;padding:3px 7px;
+  transform:rotate(6deg);pointer-events:none}
+.dash .mitem{border:2px solid var(--ink);border-radius:7px;box-shadow:none}
+.dash .mitem:hover{border-color:var(--ink);box-shadow:var(--hard-sm)}
+.dash .iconbtn{border:2px solid var(--ink);border-radius:6px}
+
+/* ---- controls: switch, sound toggle, chips, account ---- */
+.dash .switch{border:2px solid var(--ink)}
+.dash .switch.on{background:var(--lime);border-color:var(--ink)}
+.dash .switch.on span{background:var(--ink)}
+.dash .sndtgl{border:2px solid var(--ink);border-radius:8px}
+.dash .sndtgl.on{background:var(--lime);color:var(--ink);border-color:var(--ink)}
+.dash .chip{border:1.5px solid var(--ink);border-radius:6px}
+.dash .who .av{border:2px solid var(--ink);border-radius:8px;background:var(--lime);color:var(--ink);font-family:var(--bold)}
+.dash .acct-menu{border:2px solid var(--ink);border-radius:9px;box-shadow:5px 5px 0 var(--ink)}
+.dash .modal-card{border:2.5px solid var(--ink);border-radius:10px;box-shadow:6px 6px 0 var(--ink)}
+
+/* ---- phone-only nav ---- */
+.dash .dnav-bottom{border-top:2px solid var(--ink);backdrop-filter:none}
+.dash .dnav-bottom button.on{color:var(--ink)}
+.dash .board-tabs button{border:2px solid var(--ink)}
+.dash .board-tabs button.on{box-shadow:var(--hard-sm)}

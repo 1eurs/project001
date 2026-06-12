@@ -1,5 +1,6 @@
 package com.cafeqr.onboarding;
 
+import com.cafeqr.branches.BranchService;
 import com.cafeqr.common.config.AppProperties;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ConflictException;
@@ -42,6 +43,7 @@ import java.util.Optional;
 public class OnboardingService {
 
     private final RestaurantService restaurantService;
+    private final BranchService branchService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final SubscriptionRepository subscriptionRepository;
@@ -49,12 +51,14 @@ public class OnboardingService {
     private final ApplicationEventPublisher events;
 
     public OnboardingService(RestaurantService restaurantService,
+                             BranchService branchService,
                              UserRepository userRepository,
                              PasswordEncoder passwordEncoder,
                              SubscriptionRepository subscriptionRepository,
                              AppProperties appProperties,
                              ApplicationEventPublisher events) {
         this.restaurantService = restaurantService;
+        this.branchService = branchService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.subscriptionRepository = subscriptionRepository;
@@ -71,6 +75,10 @@ public class OnboardingService {
 
         // Restaurant stays inactive (public menu offline) until the admin confirms payment.
         Restaurant restaurant = restaurantService.createPending(req.cafeName(), req.slug(), req.phone(), req.email());
+
+        // Every café needs at least one branch — tables, QR codes and the live board all hang off it.
+        // Create a default branch now so the owner's dashboard works the moment they're activated.
+        branchService.createDefault(restaurant.getId(), req.cafeName());
 
         // Owner is disabled, so login is blocked until activated — this is the "locked until paid" gate.
         User owner = new User();
@@ -125,6 +133,8 @@ public class OnboardingService {
 
         RestaurantResponse restaurant = restaurantService.setActive(restaurantId, true);
         activateOwners(restaurantId);
+        // Heal cafés onboarded before branches were auto-created (idempotent).
+        branchService.ensureDefaultBranch(restaurantId, restaurant.name());
 
         // "You're live" email to the owner, after commit.
         ownerOf(restaurantId).ifPresent(owner -> events.publishEvent(new CafeActivatedEvent(
@@ -140,6 +150,9 @@ public class OnboardingService {
         Subscription subscription = subscriptionRepository.findFirstByRestaurantIdOrderByIdDesc(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "No subscription found for restaurant " + restaurantId));
+        if (subscription.getBillingCycle() == BillingCycle.ONE_TIME) {
+            throw new BadRequestException("One-time subscriptions do not renew");
+        }
         LocalDate today = LocalDate.now();
         LocalDate base = (subscription.getEndDate() != null && subscription.getEndDate().isAfter(today))
                 ? subscription.getEndDate() : today;
@@ -150,6 +163,7 @@ public class OnboardingService {
 
         RestaurantResponse restaurant = restaurantService.setActive(restaurantId, true);
         activateOwners(restaurantId);
+        branchService.ensureDefaultBranch(restaurantId, restaurant.name());
 
         LocalDate endDate = subscription.getEndDate();
         ownerOf(restaurantId).ifPresent(owner -> events.publishEvent(new CafeRenewedEvent(

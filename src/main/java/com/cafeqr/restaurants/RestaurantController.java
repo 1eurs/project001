@@ -5,6 +5,8 @@ import com.cafeqr.common.api.ApiResponse;
 import com.cafeqr.restaurants.dto.RestaurantResponse;
 import com.cafeqr.restaurants.dto.UpdateRestaurantRequest;
 import com.cafeqr.restaurants.dto.UpdateRestaurantThemeRequest;
+import com.cafeqr.subscriptions.SubscriptionService;
+import com.cafeqr.subscriptions.dto.SubscriptionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,10 +22,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class RestaurantController {
 
     private final RestaurantService restaurantService;
+    private final SubscriptionService subscriptionService;
     private final AccessGuard accessGuard;
 
-    public RestaurantController(RestaurantService restaurantService, AccessGuard accessGuard) {
+    public RestaurantController(RestaurantService restaurantService,
+                                SubscriptionService subscriptionService,
+                                AccessGuard accessGuard) {
         this.restaurantService = restaurantService;
+        this.subscriptionService = subscriptionService;
         this.accessGuard = accessGuard;
     }
 
@@ -33,6 +39,14 @@ public class RestaurantController {
     public ApiResponse<RestaurantResponse> get(@PathVariable Long restaurantId) {
         accessGuard.requireRestaurantAccess(restaurantId);
         return ApiResponse.ok(restaurantService.get(restaurantId));
+    }
+
+    @Operation(summary = "Get the current restaurant's subscription (owner-visible)")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+    @GetMapping("/api/restaurants/{restaurantId}/subscription")
+    public ApiResponse<SubscriptionResponse> subscription(@PathVariable Long restaurantId) {
+        accessGuard.requireRestaurantAccess(restaurantId);
+        return ApiResponse.ok(subscriptionService.getForRestaurant(restaurantId));
     }
 
     @Operation(summary = "Update a restaurant visible to the current user")

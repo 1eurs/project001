@@ -1,0 +1,16 @@
+{
+  "name": "Serva. — QR menu & ordering",
+  "short_name": "Serva.",
+  "description": "Arabic-first QR ordering for Omani restaurants and cafés. Scan, order from the table or car, track live.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0E0F12",
+  "theme_color": "#0E0F12",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "maskable" }
+  ]
+}

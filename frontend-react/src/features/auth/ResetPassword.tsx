@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
-import { useI18n, LangToggle } from '../../lib/i18n';
-import { ThemeToggle } from '../../lib/theme';
+import { useI18n } from '../../lib/i18n';
 import { BRAND } from '../../lib/brand';
 import './login.css';
 
@@ -45,8 +44,7 @@ export default function ResetPassword() {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <div className="login-top"><div className="mark">{BRAND.name.charAt(0)}</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><ThemeToggle /><LangToggle /></div></div>
+        <div className="login-top"><div className="mark">{BRAND.name.charAt(0)}</div></div>
         {!token ? (
           <><h1>{L.invalidH}</h1><div className="sub">{L.invalidP}</div></>
         ) : done ? (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../../lib/i18n';
 import type { Lang } from './content';
 import L0Counter from './designs/L0Counter';
 import L1Velocity from './designs/L1Velocity';
@@ -24,10 +25,11 @@ const DESIGNS = [
 ];
 
 export default function LandingGallery() {
+  const { lang: appLang } = useI18n();
   const params = new URLSearchParams(window.location.search);
-  const initial = Math.min(9, Math.max(1, Number(params.get('d')) || 1));
+  const initial = Math.min(9, Math.max(1, Number(params.get('d')) || 5));
   const [idx, setIdx] = useState(initial - 1);
-  const [lang, setLang] = useState<Lang>((params.get('lang') as Lang) === 'en' ? 'en' : 'ar');
+  const [lang] = useState<Lang>((params.get('lang') as Lang) === 'en' || (params.get('lang') as Lang) === 'ar' ? (params.get('lang') as Lang) : appLang);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -57,11 +59,6 @@ export default function LandingGallery() {
       </div>
 
       <div className="lz-switcher" dir="ltr">
-        <div className="lz-lang">
-          <button className={lang === 'ar' ? 'on' : ''} onClick={() => setLang('ar')}>ع</button>
-          <button className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>EN</button>
-        </div>
-        <span className="lz-div" />
         <button className="lz-arrow" onClick={() => setIdx((i) => (i - 1 + DESIGNS.length) % DESIGNS.length)} aria-label="Previous">‹</button>
         <div className="lz-tabs">
           {DESIGNS.map((d, i) => (

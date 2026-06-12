@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <text x="15" y="25" text-anchor="middle"
+        font-family="Sora, 'Segoe UI', system-ui, Arial, sans-serif"
+        font-size="27" font-weight="800">S</text>
+  <circle cx="26" cy="23.5" r="2.8"/>
+</svg>

@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Serva launch Instagram post</title>
+  <desc id="desc">A square bilingual launch announcement for Serva using the bold landing page theme.</desc>
+  <defs>
+    <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse">
+      <path d="M38 0H0V38" fill="none" stroke="#047857" stroke-width="1.3" opacity=".12"/>
+    </pattern>
+    <filter id="rough" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency=".018" numOctaves="2" seed="11" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.4"/>
+    </filter>
+  </defs>
+
+  <rect width="1080" height="1080" fill="#f5efe3"/>
+  <rect width="1080" height="1080" fill="url(#grid)"/>
+
+  <g filter="url(#rough)" opacity=".98">
+    <path d="M848 46l155 36-34 151-155-36z" fill="#34e2a4" stroke="#07130d" stroke-width="6"/>
+    <path d="M54 819l194-42 36 166-194 42z" fill="#f5b83d" stroke="#07130d" stroke-width="6"/>
+    <path d="M928 754l94 128-126 93-94-128z" fill="#e5573f" stroke="#07130d" stroke-width="6"/>
+  </g>
+
+  <rect x="58" y="58" width="964" height="964" fill="none" stroke="#07130d" stroke-width="8"/>
+  <rect x="76" y="76" width="928" height="928" fill="none" stroke="#07130d" stroke-width="2" opacity=".45"/>
+
+  <g transform="translate(108 106)">
+    <text x="0" y="0" dominant-baseline="hanging" direction="ltr" unicode-bidi="bidi-override"
+      font-family="'Bricolage Grotesque','Sora','IBM Plex Sans Arabic',Arial,sans-serif"
+      font-size="54" font-weight="900" letter-spacing="-1.5" fill="#07130d">SERVA</text>
+    <circle cx="188" cy="38" r="5" fill="#34e2a4"/>
+    <rect x="0" y="78" width="220" height="42" fill="#07130d"/>
+    <text x="18" y="105" dominant-baseline="middle"
+      font-family="'Bricolage Grotesque','Sora',Arial,sans-serif"
+      font-size="18" font-weight="900" letter-spacing="1.8" fill="#f5efe3">NOW LAUNCHING</text>
+  </g>
+
+  <g transform="translate(108 252)">
+    <rect x="0" y="0" width="470" height="138" fill="#34e2a4" stroke="#07130d" stroke-width="6"/>
+    <text x="28" y="47" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif"
+      font-size="56" font-weight="900" letter-spacing="-2" fill="#07130d">We are live.</text>
+    <text x="28" y="92" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif"
+      font-size="24" font-weight="800" fill="#07130d">QR ordering for cafés</text>
+    <text x="28" y="120" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif"
+      font-size="24" font-weight="800" fill="#07130d">and food businesses.</text>
+  </g>
+
+  <g transform="translate(108 412)" direction="rtl" unicode-bidi="plaintext">
+    <text x="470" y="0" dominant-baseline="hanging" font-family="'IBM Plex Sans Arabic','Tajawal',Arial,sans-serif"
+      font-size="62" font-weight="800" fill="#07130d">انطلقنا الآن</text>
+    <text x="470" y="82" dominant-baseline="hanging" font-family="'IBM Plex Sans Arabic','Tajawal',Arial,sans-serif"
+      font-size="31" font-weight="700" fill="#07130d">طلب QR للمقاهي</text>
+    <text x="470" y="124" dominant-baseline="hanging" font-family="'IBM Plex Sans Arabic','Tajawal',Arial,sans-serif"
+      font-size="31" font-weight="700" fill="#07130d">والأنشطة الغذائية في عُمان</text>
+  </g>
+
+  <g transform="translate(109 570)">
+    <rect x="0" y="0" width="158" height="72" fill="#fffaf1" stroke="#07130d" stroke-width="5"/>
+    <rect x="176" y="0" width="158" height="72" fill="#fffaf1" stroke="#07130d" stroke-width="5"/>
+    <rect x="352" y="0" width="158" height="72" fill="#fffaf1" stroke="#07130d" stroke-width="5"/>
+    <text x="79" y="46" text-anchor="middle" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="24" font-weight="900" fill="#07130d">SCAN</text>
+    <text x="255" y="46" text-anchor="middle" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="24" font-weight="900" fill="#07130d">ORDER</text>
+    <text x="431" y="46" text-anchor="middle" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="24" font-weight="900" fill="#07130d">TRACK</text>
+  </g>
+
+  <g transform="translate(649 165)">
+    <rect x="0" y="0" width="260" height="480" rx="34" fill="#07130d" stroke="#07130d" stroke-width="7"/>
+    <rect x="20" y="28" width="220" height="424" rx="24" fill="#fffaf1"/>
+    <rect x="44" y="64" width="132" height="18" fill="#07130d"/>
+    <rect x="44" y="100" width="172" height="46" fill="#34e2a4" stroke="#07130d" stroke-width="4"/>
+    <rect x="44" y="168" width="172" height="58" fill="#f5efe3" stroke="#07130d" stroke-width="4"/>
+    <rect x="44" y="246" width="172" height="58" fill="#f5efe3" stroke="#07130d" stroke-width="4"/>
+    <rect x="44" y="324" width="172" height="58" fill="#f5b83d" stroke="#07130d" stroke-width="4"/>
+    <circle cx="68" cy="197" r="12" fill="#34e2a4" stroke="#07130d" stroke-width="3"/>
+    <circle cx="68" cy="275" r="12" fill="#34e2a4" stroke="#07130d" stroke-width="3"/>
+    <text x="130" y="132" text-anchor="middle" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="20" font-weight="900" fill="#07130d">NO APP</text>
+    <text x="130" y="360" text-anchor="middle" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="22" font-weight="900" fill="#07130d">QR MENU</text>
+  </g>
+
+  <g transform="translate(762 646) rotate(5)">
+    <rect x="0" y="0" width="176" height="176" fill="#fff" stroke="#07130d" stroke-width="6"/>
+    <rect x="22" y="22" width="36" height="36" fill="#07130d"/>
+    <rect x="118" y="22" width="36" height="36" fill="#07130d"/>
+    <rect x="22" y="118" width="36" height="36" fill="#07130d"/>
+    <path d="M76 22h20v20H76zm0 40h20v20H76zm40 18h20v20h-20zm-38 38h20v20H78zm40 18h36v18h-36zm-18-54h18v36h-18z" fill="#07130d"/>
+    <rect x="45" y="78" width="88" height="26" fill="#34e2a4" stroke="#07130d" stroke-width="4"/>
+    <text x="89" y="96" text-anchor="middle" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="18" font-weight="900" fill="#07130d">SERVA<tspan>.</tspan></text>
+  </g>
+
+  <g transform="translate(108 704)">
+    <text x="0" y="0" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="31" font-weight="900" fill="#07130d">Create your account today.</text>
+    <text x="418" y="48" text-anchor="end" direction="rtl" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic','Tajawal',Arial,sans-serif" font-size="32" font-weight="800" fill="#07130d">أنشئ حسابك اليوم</text>
+    <rect x="0" y="84" width="418" height="74" fill="#07130d"/>
+    <text x="28" y="132" font-family="'Bricolage Grotesque','Sora',Arial,sans-serif" font-size="28" font-weight="900" letter-spacing=".5" fill="#f5efe3">serva.om/signup</text>
+  </g>
+
+  <g transform="translate(108 928)">
+    <rect x="0" y="0" width="862" height="46" fill="#34e2a4" stroke="#07130d" stroke-width="5"/>
+    <text x="431" y="30" text-anchor="middle" font-family="'Bricolage Grotesque','Sora','IBM Plex Sans Arabic',Arial,sans-serif"
+      font-size="21" font-weight="900" fill="#07130d">No app. No queue.  |  بدون تطبيق. بدون طابور.</text>
+  </g>
+</svg>

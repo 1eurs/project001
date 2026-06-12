@@ -8,8 +8,10 @@ import com.cafeqr.orders.dto.CancelOrderRequest;
 import com.cafeqr.orders.dto.DeclineOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderSummaryResponse;
+import com.cafeqr.orders.realtime.OrderStreamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
@@ -104,7 +106,8 @@ public class DashboardOrderController {
 
     @Operation(summary = "Dashboard live order stream (SSE)")
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@RequestParam(required = false) Long branchId) {
+    public SseEmitter stream(@RequestParam(required = false) Long branchId, HttpServletResponse response) {
+        OrderStreamService.disableProxyBuffering(response);
         return orderService.streamForDashboard(branchId);
     }
 }
