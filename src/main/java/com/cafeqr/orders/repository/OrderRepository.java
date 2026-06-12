@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query(value = "SELECT nextval('order_number_seq')", nativeQuery = true)
     long nextOrderNumber();
+
+    // -------- returning customers --------
+
+    @EntityGraph(attributePaths = "items")
+    Optional<Order> findFirstByRestaurantIdAndCustomerPhoneAndStatusNotInOrderByCreatedAtDesc(
+            Long restaurantId, String customerPhone, Collection<OrderStatus> excludedStatuses);
+
+    long countByRestaurantIdAndCustomerPhoneAndStatusNotIn(
+            Long restaurantId, String customerPhone, Collection<OrderStatus> excludedStatuses);
 
     @Query("""
             SELECT o FROM Order o

@@ -5,6 +5,7 @@ import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
+import com.cafeqr.customers.CustomerService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.notifications.NotificationService;
@@ -51,13 +52,14 @@ class OrderServiceTest {
     @Mock private NotificationService notificationService;
     @Mock private OrderStreamService streamService;
     @Mock private org.springframework.context.ApplicationEventPublisher events;
+    @Mock private CustomerService customerService;
 
     private OrderService orderService;
 
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
-                menuService, accessGuard, notificationService, streamService, events);
+                menuService, accessGuard, notificationService, streamService, events, customerService);
     }
 
     private Restaurant restaurant() {
@@ -125,7 +127,7 @@ class OrderServiceTest {
         });
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, "no sugar",
+                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, "no sugar", null,
                 List.of(new CreateOrderRequest.Item(100L, 2, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
@@ -151,7 +153,7 @@ class OrderServiceTest {
                 .thenThrow(new BadRequestException(ErrorCode.MENU_ITEM_UNAVAILABLE, "unavailable"));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.TAKEAWAY, null, null, null, null, null,
+                "demo", 5L, null, OrderType.TAKEAWAY, null, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Item(100L, 1, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
@@ -166,7 +168,7 @@ class OrderServiceTest {
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.DINE_IN, null, null, null, null, null,
+                "demo", 5L, null, OrderType.DINE_IN, null, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Item(100L, 1, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
@@ -188,7 +190,7 @@ class OrderServiceTest {
         });
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.CAR, "Sara", "9999", "  a 1234  ", "  White ", null,
+                "demo", 5L, null, OrderType.CAR, "Sara", "9999", "  a 1234  ", "  White ", null, null,
                 List.of(new CreateOrderRequest.Item(100L, 1, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
@@ -204,12 +206,28 @@ class OrderServiceTest {
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.CAR, null, null, " ", null, null,
+                "demo", 5L, null, OrderType.CAR, null, null, " ", null, null, null,
                 List.of(new CreateOrderRequest.Item(100L, 1, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Car plate");
+    }
+
+    @Test
+    void rejectsOrderFromBlockedPhone() {
+        when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
+        when(customerService.isBlocked(1L, "99990000")).thenReturn(true);
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "demo", 5L, null, OrderType.TAKEAWAY, null, "9999-0000", null, null, null, null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+
+        assertThatThrownBy(() -> orderService.createOrder(request))
+                .isInstanceOf(BadRequestException.class)
+                .satisfies(ex -> assertThat(((BadRequestException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PHONE_BLOCKED));
     }
 
     @Test

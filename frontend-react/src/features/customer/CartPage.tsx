@@ -7,7 +7,8 @@ import { omr, estimateVat } from '../../lib/format';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useCartStore, useCart } from '../../lib/cart';
-import { CAR_COLORS } from '../../lib/carColors';
+import { CAR_COLORS, carColorOf } from '../../lib/carColors';
+import { getStoredProfile, saveStoredProfile, deviceToken } from '../../lib/customerProfile';
 import { useVenue, cartKeyOf, menuPathOf, menuUrlOf } from './venue';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
@@ -16,14 +17,14 @@ const DICT: Dict = {
   ar: { title: 'سلّتك', cur: 'ر.ع', empty: 'سلّتك فارغة', emptySub: 'أضف ما يطيب لك من القائمة.', back: 'العودة للقائمة',
         carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب', carPlateRequired: 'أدخل رقم لوحة السيارة',
         carPlateHint: 'اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
-        name: 'الاسم (اختياري)', phone: 'الجوال (اختياري)',
+        name: 'الاسم (اختياري)', phone: 'الجوال (اختياري)', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
         finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
         carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB', carPlateRequired: 'Enter the car plate',
         carPlateHint: 'Numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
-        name: 'Name (optional)', phone: 'Phone (optional)',
+        name: 'Name (optional)', phone: 'Phone (optional)', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
         finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…' },
@@ -41,13 +42,14 @@ export default function CartPage() {
   const { slug, branchId, tableToken, orderType: venueOrderType, restaurant } = useVenue();
   const orderType: OrderType = tableToken ? 'DINE_IN' : venueOrderType === 'CAR' ? 'CAR' : 'TAKEAWAY';
 
-  // At checkout they're firmly "ordering".
-  usePresence(branchId, tableToken ?? (orderType === 'CAR' ? 'car' : 'takeaway'), true);
-
   const menuPath = menuPathOf(slug, branchId, tableToken, orderType);
   const cartKey = cartKeyOf(slug, branchId, tableToken, orderType);
   const cart = useCart(cartKey);
   const { bump, setNote, clear } = useCartStore();
+
+  // At checkout they're firmly "ordering"; share the cart so staff can see it coming.
+  usePresence(branchId, tableToken ?? (orderType === 'CAR' ? 'car' : 'takeaway'), true,
+    cart.map((l) => ({ menuItemId: l.id, quantity: l.qty })));
 
   const { data } = useQuery({
     queryKey: ['menu', slug ? menuUrlOf(slug, branchId, tableToken) : 'none'],
@@ -60,13 +62,17 @@ export default function CartPage() {
     return m;
   }, [data]);
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [plateNum, setPlateNum] = useState('');   // digits, e.g. 1234
-  const [plateCode, setPlateCode] = useState(''); // letter code, e.g. أ ب
+  // Autofill from the last order placed on this device (saved on success below).
+  const saved = useMemo(() => getStoredProfile(), []);
+  const [name, setName] = useState(saved?.name ?? '');
+  const [phone, setPhone] = useState(saved?.phone ?? '');
+  const [plateNum, setPlateNum] = useState(saved?.plateNum ?? '');   // digits, e.g. 1234
+  const [plateCode, setPlateCode] = useState(saved?.plateCode ?? ''); // letter code, e.g. أ ب
   const carPlate = `${plateNum} ${plateCode}`.replace(/\s+/g, ' ').trim();
-  const [carColor, setCarColor] = useState(''); // palette key, e.g. white
+  const [carColor, setCarColor] = useState(saved?.carColor ?? ''); // palette key, e.g. white
   const [note, setOrderNote] = useState('');
+  const savedPhones = saved?.phones ?? [];
+  const savedCars = saved?.cars ?? [];
 
   const subtotal = cart.reduce((s, l) => s + (itemsById.get(l.id)?.price ?? 0) * l.qty, 0);
   const vatEnabled = restaurant?.vatEnabled ?? false;
@@ -81,12 +87,14 @@ export default function CartPage() {
         orderType, customerName: name || null, customerPhone: phone || null,
         carPlate: orderType === 'CAR' ? normalizedPlate : null,
         carColor: orderType === 'CAR' ? (carColor || null) : null, customerNote: note || null,
+        deviceToken: deviceToken(true),
         items: cart.map((l) => ({ menuItemId: l.id, quantity: l.qty, note: l.note || null })),
       };
       return api.post<OrderTracking>('/api/public/orders', payload, { auth: false });
     },
     onSuccess: (order) => {
       clear(cartKey);
+      saveStoredProfile({ name, phone, plateNum, plateCode, carColor });
       localStorage.setItem('cafeqr_lastOrder', order.trackingToken);
       nav(`/order/${order.trackingToken}`);
     },
@@ -142,6 +150,23 @@ export default function CartPage() {
 
             {orderType === 'CAR' && (
               <>
+                {savedCars.length > 1 && (
+                  <div className="field" style={{ marginTop: 18 }}>
+                    <label>{t('myCars')}</label>
+                    <div className="saved-chips">
+                      {savedCars.map((c) => {
+                        const on = c.plateNum === plateNum && c.plateCode === plateCode;
+                        return (
+                          <button type="button" key={c.plateNum + c.plateCode} className={'saved-chip' + (on ? ' on' : '')}
+                            onClick={() => { setPlateNum(c.plateNum); setPlateCode(c.plateCode); setCarColor(c.carColor); }}>
+                            {c.carColor && <span className="cc-dot" style={{ background: carColorOf(c.carColor)?.hex ?? c.carColor }} />}
+                            <span className="num">{c.plateNum}</span> {c.plateCode}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="plate-field" style={{ marginTop: 18 }}>
                   <div className="oman-plate">
                     <div className="oman-plate-hd">
@@ -181,7 +206,15 @@ export default function CartPage() {
               </>
             )}
             <div className="field"><label>{t('name')}</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="…" /></div>
-            <div className="field"><label>{t('phone')}</label><input className="num" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9XXXXXXX" /></div>
+            <div className="field"><label>{t('phone')}</label><input className="num" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9XXXXXXX" />
+              {savedPhones.length > 1 && (
+                <div className="saved-chips">
+                  {savedPhones.map((p) => (
+                    <button type="button" key={p} className={'saved-chip num' + (p === phone ? ' on' : '')} onClick={() => setPhone(p)}>{p}</button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="field"><label>{t('note')}</label><textarea rows={2} value={note} onChange={(e) => setOrderNote(e.target.value)} placeholder={t('notePh')} /></div>
 
             <div className="c-totals">

@@ -5,7 +5,8 @@ import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
 import { carColorOf, carColorLabel } from '../../lib/carColors';
-import type { OrderSummaryResponse, PageResponse, OrderResponse, OrderStatus } from '../../lib/types';
+import { useAuth, isManager } from '../../lib/auth';
+import type { OrderSummaryResponse, PageResponse, OrderResponse, OrderStatus, BlockedPhone } from '../../lib/types';
 import InvoicePrint from './InvoicePrint';
 
 const DICT: Dict = {
@@ -13,12 +14,16 @@ const DICT: Dict = {
         prev: 'السابق', next: 'التالي', page: 'صفحة', none: 'لا طلبات', markPaid: 'تحديد كمدفوع', paid: 'مدفوع', unpaid: 'غير مدفوع', items: 'الأصناف', timeline: 'التسلسل الزمني',
         customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب', printInv: 'طباعة الفاتورة',
         st_PENDING: 'جديد', st_ACCEPTED: 'مقبول', st_PREPARING: 'تحضير', st_READY: 'جاهز', st_COMPLETED: 'مكتمل', st_DECLINED: 'مرفوض', st_CANCELLED: 'ملغى',
-        ts_createdAt: 'أُنشئ', ts_acceptedAt: 'قُبل', ts_preparingAt: 'بدأ التحضير', ts_readyAt: 'جاهز', ts_completedAt: 'اكتمل', ts_declinedAt: 'رُفض', ts_cancelledAt: 'أُلغي' },
+        ts_createdAt: 'أُنشئ', ts_acceptedAt: 'قُبل', ts_preparingAt: 'بدأ التحضير', ts_readyAt: 'جاهز', ts_completedAt: 'اكتمل', ts_declinedAt: 'رُفض', ts_cancelledAt: 'أُلغي',
+        blockPhone: 'حظر الرقم', blockConfirm: 'حظر هذا الرقم من الطلب؟ (طلبات وهمية / إزعاج)', blockedOk: 'تم حظر الرقم',
+        blockedNumbers: 'الأرقام المحظورة', unblock: 'إلغاء الحظر', unblockConfirm: 'إلغاء حظر هذا الرقم؟', noBlocked: 'لا أرقام محظورة', reason: 'السبب', by: 'بواسطة' },
   en: { cur: 'OMR', all: 'All', table: 'Table', takeaway: 'Takeaway', car: 'Outdoor car', carPlate: 'Car plate', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
         prev: 'Prev', next: 'Next', page: 'Page', none: 'No orders', markPaid: 'Mark paid', paid: 'Paid', unpaid: 'Unpaid', items: 'Items', timeline: 'Timeline',
         customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail', printInv: 'Print invoice',
         st_PENDING: 'New', st_ACCEPTED: 'Accepted', st_PREPARING: 'Preparing', st_READY: 'Ready', st_COMPLETED: 'Completed', st_DECLINED: 'Declined', st_CANCELLED: 'Cancelled',
-        ts_createdAt: 'Created', ts_acceptedAt: 'Accepted', ts_preparingAt: 'Preparing', ts_readyAt: 'Ready', ts_completedAt: 'Completed', ts_declinedAt: 'Declined', ts_cancelledAt: 'Cancelled' },
+        ts_createdAt: 'Created', ts_acceptedAt: 'Accepted', ts_preparingAt: 'Preparing', ts_readyAt: 'Ready', ts_completedAt: 'Completed', ts_declinedAt: 'Declined', ts_cancelledAt: 'Cancelled',
+        blockPhone: 'Block phone', blockConfirm: 'Block this number from ordering? (fake orders / spam)', blockedOk: 'Phone number blocked',
+        blockedNumbers: 'Blocked numbers', unblock: 'Unblock', unblockConfirm: 'Unblock this number?', noBlocked: 'No blocked numbers', reason: 'Reason', by: 'By' },
 };
 
 const STATUSES: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'COMPLETED', 'DECLINED', 'CANCELLED'];
@@ -35,9 +40,12 @@ const orderTypeLabel = (o: { orderType: string; carPlate?: string | null }, t: (
 
 export default function OrdersPage({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
+  const { user } = useAuth();
+  const manager = isManager(user?.role);
   const [status, setStatus] = useState<OrderStatus | ''>('');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const [showBlocked, setShowBlocked] = useState(false);
 
   const qs = new URLSearchParams({ page: String(page), size: '20', sort: 'createdAt,desc' });
   if (branchId) qs.set('branchId', String(branchId));
@@ -56,7 +64,14 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
           <button className={status === '' ? 'on' : ''} onClick={() => { setStatus(''); setPage(0); }}>{t('all')}</button>
           {STATUSES.map((s) => <button key={s} className={status === s ? 'on' : ''} onClick={() => { setStatus(s); setPage(0); }}>{t('st_' + s)}</button>)}
         </div>
+        {manager && (
+          <button className={'btn sm ghost' + (showBlocked ? ' on' : '')} onClick={() => setShowBlocked((v) => !v)}>
+            🚫 {t('blockedNumbers')}
+          </button>
+        )}
       </div>
+
+      {showBlocked && manager && <BlockedPhonesPanel />}
 
       {isLoading ? <div className="center"><div className="spinner" /></div>
         : rows.length === 0 ? <div className="empty"><div className="big">🧾</div><h3>{t('none')}</h3></div>
@@ -96,17 +111,65 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
   );
 }
 
+function BlockedPhonesPanel() {
+  const t = useT(DICT);
+  const toast = useToast();
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['blocked-phones'],
+    queryFn: () => api.get<BlockedPhone[]>('/api/dashboard/blocked-phones'),
+  });
+  const unblock = useMutation({
+    mutationFn: (id: number) => api.del(`/api/dashboard/blocked-phones/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['blocked-phones'] }),
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  if (isLoading) return <div className="center"><div className="spinner" /></div>;
+  const rows = data ?? [];
+  if (rows.length === 0) return <div className="empty" style={{ padding: 18 }}><h3>{t('noBlocked')}</h3></div>;
+  return (
+    <table className="tbl" style={{ marginBottom: 18 }}>
+      <thead><tr><th>📵</th><th className="hide-sm">{t('reason')}</th><th className="hide-sm">{t('by')}</th><th /></tr></thead>
+      <tbody>
+        {rows.map((b) => (
+          <tr key={b.id}>
+            <td><span className="num" style={{ fontWeight: 600 }}>{b.phone}</span></td>
+            <td className="hide-sm" style={{ color: 'var(--muted)' }}>{b.reason || '—'}</td>
+            <td className="hide-sm" style={{ color: 'var(--muted)' }}>{b.blockedBy || '—'}</td>
+            <td>
+              <button className="btn sm ghost" disabled={unblock.isPending}
+                onClick={() => { if (confirm(t('unblockConfirm'))) unblock.mutate(b.id); }}>
+                {t('unblock')}
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
   const t = useT(DICT);
   const { lang } = useI18n();
   const toast = useToast();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const manager = isManager(user?.role);
   const [printing, setPrinting] = useState(false);
   const { data: o } = useQuery({ queryKey: ['order', id], queryFn: () => api.get<OrderResponse>(`/api/dashboard/orders/${id}`) });
 
   const pay = useMutation({
     mutationFn: () => api.post(`/api/payments/orders/${id}/mark-paid`, { method: 'CARD' }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['order', id] }); qc.invalidateQueries({ queryKey: ['orders-history'] }); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const block = useMutation({
+    mutationFn: () => api.post('/api/dashboard/blocked-phones',
+      { phone: o!.customerPhone, reason: `${t('blockPhone')} · ${o!.orderNumber}` }),
+    onSuccess: () => { toast(t('blockedOk')); qc.invalidateQueries({ queryKey: ['blocked-phones'] }); },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
@@ -125,6 +188,12 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
           <div className="sect"><h4>{t('customer')}</h4>
             <div className="kv"><span className="k">{o.customerName || '—'}</span><span className="v num">{o.customerPhone || ''}</span></div>
             {o.customerNote && <div className="kv"><span className="k">{t('note')}</span><span className="v">{o.customerNote}</span></div>}
+            {manager && o.customerPhone && (
+              <button className="btn sm ghost" style={{ marginTop: 8, color: 'var(--bad)' }} disabled={block.isPending}
+                onClick={() => { if (confirm(t('blockConfirm'))) block.mutate(); }}>
+                🚫 {t('blockPhone')}
+              </button>
+            )}
           </div>
         )}
         {o.orderType === 'CAR' && (o.carPlate || o.carColor) && (

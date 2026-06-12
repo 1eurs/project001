@@ -35,6 +35,7 @@ const DICT: Dict = {
         syncing: 'مزامنة الطلبات', autoRefresh: 'التحديث التلقائي يعمل', newOrder: 'طلب جديد', newOrders: 'طلبات جديدة', tapView: 'اضغط للعرض',
         loginTitle: 'لوحة Serva.', loginSub: 'سجّل الدخول لإدارة الطلبات المباشرة', saved: 'تم الحفظ',
         orderingNow: 'يطلبون الآن', qaNow: 'الآن', qaToday: 'اليوم', qaOrders: 'طلب',
+        qaCartHint: 'محتوى السلة الآن — قد يتغير قبل إرسال الطلب',
         account: 'الحساب', email: 'البريد', language: 'اللغة', arabic: 'العربية', english: 'English', changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
         changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', currentPw: 'كلمة المرور الحالية',
         changeEmailSub: 'أدخل كلمة المرور الحالية والبريد الجديد.', newEmail: 'البريد الجديد',
@@ -57,6 +58,7 @@ const DICT: Dict = {
         syncing: 'Syncing orders', autoRefresh: 'Auto-refresh on', newOrder: 'New order', newOrders: 'new orders', tapView: 'Tap to view',
         loginTitle: 'Serva. dashboard', loginSub: 'Sign in to manage live orders', saved: 'Saved',
         orderingNow: 'ordering now', qaNow: 'now', qaToday: 'Today', qaOrders: 'orders',
+        qaCartHint: 'In their cart right now — may change before the order is placed',
         account: 'Account', email: 'Email', language: 'Language', arabic: 'Arabic', english: 'English', changePassword: 'Change password', changeEmail: 'Change email',
         changePwSub: 'Enter your current password, then a new one.', currentPw: 'Current password',
         changeEmailSub: 'Enter your current password and new email.', newEmail: 'New email',
@@ -697,6 +699,7 @@ type PrintQrJob = { title: string; subtitle?: string; value: string };
 
 function TablesPage({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
+  const { lang } = useI18n();
   const toast = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -744,6 +747,8 @@ function TablesPage({ branchId }: { branchId?: number }) {
   const ActivityRow = ({ liveKey, todayKey }: { liveKey: string; todayKey: string }) => {
     const live = activity?.liveByKey[liveKey];
     const day = todayOf(todayKey);
+    // Peek into carts being built on this QR right now — a soft "get ready" signal.
+    const cartPeek = live && live.present > 0 ? activity?.cartsByKey?.[liveKey] : undefined;
     return (
       <div className="qa-row">
         {live && live.present > 0 && (
@@ -752,6 +757,13 @@ function TablesPage({ branchId }: { branchId?: number }) {
           </span>
         )}
         <span className="qa-today">{t('qaToday')}: {day?.orders ?? 0} {t('qaOrders')} · <span className="num">{omr(day?.revenue ?? 0)}</span> {t('cur')}</span>
+        {cartPeek && cartPeek.length > 0 && (
+          <span className="qa-cart" title={t('qaCartHint')}>
+            🛒 {cartPeek.slice(0, 4).map((c) =>
+              `${c.quantity}× ${lang === 'ar' ? (c.nameAr || c.nameEn) : (c.nameEn || c.nameAr)}`).join(' · ')}
+            {cartPeek.length > 4 ? ' …' : ''}
+          </span>
+        )}
       </div>
     );
   };

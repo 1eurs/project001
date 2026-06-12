@@ -5,10 +5,13 @@ import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.domain.OrderType;
+import com.cafeqr.menus.domain.MenuItem;
+import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.presence.dto.LiveCount;
 import com.cafeqr.presence.dto.QrActivityResponse;
+import com.cafeqr.presence.dto.QrActivityResponse.CartItemView;
 import com.cafeqr.presence.dto.QrActivityResponse.DayStat;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,9 +22,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Combines live presence with today's per-QR order totals; serves both polled reads and SSE pushes. */
 @Service
@@ -35,17 +42,20 @@ public class QrActivityService {
     private final BranchService branchService;
     private final AccessGuard accessGuard;
     private final OrderStreamService streamService;
+    private final MenuItemRepository menuItemRepository;
 
     public QrActivityService(OrderRepository orderRepository,
                              PresenceService presenceService,
                              BranchService branchService,
                              AccessGuard accessGuard,
-                             OrderStreamService streamService) {
+                             OrderStreamService streamService,
+                             MenuItemRepository menuItemRepository) {
         this.orderRepository = orderRepository;
         this.presenceService = presenceService;
         this.branchService = branchService;
         this.accessGuard = accessGuard;
         this.streamService = streamService;
+        this.menuItemRepository = menuItemRepository;
     }
 
     /** One-shot read for the dashboard (access-checked). */
@@ -88,7 +98,37 @@ public class QrActivityService {
             today.merge(key, new DayStat(orders, revenue),
                     (a, b) -> new DayStat(a.orders() + b.orders(), a.revenue().add(b.revenue())));
         }
-        return new QrActivityResponse(totalPresent, totalOrdering, live, today);
+        return new QrActivityResponse(totalPresent, totalOrdering, live, liveCartViews(branchId), today);
+    }
+
+    /** Resolves the live cart aggregates (menuItemId → qty) into named lines, one batched lookup. */
+    private Map<String, List<CartItemView>> liveCartViews(Long branchId) {
+        Map<String, Map<Long, Integer>> carts = presenceService.liveCarts(branchId);
+        if (carts.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> itemIds = carts.values().stream()
+                .flatMap(m -> m.keySet().stream())
+                .collect(Collectors.toSet());
+        Map<Long, MenuItem> items = menuItemRepository.findAllById(itemIds).stream()
+                .collect(Collectors.toMap(MenuItem::getId, i -> i));
+
+        Map<String, List<CartItemView>> result = new HashMap<>();
+        carts.forEach((qrKey, totals) -> {
+            List<CartItemView> views = totals.entrySet().stream()
+                    .map(e -> {
+                        MenuItem item = items.get(e.getKey());
+                        return item == null ? null
+                                : new CartItemView(item.getId(), item.getNameEn(), item.getNameAr(), e.getValue());
+                    })
+                    .filter(Objects::nonNull)
+                    .sorted(Comparator.comparingInt(CartItemView::quantity).reversed())
+                    .toList();
+            if (!views.isEmpty()) {
+                result.put(qrKey, views);
+            }
+        });
+        return result;
     }
 
     private Long resolveAccessibleBranch(Long requestedBranchId) {
@@ -103,7 +143,7 @@ public class QrActivityService {
     }
 
     private static QrActivityResponse empty() {
-        return new QrActivityResponse(0, 0, Map.of(), Map.of());
+        return new QrActivityResponse(0, 0, Map.of(), Map.of(), Map.of());
     }
 
     private static String typeKey(OrderType type) {

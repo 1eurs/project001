@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { OrderType, PublicMenu, PublicItem } from '../../lib/types';
+import type { OrderType, PublicMenu, PublicItem, ReturningCustomer } from '../../lib/types';
+import { deviceToken } from '../../lib/customerProfile';
 import { omr } from '../../lib/format';
 import { useI18n, useT, pick, LangToggle, type Dict } from '../../lib/i18n';
 import { useCartStore, useCart } from '../../lib/cart';
@@ -13,9 +14,11 @@ import { CustomerFrame } from './CustomerFrame';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د',
-        soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', takeaway: 'سفري', car: 'خدمة السيارة', added: 'أُضيف ✓' },
+        soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', takeaway: 'سفري', car: 'خدمة السيارة', added: 'أُضيف ✓',
+        welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', reorderLast: '↻ اطلب طلبك السابق', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min',
-        soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', takeaway: 'Takeaway', car: 'Outdoor car', added: 'Added ✓' },
+        soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', takeaway: 'Takeaway', car: 'Outdoor car', added: 'Added ✓',
+        welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', reorderLast: '↻ Reorder your last order', lastAdded: 'Your last order is in the cart ✓' },
 };
 
 const thumb = (it: PublicItem) => {
@@ -51,17 +54,48 @@ export default function MenuPage() {
   const toast = useToast();
   const addItem = (id: number) => { add(cartKey, id); toast(t('added')); };
 
+  // Returning customer (device token exists only after a previous order from this browser).
+  const devTok = deviceToken();
+  const { data: returning } = useQuery({
+    queryKey: ['returning', slug, devTok],
+    queryFn: () => api.get<ReturningCustomer | null>(
+      `/api/public/restaurants/${encodeURIComponent(slug)}/returning?deviceToken=${encodeURIComponent(devTok!)}`,
+      { auth: false }),
+    enabled: !!slug && !!devTok,
+    staleTime: 5 * 60_000,
+  });
+
   const itemsById = useMemo(() => {
     const m = new Map<number, PublicItem>();
     data?.categories.forEach((c) => c.items.forEach((i) => m.set(i.id, i)));
     return m;
   }, [data]);
 
+  // "Your usual": only with a strong repeat signal — ≥2 orders and the top item in ≥50% of them
+  // (the repeat/explore threshold that keeps the banner from guessing on thin history).
+  const usual = useMemo(() => {
+    if (!returning || returning.orderCount < 2) return null;
+    return returning.favorites.find((f) =>
+      f.ordersContaining * 2 >= returning.orderCount && itemsById.get(f.menuItemId)?.available) ?? null;
+  }, [returning, itemsById]);
+  const lastItems = useMemo(
+    () => (returning?.lastOrder?.items ?? []).filter((i) => itemsById.get(i.menuItemId)?.available),
+    [returning, itemsById]);
+  const reorderLast = () => {
+    lastItems.forEach((i) => {
+      add(cartKey, i.menuItemId);
+      if (i.quantity > 1) bump(cartKey, i.menuItemId, i.quantity - 1);
+    });
+    toast(t('lastAdded'));
+  };
+
   const count = cart.reduce((s, l) => s + l.qty, 0);
   const subtotal = cart.reduce((s, l) => s + (itemsById.get(l.id)?.price ?? 0) * l.qty, 0);
 
-  // Report live presence: "viewing" while browsing, "ordering" once they've added items.
-  usePresence(bId, token ?? (orderType === 'CAR' ? 'car' : 'takeaway'), count > 0);
+  // Report live presence: "viewing" while browsing, "ordering" once they've added items —
+  // including what's in the cart so the counter can see demand building up.
+  usePresence(bId, token ?? (orderType === 'CAR' ? 'car' : 'takeaway'), count > 0,
+    cart.map((l) => ({ menuItemId: l.id, quantity: l.qty })));
 
   // sticky category nav highlight
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -149,6 +183,19 @@ export default function MenuPage() {
       </nav>
 
       <main className="c-scroll" ref={scrollRef}>
+        {(usual || lastItems.length > 0) && (
+          <div className="c-usual">
+            <h3><span className="wave">👋</span>{t('welcome')}{returning?.customerName ? (lang === 'ar' ? '، ' : ', ') + returning.customerName : ''}</h3>
+            <div className="row">
+              {usual && (
+                <button className="btn-usual" onClick={() => addItem(usual.menuItemId)}>
+                  {t('addUsual')} {lang === 'ar' ? (usual.nameAr || usual.nameEn) : (usual.nameEn || usual.nameAr)}
+                </button>
+              )}
+              {lastItems.length > 0 && <button className="btn-last" onClick={reorderLast}>{t('reorderLast')}</button>}
+            </div>
+          </div>
+        )}
         {data.categories.map((c) => (
           <section className="c-cat" id={'cat-' + c.id} data-cat={c.id} key={c.id}>
             <div className="c-cat-head">

@@ -14,10 +14,16 @@ const FLOW: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'];
 const DICT: Dict = {
   ar: { title: 'تتبّع الطلب', orderNo: 'رقم الطلب', cur: 'ر.ع', min: 'د', total: 'الإجمالي', back: 'العودة للقائمة', estPrep: 'الوقت المقدّر', thanks: 'شكراً لك',
         head_PENDING: 'تم الإرسال — بانتظار المقهى', head_ACCEPTED: 'تم القبول', head_PREPARING: 'قيد التحضير', head_READY: 'جاهز للتقديم', head_COMPLETED: 'اكتمل الطلب', head_DECLINED: 'اعتُذر عن الطلب', head_CANCELLED: 'أُلغي الطلب',
-        st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!' },
+        st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!',
+        sorry_DECLINED: 'نعتذر منك، لم يتمكن المقهى من استلام هذا الطلب', sorry_CANCELLED: 'نعتذر منك، أُلغي هذا الطلب من المقهى',
+        maybeWhy: 'يحدث هذا عادةً عند ضغط الطلبات أو إغلاق المقهى مؤقتاً.',
+        sorrySub: 'لم يُحتسب عليك أي مبلغ، ويسعدنا خدمتك في طلب جديد ☕', reasonLbl: 'سبب الاعتذار', orderAgain: 'اطلب من جديد' },
   en: { title: 'Track order', orderNo: 'Order', cur: 'OMR', min: 'min', total: 'Total', back: 'Back to menu', estPrep: 'Estimated', thanks: 'Thank you',
         head_PENDING: 'Sent — waiting for the cafe', head_ACCEPTED: 'Accepted', head_PREPARING: 'Preparing', head_READY: 'Ready to serve', head_COMPLETED: 'Completed', head_DECLINED: 'Order declined', head_CANCELLED: 'Order cancelled',
-        st_PENDING: 'Order sent', st_ACCEPTED: 'Cafe accepted', st_PREPARING: 'Being prepared', st_READY: 'Ready!' },
+        st_PENDING: 'Order sent', st_ACCEPTED: 'Cafe accepted', st_PREPARING: 'Being prepared', st_READY: 'Ready!',
+        sorry_DECLINED: "We're sorry — the cafe couldn't take this order", sorry_CANCELLED: "We're sorry — this order was cancelled by the cafe",
+        maybeWhy: 'This usually happens when the cafe is very busy or temporarily closed.',
+        sorrySub: "You haven't been charged — we'd love to serve you on a fresh order ☕", reasonLbl: 'Reason', orderAgain: 'Order again' },
 };
 
 export default function TrackPage() {
@@ -52,6 +58,10 @@ export default function TrackPage() {
       playChime();
       vibrate([60, 70, 60]);
     }
+    // also nudge on bad news so a customer waiting in the car doesn't sit there unaware
+    if (was && was !== o.status && (o.status === 'DECLINED' || o.status === 'CANCELLED')) {
+      vibrate([180, 80, 180]);
+    }
   }, [o?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const menuPath = menuPathOf(slug, branchId, tableToken, orderType);
@@ -72,15 +82,24 @@ export default function TrackPage() {
         <div className="c-track">
           <div className="no">{t('orderNo')} · <span className="num">{o.orderNumber}</span></div>
           <div className="state">{!bad && <span className="c-pulse" />}{t('head_' + o.status)}</div>
-          <div className="sub">
-            {o.status === 'ACCEPTED' && o.prepTimeMinutes
-              ? <>{t('estPrep')} ~ <span className="num">{o.prepTimeMinutes}</span> {t('min')}</>
-              : (o.customerName ? `${t('thanks')}، ${o.customerName}` : t('thanks'))}
-          </div>
+          {!bad && (
+            <div className="sub">
+              {o.status === 'ACCEPTED' && o.prepTimeMinutes
+                ? <>{t('estPrep')} ~ <span className="num">{o.prepTimeMinutes}</span> {t('min')}</>
+                : (o.customerName ? `${t('thanks')}${lang === 'ar' ? '،' : ','} ${o.customerName}` : t('thanks'))}
+            </div>
+          )}
         </div>
 
         {bad ? (
-          o.declineReason && <div className="c-decline">{o.declineReason}</div>
+          <div className="c-sorry">
+            <div className="big">🙏</div>
+            <h3>{t('sorry_' + o.status)}</h3>
+            {o.status === 'DECLINED' && o.declineReason
+              ? <p className="why">{t('reasonLbl')}: {o.declineReason}</p>
+              : <p className="why">{t('maybeWhy')}</p>}
+            <p className="next">{t('sorrySub')}</p>
+          </div>
         ) : (
           <div className="c-stepper">
             {FLOW.map((st, i) => {
@@ -109,7 +128,9 @@ export default function TrackPage() {
           <div className="row grand"><span>{t('total')}</span><span className="num">{omr(o.total)} {t('cur')}</span></div>
         </div>
 
-        <button className="btn ghost full" style={{ marginTop: 18 }} onClick={() => nav(menuPath)}>{t('back')}</button>
+        <button className={'btn full' + (bad ? '' : ' ghost')} style={{ marginTop: 18 }} onClick={() => nav(menuPath)}>
+          {bad ? t('orderAgain') : t('back')}
+        </button>
       </div>
     </CustomerFrame>
   );

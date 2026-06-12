@@ -23,6 +23,8 @@ public record CreateOrderRequest(
         /** Optional for CAR orders; helps staff spot the car (palette key, e.g. "white"). */
         @Size(max = 20) String carColor,
         @Size(max = 500) String customerNote,
+        /** Browser-generated random token; lets the customer's device read back its own profile. */
+        @Size(max = 64) String deviceToken,
         @NotEmpty @Valid List<Item> items
 ) {
 

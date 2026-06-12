@@ -26,7 +26,8 @@ public class PresenceController {
             presenceService.remove(request.branchId(), request.qrKey(), request.sessionId());
         } else {
             boolean ordering = "ordering".equalsIgnoreCase(request.stage());
-            presenceService.heartbeat(request.branchId(), request.qrKey(), request.sessionId(), ordering);
+            presenceService.heartbeat(request.branchId(), request.qrKey(), request.sessionId(),
+                    ordering, request.cart());
         }
         return ApiResponse.message("ok");
     }

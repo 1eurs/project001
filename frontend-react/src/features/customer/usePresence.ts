@@ -13,19 +13,27 @@ function sessionId(): string {
   return id;
 }
 
+export interface PresenceCartLine { menuItemId: number; quantity: number; }
+
 /**
  * Reports that this visitor is on a QR's menu right now, so the café dashboard can show the live
- * funnel. Pings on mount + every 20s while mounted; no-op without a branch.
+ * funnel. Pings on mount + every 20s while mounted (and immediately when the cart changes);
+ * no-op without a branch.
  * @param qrKey    the table's qrCodeToken, or "car" / "takeaway"
  * @param ordering true once they have items in cart / are at checkout (vs just viewing)
+ * @param cart     current cart lines so staff can see live demand (sent while ordering)
  */
-export function usePresence(branchId: number | null | undefined, qrKey: string | null, ordering: boolean) {
+export function usePresence(branchId: number | null | undefined, qrKey: string | null, ordering: boolean,
+                            cart?: PresenceCartLine[]) {
+  // string dep so a same-content cart doesn't re-fire the effect every render
+  const cartJson = JSON.stringify(ordering ? (cart ?? []).slice(0, 30) : []);
   useEffect(() => {
     if (!branchId || !qrKey) return;
     const sid = sessionId();
     const stage = ordering ? 'ordering' : 'viewing';
     const ping = () =>
-      api.post('/api/public/presence', { branchId, qrKey, sessionId: sid, stage }, { auth: false }).catch(() => {});
+      api.post('/api/public/presence',
+        { branchId, qrKey, sessionId: sid, stage, cart: JSON.parse(cartJson) }, { auth: false }).catch(() => {});
     // Fire-and-forget "leave" on real exit (tab close / app exit) so the count drops instantly.
     // Not sent on in-app navigation (menu→cart) — there the customer is still present.
     const leave = () => {
@@ -43,5 +51,5 @@ export function usePresence(branchId: number | null | undefined, qrKey: string |
       clearInterval(id);
       window.removeEventListener('pagehide', leave);
     };
-  }, [branchId, qrKey, ordering]);
+  }, [branchId, qrKey, ordering, cartJson]);
 }

@@ -105,8 +105,21 @@ export interface MenuItemResponse {
 export interface CreateOrderItem { menuItemId: number; quantity: number; note?: string | null; }
 export interface CreateOrderPayload {
   restaurantSlug: string; branchId: number; tableToken?: string | null; orderType: OrderType;
-  customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null; items: CreateOrderItem[];
+  customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
+  deviceToken?: string | null; items: CreateOrderItem[];
 }
+
+/* ---- returning customer (public) ---- */
+export interface FavoriteItem { menuItemId: number; nameEn: string; nameAr: string; totalQuantity: number; ordersContaining: number; }
+export interface LastOrderItem { menuItemId: number; nameEn: string; nameAr: string; quantity: number; }
+export interface ReturningCustomer {
+  customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null;
+  orderCount: number; favorites: FavoriteItem[];
+  lastOrder?: { createdAt: string; items: LastOrderItem[] } | null;
+}
+
+/* ---- blocked phones (dashboard) ---- */
+export interface BlockedPhone { id: number; phone: string; reason?: string | null; blockedBy?: string | null; createdAt: string; }
 
 /* ---- admin ---- */
 export interface Restaurant {
@@ -123,10 +136,12 @@ export interface Subscription {
 /* ---- live QR activity (dashboard Tables tab) ---- */
 export interface QrLive { present: number; ordering: number; } // present includes ordering
 export interface QrDayStat { orders: number; revenue: number; }
+export interface QrCartItem { menuItemId: number; nameEn: string; nameAr: string; quantity: number; }
 export interface QrActivity {
   totalPresent: number;
   totalOrdering: number;
   liveByKey: Record<string, QrLive>;        // keyed by table qrCodeToken / "car" / "takeaway"
+  cartsByKey?: Record<string, QrCartItem[]>; // live cart contents (same keys) — soft signal
   todayByKey: Record<string, QrDayStat>;    // keyed by table id (string) / "car" / "takeaway"
 }
 

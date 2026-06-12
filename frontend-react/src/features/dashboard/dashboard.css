@@ -480,3 +480,6 @@
 .dash .dnav-bottom button.on{color:var(--ink)}
 .dash .board-tabs button{border:2px solid var(--ink)}
 .dash .board-tabs button.on{box-shadow:var(--hard-sm)}
+
+/* live cart peek under a QR card — what customers are building right now */
+.qa-cart{flex-basis:100%;font-size:11.5px;color:var(--preparing);text-align:center;line-height:1.5}

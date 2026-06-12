@@ -29,6 +29,7 @@ branches      per-restaurant branches
 tables        QR tables + token generation
 menus         bilingual categories & items, public menu, order-time validation
 orders        order lifecycle, SSE streams
+customers     returning customers: device-token profiles, favorite-order scoring, blocked phones
 payments      stub provider (manual mark-paid/failed); ready for Thawani/Tap
 subscriptions simple per-restaurant subscription tracking
 notifications channel-agnostic abstraction (logging now; WhatsApp/SMS/email later)

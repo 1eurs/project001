@@ -6,7 +6,9 @@ import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
+import com.cafeqr.common.util.Phones;
 import com.cafeqr.common.util.Tokens;
+import com.cafeqr.customers.CustomerService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.orders.domain.Order;
@@ -60,6 +62,7 @@ public class OrderService {
     private final NotificationService notificationService;
     private final OrderStreamService streamService;
     private final ApplicationEventPublisher events;
+    private final CustomerService customerService;
 
     public OrderService(OrderRepository orderRepository,
                         RestaurantService restaurantService,
@@ -69,7 +72,8 @@ public class OrderService {
                         AccessGuard accessGuard,
                         NotificationService notificationService,
                         OrderStreamService streamService,
-                        ApplicationEventPublisher events) {
+                        ApplicationEventPublisher events,
+                        CustomerService customerService) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
         this.branchService = branchService;
@@ -79,6 +83,7 @@ public class OrderService {
         this.notificationService = notificationService;
         this.streamService = streamService;
         this.events = events;
+        this.customerService = customerService;
     }
 
     // ============================================================ customer (public)
@@ -91,12 +96,18 @@ public class OrderService {
 
         Long tableId = resolveTable(restaurant, branch, request);
 
+        String customerPhone = Phones.normalize(request.customerPhone());
+        if (customerService.isBlocked(restaurant.getId(), customerPhone)) {
+            throw new BadRequestException(ErrorCode.PHONE_BLOCKED,
+                    "Ordering from this phone number is not accepted. Please contact the cafe.");
+        }
+
         Order order = new Order();
         order.setRestaurantId(restaurant.getId());
         order.setBranchId(branch.getId());
         order.setTableId(tableId);
         order.setCustomerName(request.customerName());
-        order.setCustomerPhone(request.customerPhone());
+        order.setCustomerPhone(customerPhone);
         order.setCarPlate(normalizeCarPlate(request));
         order.setCarColor(normalizeCarColor(request));
         order.setCustomerNote(request.customerNote());
@@ -131,6 +142,7 @@ public class OrderService {
         order.setTrackingToken(Tokens.random(18));
 
         Order saved = orderRepository.save(order);
+        customerService.recordOrder(saved, request.deviceToken());
 
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New order " + saved.getOrderNumber() + " received");
