@@ -16,7 +16,7 @@ export default function L4Bold({ lang, showTools = false }: { lang: Lang; showTo
     <div className="lz-screen b4" dir={c.dir}>
       <nav className="b4-nav">
         <div className="b4-brand">SERVA<span>.</span></div>
-        <div className="b4-links"><a href="#how">{c.nav.how}</a><a href="#feat">{c.nav.features}</a><a href="#request">{c.nav.request}</a></div>
+        <div className="b4-links"><a href="#how">{c.nav.how}</a><a href="#magic">{c.nav.features}</a><a href="#pricing">{c.nav.pricing}</a><a href="#faq">{c.nav.faq}</a></div>
         {showTools && (
           <div className="b4-tools">
             <Link to="/dashboard" className="b4-signin">{c.nav.signin}</Link>
@@ -52,6 +52,21 @@ export default function L4Bold({ lang, showTools = false }: { lang: Lang; showTo
 
       <div className="b4-marquee"><div className="b4-mtrack">{[...marquee, ...marquee, ...marquee].map((w, i) => <span key={i}>{w}<i>✦</i></span>)}</div></div>
 
+      <section className="b4-sec" id="problem">
+        <div className="b4-seclbl">{c.probLbl}</div>
+        <h2 className="b4-h2">{c.probH1} <span className="b4-mark">{c.probH2}</span></h2>
+        <div className="b4-ba">
+          <div className="b4-ba-col">
+            <h3>{c.baBefore.h}</h3>
+            <ul>{c.baBefore.items.map((it) => <li key={it}>{it}</li>)}</ul>
+          </div>
+          <div className="b4-ba-col good">
+            <h3>{c.baAfter.h}</h3>
+            <ul>{c.baAfter.items.map((it) => <li key={it}>{it}</li>)}</ul>
+          </div>
+        </div>
+      </section>
+
       <section className="b4-sec" id="how">
         <div className="b4-seclbl">{c.howLbl}</div>
         <div className="b4-steps">
@@ -61,11 +76,57 @@ export default function L4Bold({ lang, showTools = false }: { lang: Lang; showTo
         </div>
       </section>
 
+      <section className="b4-sec" id="magic">
+        <div className="b4-seclbl">{c.magicLbl}</div>
+        <h2 className="b4-h2">{c.magicH1} <span className="b4-mark">{c.magicH2}</span></h2>
+        <div className="b4-magic">
+          {c.magic.map((m, i) => (
+            <div className="b4-magic-card" key={m.k}>
+              <span className="n">0{i + 1}</span>
+              <span className="mk">{m.k}</span>
+              <h3>{m.t}</h3>
+              <p>{m.d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="b4-sec" id="feat">
         <div className="b4-seclbl">{c.featLbl}</div>
         <div className="b4-feats">
           {c.features.map((f) => (
             <div className="b4-feat" key={f.t}><span className="b4-fi">{f.i}</span><h4>{f.t}</h4><p>{f.d}</p></div>
+          ))}
+        </div>
+      </section>
+
+      <section className="b4-sec" id="pricing">
+        <div className="b4-seclbl">{c.priceLbl}</div>
+        <h2 className="b4-h2">{c.priceH}</h2>
+        <div className="b4-price">
+          <div className="b4-price-main">
+            <div className="b4-price-amount">{c.priceAmount}</div>
+            <span className="b4-price-per">{c.pricePer}</span>
+            <p className="b4-price-p">{c.priceP}</p>
+            {showTools
+              ? <Link to="/signup" className="b4-btn alt lg">{c.ctaPrimary} →</Link>
+              : <a href="#request" className="b4-btn alt lg">{c.ctaPrimary} →</a>}
+          </div>
+          <ul className="b4-price-list">
+            {c.priceItems.map((it) => <li key={it}>{it}</li>)}
+          </ul>
+        </div>
+      </section>
+
+      <section className="b4-sec" id="faq">
+        <div className="b4-seclbl">{c.faqLbl}</div>
+        <h2 className="b4-h2">{c.faqH}</h2>
+        <div className="b4-faq">
+          {c.faq.map((f) => (
+            <details key={f.q}>
+              <summary>{f.q}<span className="qa">+</span></summary>
+              <p className="ans">{f.a}</p>
+            </details>
           ))}
         </div>
       </section>

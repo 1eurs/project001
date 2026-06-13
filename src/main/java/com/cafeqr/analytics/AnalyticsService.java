@@ -87,7 +87,7 @@ public class AnalyticsService {
         return orderItemRepository.bestSelling(restaurantId, branchId, from, to).stream()
                 .limit(limit)
                 .map(row -> new BestSellingItem(
-                        ((Number) row[0]).longValue(),
+                        row[0] == null ? null : ((Number) row[0]).longValue(),
                         (String) row[1],
                         (String) row[2],
                         ((Number) row[3]).longValue(),

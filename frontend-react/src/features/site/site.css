@@ -142,6 +142,53 @@ html[data-theme="light"] .ed{
 .ed-ok h3{font-family:var(--font-disp);font-size:30px;font-weight:600}
 .ed-ok p{color:var(--muted);margin-top:8px}
 
+/* before / after — rush hour comparison */
+.ed-ba{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:38px}
+@media(max-width:720px){.ed-ba{grid-template-columns:1fr}}
+.ed-ba-col{border:1px solid var(--line-2);border-radius:20px;padding:24px 26px 14px;background:var(--canvas)}
+.ed-ba-col h3{font-family:var(--font-disp);font-weight:600;font-size:clamp(21px,2.6vw,27px);color:var(--muted)}
+.ed-ba-col ul{list-style:none;margin:14px 0 0;padding:0}
+.ed-ba-col li{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--line);color:var(--muted);font-size:14.5px;line-height:1.6}
+.ed-ba-col li::before{content:"✗";font-family:var(--font-mono);color:var(--faint);flex:0 0 auto}
+.ed-ba-col.good{border-color:var(--accent);background:var(--bg-2)}
+.ed-ba-col.good h3{color:var(--accent-text)}
+.ed-ba-col.good li{color:var(--text)}
+.ed-ba-col.good li::before{content:"✓";color:var(--accent-text)}
+
+/* magic feature cards */
+.ed-magic{display:grid;gap:16px;margin-top:34px}
+.ed-magic-card{position:relative;border:1px solid var(--line-2);border-radius:22px;padding:clamp(24px,4vw,40px);background:var(--bg-2);transition:border-color .2s}
+.ed-magic-card:hover{border-color:var(--accent)}
+.ed-magic-card .mn{position:absolute;inset-inline-end:24px;top:24px;font-family:var(--font-mono);font-size:13px;color:var(--faint)}
+.ed-magic-card .k{display:inline-block;font-family:var(--font-mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);border:1px solid var(--line-2);border-radius:999px;padding:5px 12px}
+.ed-magic-card h3{font-family:var(--font-disp);font-weight:600;font-size:clamp(26px,3.6vw,44px);line-height:1.05;margin-top:14px}
+.ed-magic-card p{color:var(--muted);font-size:15px;line-height:1.7;margin-top:10px;max-width:62ch}
+
+/* pricing */
+.ed-price{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-top:34px;max-width:980px}
+@media(max-width:760px){.ed-price{grid-template-columns:1fr}}
+.ed-price-card{border:1px solid var(--accent);border-radius:24px;padding:clamp(26px,4vw,42px);background:var(--bg-2)}
+.ed-price-amount{font-family:var(--font-disp);font-weight:700;font-size:clamp(56px,8vw,96px);line-height:1}
+.ed-price-per{font-family:var(--font-mono);font-size:13px;letter-spacing:.04em;color:var(--accent-text);margin-top:8px}
+.ed-price-p{color:var(--muted);font-size:15px;line-height:1.7;margin-top:16px;max-width:46ch}
+.ed-price-card .ed-link{margin-top:24px}
+.ed-price-list{list-style:none;margin:0;padding:10px 26px;border:1px solid var(--line-2);border-radius:24px;display:flex;flex-direction:column;justify-content:center}
+.ed-price-list li{display:flex;gap:12px;padding:15px 0;border-top:1px solid var(--line);font-size:15px;line-height:1.55}
+.ed-price-list li:first-child{border-top:0}
+.ed-price-list li::before{content:"✓";font-family:var(--font-mono);color:var(--accent-text);flex:0 0 auto}
+
+/* faq */
+.ed-faq{margin-top:30px;border-top:1px solid var(--line);max-width:880px}
+.ed-faq details{border-bottom:1px solid var(--line)}
+.ed-faq summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:16px;padding:20px 0;font-family:var(--font-disp);font-weight:600;font-size:clamp(19px,2.4vw,26px);transition:color .15s}
+.ed-faq summary::-webkit-details-marker{display:none}
+.ed-faq summary:hover{color:var(--accent-text)}
+.ed-faq summary .qn{font-family:var(--font-mono);font-weight:400;font-size:12px;color:var(--faint);flex:0 0 30px}
+.ed-faq summary .qa{margin-inline-start:auto;font-family:var(--font-mono);font-weight:400;font-size:18px;color:var(--accent-text);transition:transform .2s}
+.ed-faq details[open] summary .qa{transform:rotate(45deg)}
+.ed-faq .ans{color:var(--muted);font-size:15px;line-height:1.7;max-width:64ch;padding-inline-start:46px;padding-block-end:22px;margin:0}
+@media(max-width:560px){.ed-faq .ans{padding-inline-start:0}}
+
 /* signup → bank-transfer instructions */
 .ed-pay{margin-top:32px;max-width:620px;animation:edrv .6s ease both}
 .ed-pay .ed-ok-mk{margin:0 0 18px}

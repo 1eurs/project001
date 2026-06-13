@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { LangToggle, useI18n, useT, type Dict } from '../../lib/i18n';
 import { omr } from '../../lib/format';
 import type { OnboardingInstructions } from '../../lib/types';
+import { ensureGoogleFonts, BOLD_FONTS } from '../../lib/fonts';
 import '../landing-designs/designs/l4.css';
 
 const T: Dict = {
@@ -46,6 +47,7 @@ const T: Dict = {
 
 export default function SignupPage() {
   const { lang } = useI18n();
+  useEffect(() => { ensureGoogleFonts(BOLD_FONTS); }, []);
   const t = useT(T);
   const toast = useToast();
   const [f, setF] = useState({ cafeName: '', slug: '', ownerName: '', email: '', phone: '', password: '' });

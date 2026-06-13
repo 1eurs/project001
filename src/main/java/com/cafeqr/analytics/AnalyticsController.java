@@ -20,7 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dashboard/analytics")
 @Tag(name = "Dashboard analytics")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER')")
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;

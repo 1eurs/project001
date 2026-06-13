@@ -51,6 +51,11 @@ function clearSession() {
   localStorage.removeItem(USER_KEY);
   emit();
 }
+function setUser(user: UserResponse) {
+  currentUser = user;
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  emit();
+}
 
 interface Opts { method?: string; body?: unknown; auth?: boolean; signal?: AbortSignal; }
 
@@ -122,6 +127,33 @@ function tryRefresh(): Promise<boolean> {
   return refreshing;
 }
 
+declare global {
+  interface Window { __menuPrime?: { url: string; res: Promise<Response> } }
+}
+
+/**
+ * One-shot pickup of the menu fetch the inline script in index.html started before the
+ * bundle loaded. Returns null when there's nothing primed (or it's for another URL);
+ * a failed primer falls back to a normal request rather than surfacing a flaky first hit.
+ */
+export function consumePrimedMenu<T>(path: string): Promise<T> | null {
+  const prime = window.__menuPrime;
+  if (!prime || prime.url !== path) return null;
+  window.__menuPrime = undefined;
+  return (async () => {
+    let res: Response;
+    try { res = await prime.res; }
+    catch { return raw<T>(path, { auth: false }); }
+    let env: ApiEnvelope<T>;
+    try { env = (await res.json()) as ApiEnvelope<T>; }
+    catch { env = { success: res.ok } as ApiEnvelope<T>; }
+    if (!res.ok || env.success === false) {
+      throw new ApiError(env.message || res.statusText || 'Request failed', res.status, env.errorCode);
+    }
+    return env.data as T;
+  })();
+}
+
 export const api = {
   get: <T>(p: string, o: Omit<Opts, 'method' | 'body'> = {}) => raw<T>(p, { ...o, method: 'GET' }),
   post: <T>(p: string, body?: unknown, o: Omit<Opts, 'method' | 'body'> = {}) => raw<T>(p, { ...o, method: 'POST', body }),
@@ -157,6 +189,14 @@ export async function changeEmail(currentPassword: string, newEmail: string): Pr
   });
   setSession(auth);
   return auth.user;
+}
+export async function updateProfile(fullName: string, phone?: string | null): Promise<UserResponse> {
+  const user = await raw<UserResponse>('/api/auth/me', {
+    method: 'PATCH',
+    body: { fullName, phone },
+  });
+  setUser(user);
+  return user;
 }
 export async function logout() {
   try { await raw('/api/auth/logout', { method: 'POST', body: { refreshToken } }); } catch { /* ignore */ }

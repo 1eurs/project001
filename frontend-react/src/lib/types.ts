@@ -21,6 +21,7 @@ export interface UserResponse {
   id: number;
   fullName: string;
   email: string;
+  phone?: string | null;
   role: Role;
   restaurantId?: number | null;
   branchId?: number | null;
@@ -130,7 +131,7 @@ export interface BlockedPhone { id: number; phone: string; reason?: string | nul
 /* ---- admin ---- */
 export interface Restaurant {
   id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null; email?: string | null; instagramUrl?: string | null;
-  currency: string; vatEnabled: boolean; vatRate: number; theme?: string | null; themeCustomJson?: string | null; active: boolean; createdAt?: string;
+  currency: string; vatEnabled: boolean; vatRate: number; theme?: string | null; themeCustomJson?: string | null; active: boolean; premiumLook?: boolean; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
 export interface Subscription {
@@ -146,9 +147,9 @@ export interface QrCartItem { menuItemId: number; nameEn: string; nameAr: string
 export interface QrActivity {
   totalPresent: number;
   totalOrdering: number;
-  liveByKey: Record<string, QrLive>;        // keyed by table qrCodeToken / "car" / "takeaway"
+  liveByKey: Record<string, QrLive>;        // keyed by table qrCodeToken / "car"
   cartsByKey?: Record<string, QrCartItem[]>; // live cart contents (same keys) — soft signal
-  todayByKey: Record<string, QrDayStat>;    // keyed by table id (string) / "car" / "takeaway"
+  todayByKey: Record<string, QrDayStat>;    // keyed by table id (string) / "car"
 }
 
 /* ---- self-serve onboarding ---- */

@@ -14,7 +14,15 @@ export interface MenuTheme {
   swatch: { bg: string; ink: string; accent: string; accent2: string };
 }
 
+/**
+ * The full menu skin as one JSON document. This is THE theme format: the owner's
+ * editor, the saved value (restaurant.themeCustomJson) and future AI-generated
+ * themes all speak this schema. Unknown keys are ignored and every field falls
+ * back to a default, so a partial/imperfect document still renders safely.
+ */
 export interface MenuThemeCustom {
+  /** optional display label (useful for AI-generated themes) */
+  name?: string;
   canvas: string;
   paper: string;
   surface: string;
@@ -27,7 +35,91 @@ export interface MenuThemeCustom {
   motifOpacity: number;
   background: 'soft' | 'arches' | 'dots' | 'waves' | 'tiles' | 'linen';
   motif: 'none' | 'bean' | 'cup' | 'palm' | 'star' | 'crescent' | 'leaf' | 'drop' | 'geo';
+  font: MenuFontKey;
+  radius: MenuRadiusKey;
+  /**
+   * The structural "kit" — the layout identity that used to need bespoke per-theme
+   * CSS (the comic card, the scoreboard badge, the heritage header band). Each value
+   * selects a recipe that reads ONLY the palette tokens, so an AI/owner-generated
+   * document inherits the same contrast-safe colours. This is what makes the JSON
+   * space combinatorial (cardStyle × badge × header × palette × …) instead of flat.
+   */
+  cardStyle: MenuCardStyleKey;
+  cardBadge: MenuCardBadgeKey;
+  headerStyle: MenuHeaderStyleKey;
+  /**
+   * Optional bespoke "skin" — a rich, hand-crafted occasion overlay (bunting, flag
+   * bands, national emblem…) layered ON TOP of the palette via [data-menu-skin]. It
+   * reaches detail the generic structural kit can't, while still living inside the JSON
+   * document so it saves/previews like any theme. Whitelisted in MENU_SKINS; '' = none.
+   */
+  skin?: string;
+  decor: MenuThemeDecor;
 }
+
+/**
+ * The "crazy" layer: emoji stickers floating over the screen's empty space, a
+ * sticker pinned on every item card, and a festive greeting ribbon — enough for
+ * an occasion (Mother's Day drink, matchday special) to take over the whole menu.
+ * All optional: a regular cafe theme just leaves everything empty.
+ */
+export interface MenuThemeDecor {
+  /** emoji floating over the empty spaces (up to 6 distinct, cycled across slots) */
+  floaters: string[];
+  /** 0.06–0.6 — how strongly the floaters show */
+  floaterOpacity: number;
+  /** small sticker pinned to the top corner of every item card ('' = none) */
+  cardSticker: string;
+  /** greeting ribbon across the top of the phone ('' = none) */
+  bannerAr: string;
+  bannerEn: string;
+}
+
+export const DEFAULT_DECOR: MenuThemeDecor = {
+  floaters: [],
+  floaterOpacity: 0.3,
+  cardSticker: '',
+  bannerAr: '',
+  bannerEn: '',
+};
+
+export type MenuFontKey = 'system' | 'markazi' | 'baloo' | 'tajawal' | 'elmessiri' | 'reemkufi' | 'sora';
+/** Display-font stacks — loaded on demand via menuFontSpecsOf() + ensureGoogleFonts(). */
+export const FONT_STACKS: Record<MenuFontKey, string> = {
+  system: 'var(--font-ar)',
+  markazi: "'Markazi Text', var(--font-ar)",
+  baloo: "'Baloo Bhaijaan 2', var(--font-ar)",
+  tajawal: "'Tajawal', var(--font-ar)",
+  elmessiri: "'El Messiri', var(--font-ar)",
+  reemkufi: "'Reem Kufi', var(--font-ar)",
+  sora: "'Sora', var(--font-ar)",
+};
+export const FONT_OPTIONS = Object.keys(FONT_STACKS) as MenuFontKey[];
+
+export type MenuRadiusKey = 'sharp' | 'soft' | 'round';
+/** Corner-radius scales feeding the --r-* hooks in customer.css. */
+const RADIUS_PRESETS: Record<MenuRadiusKey, { mark: string; card: string; thumb: string; ctl: string }> = {
+  sharp: { mark: '8px', card: '10px', thumb: '8px', ctl: '8px' },
+  soft: { mark: '15px', card: '16px', thumb: '14px', ctl: '13px' },
+  round: { mark: '22px', card: '22px', thumb: '20px', ctl: '18px' },
+};
+export const RADIUS_OPTIONS = Object.keys(RADIUS_PRESETS) as MenuRadiusKey[];
+
+/**
+ * Structural-kit keys. The palette-driven CSS recipes live in menu-themes.css under
+ * [data-card-style] / [data-card-badge] / [data-header-style], selected on the .cust-bg
+ * shell via menuStructuralAttrs(). 'flat'/'none'/'plain' reproduce today's default look,
+ * so legacy documents (which lack these fields) keep rendering exactly as before.
+ */
+export type MenuCardStyleKey = 'flat' | 'outline' | 'ticket' | 'comic' | 'glow';
+export type MenuCardBadgeKey = 'none' | 'disc' | 'tab' | 'ribbon';
+export type MenuHeaderStyleKey = 'plain' | 'band' | 'side';
+export const CARD_STYLE_OPTIONS: MenuCardStyleKey[] = ['flat', 'outline', 'ticket', 'comic', 'glow'];
+export const CARD_BADGE_OPTIONS: MenuCardBadgeKey[] = ['none', 'disc', 'tab', 'ribbon'];
+export const HEADER_STYLE_OPTIONS: MenuHeaderStyleKey[] = ['plain', 'band', 'side'];
+
+/** Bespoke occasion skins (rich CSS overlays under [data-menu-skin] in menu-themes.css). */
+export const MENU_SKINS = ['omannational'] as const;
 
 export const MENU_THEMES: MenuTheme[] = [
   { id: 'onyx',  labelAr: 'أونيكس', labelEn: 'Onyx',  descAr: 'عصري · داكن',   descEn: 'Modern · dark',
@@ -62,6 +154,26 @@ export const MENU_THEMES: MenuTheme[] = [
     dark: true, font: "'Tajawal', sans-serif",
     swatch: { bg: '#101417', ink: '#EAF7F6', accent: '#32D6C8', accent2: '#FF6D9E' } },
 
+  { id: 'webhero', labelAr: 'ويب هيرو', labelEn: 'Web Hero', descAr: 'كوميكس · شباك', descEn: 'Comic · web',
+    dark: true, font: "'Sora', sans-serif",
+    swatch: { bg: '#080B18', ink: '#F8FAFC', accent: '#E31B3F', accent2: '#2563EB' } },
+
+  { id: 'omanmatch', labelAr: 'عُمان ماتش', labelEn: 'Oman Matchday', descAr: 'كأس العالم · ملعب', descEn: 'World cup · pitch',
+    dark: true, font: "'Tajawal', sans-serif",
+    swatch: { bg: '#071A12', ink: '#F8FAFC', accent: '#C8102E', accent2: '#00843D' } },
+
+  { id: 'madridnight', labelAr: 'مدريد نايت', labelEn: 'Madrid Night', descAr: 'كلاسيكو · أضواء', descEn: 'Match night · lights',
+    dark: true, font: "'Sora', sans-serif",
+    swatch: { bg: '#0B1024', ink: '#F8FAFC', accent: '#F2D27A', accent2: '#5B4BC4' } },
+
+  { id: 'omannational', labelAr: 'العيد الوطني', labelEn: 'Oman National Day', descAr: 'عُماني · احتفال', descEn: 'Omani · celebration',
+    dark: false, font: "'Reem Kufi', sans-serif",
+    swatch: { bg: '#FFF7EA', ink: '#3B2017', accent: '#C8102E', accent2: '#00843D' } },
+
+  { id: 'mothersday', labelAr: 'يوم الأم', labelEn: "Mother's Day", descAr: 'عُماني · ورد', descEn: 'Omani · floral',
+    dark: false, font: "'Markazi Text', serif",
+    swatch: { bg: '#F8E9D8', ink: '#3D2419', accent: '#B84E5D', accent2: '#C99745' } },
+
   { id: 'majlis', labelAr: 'مجلس', labelEn: 'Majlis', descAr: 'تراثي · زمرد', descEn: 'Heritage · emerald',
     dark: true, font: "'Reem Kufi', sans-serif",
     swatch: { bg: '#10251E', ink: '#F2E8D0', accent: '#C79A43', accent2: '#2EA37A' } },
@@ -89,9 +201,39 @@ export const DEFAULT_CUSTOM_THEME: MenuThemeCustom = {
   cartBg: '#1D2A24',
   motifColor: '#2F8F6B',
   motifOpacity: 0.15,
-  background: 'arches',
-  motif: 'bean',
+  background: 'soft',
+  motif: 'none',
+  font: 'system',
+  radius: 'soft',
+  cardStyle: 'flat',
+  cardBadge: 'none',
+  headerStyle: 'plain',
+  decor: DEFAULT_DECOR,
 };
+
+/**
+ * Ready-made looks. Each preset is just a prefilled MenuThemeCustom document —
+ * picking one loads it into the editor and saving stores the JSON. Adding a new
+ * preset (seasonal, AI-generated, …) is purely additive: no CSS, no backend change.
+ */
+export interface MenuThemePreset {
+  id: string;
+  labelAr: string; labelEn: string;
+  descAr: string; descEn: string;
+  config: MenuThemeCustom;
+}
+
+export const THEME_PRESETS: MenuThemePreset[] = [
+  // The one ready theme. The bespoke `skin: 'omannational'` overlay (menu-themes.css)
+  // layers bunting, flag bands, the national emblem and a waving flag on top of this
+  // palette; the JSON still drives colours, the light star motif and decor.
+  { id: 'omannational', labelAr: 'العيد الوطني', labelEn: 'Oman National Day', descAr: 'عُماني · احتفال', descEn: 'Omani · celebration',
+    config: { name: 'Oman National Day', canvas: '#EFDDC4', paper: '#FFF8EC', surface: '#F6E7CC', text: '#3A1A12', muted: '#8A6044',
+      accent: '#C8102E', accent2: '#00843D', cartBg: '#7E1023', motifColor: '#C8102E', motifOpacity: 0.12,
+      background: 'arches', motif: 'star', font: 'reemkufi', radius: 'soft',
+      cardStyle: 'flat', cardBadge: 'none', headerStyle: 'plain', skin: 'omannational',
+      decor: { floaters: ['🇴🇲', '🎆'], floaterOpacity: 0.14, cardSticker: '', bannerAr: '', bannerEn: '' } } },
+];
 
 /** Shared motif list — the single source of truth for both the picker UI and validation. */
 export const MOTIF_OPTIONS: MenuThemeCustom['motif'][] =
@@ -109,12 +251,46 @@ export const themeMeta = (id: string | null | undefined): MenuTheme =>
 export const resolveThemeId = (restaurantTheme?: string | null): string =>
   isThemeId(restaurantTheme) ? restaurantTheme : DEFAULT_THEME;
 
+/** Google css2 specs per display family (the system/IBM Plex base loads in index.html). */
+const GOOGLE_FONT_SPECS: Record<string, string> = {
+  'Markazi Text': 'Markazi+Text:wght@400;500;600;700',
+  'Baloo Bhaijaan 2': 'Baloo+Bhaijaan+2:wght@500;600;700',
+  'Tajawal': 'Tajawal:wght@400;500;700',
+  'El Messiri': 'El+Messiri:wght@500;600;700',
+  'Reem Kufi': 'Reem+Kufi:wght@500;600;700',
+  'Sora': 'Sora:wght@600;700;800',
+};
+
+/** Every display font a theme can use — for the dashboard theme editor's font picker. */
+export const ALL_MENU_FONT_SPECS = Object.values(GOOGLE_FONT_SPECS);
+
+/**
+ * The Google Fonts specs the active skin's display font needs, so the customer app
+ * downloads only the one family this venue uses instead of all of them up front.
+ */
+export function menuFontSpecsOf(theme?: string | null, customJson?: string | null): string[] {
+  const stack = customJson && customJson.trim().startsWith('{')
+    ? FONT_STACKS[parseCustomTheme(customJson).font] ?? FONT_STACKS.system
+    : themeMeta(resolveThemeId(theme)).font;
+  return Object.entries(GOOGLE_FONT_SPECS)
+    .filter(([family]) => stack.includes(family))
+    .map(([, spec]) => spec);
+}
+
 export function parseCustomTheme(json?: string | null): MenuThemeCustom {
   if (!json) return DEFAULT_CUSTOM_THEME;
   try {
     const parsed = JSON.parse(json) as Partial<MenuThemeCustom>;
-    const next = { ...DEFAULT_CUSTOM_THEME };
+    const next = { ...DEFAULT_CUSTOM_THEME, decor: { ...DEFAULT_DECOR } };
     Object.entries(parsed).forEach(([key, value]) => {
+      if (key === 'name' && typeof value === 'string') {
+        next.name = value.slice(0, 80);
+        return;
+      }
+      if (key === 'decor' && value && typeof value === 'object' && !Array.isArray(value)) {
+        next.decor = sanitizeDecor(value as Partial<MenuThemeDecor>);
+        return;
+      }
       if (key === 'background' && typeof value === 'string' && (BACKGROUND_OPTIONS as string[]).includes(value)) {
         next.background = value as MenuThemeCustom['background'];
         return;
@@ -123,12 +299,36 @@ export function parseCustomTheme(json?: string | null): MenuThemeCustom {
         next.motif = value as MenuThemeCustom['motif'];
         return;
       }
+      if (key === 'font' && typeof value === 'string' && value in FONT_STACKS) {
+        next.font = value as MenuFontKey;
+        return;
+      }
+      if (key === 'radius' && typeof value === 'string' && value in RADIUS_PRESETS) {
+        next.radius = value as MenuRadiusKey;
+        return;
+      }
+      if (key === 'cardStyle' && typeof value === 'string' && (CARD_STYLE_OPTIONS as string[]).includes(value)) {
+        next.cardStyle = value as MenuCardStyleKey;
+        return;
+      }
+      if (key === 'cardBadge' && typeof value === 'string' && (CARD_BADGE_OPTIONS as string[]).includes(value)) {
+        next.cardBadge = value as MenuCardBadgeKey;
+        return;
+      }
+      if (key === 'headerStyle' && typeof value === 'string' && (HEADER_STYLE_OPTIONS as string[]).includes(value)) {
+        next.headerStyle = value as MenuHeaderStyleKey;
+        return;
+      }
+      if (key === 'skin' && typeof value === 'string' && (MENU_SKINS as readonly string[]).includes(value)) {
+        next.skin = value;
+        return;
+      }
       if (key === 'motifOpacity' && typeof value === 'number' && Number.isFinite(value)) {
         next.motifOpacity = clamp(value, 0.04, 0.3);
         return;
       }
       if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) && key in next) {
-        (next as Record<string, string | number>)[key] = value;
+        (next as unknown as Record<string, string>)[key] = value;
       }
     });
     return next;
@@ -139,25 +339,88 @@ export function parseCustomTheme(json?: string | null): MenuThemeCustom {
 
 export const serializeCustomTheme = (custom: MenuThemeCustom): string => JSON.stringify(custom);
 
+/** Clamp AI/owner-supplied decor to safe shapes (emoji-sized strings, capped counts). */
+function sanitizeDecor(raw: Partial<MenuThemeDecor>): MenuThemeDecor {
+  const glyph = (v: unknown): string => (typeof v === 'string' ? v.trim().slice(0, 8) : '');
+  return {
+    floaters: Array.isArray(raw.floaters) ? raw.floaters.map(glyph).filter(Boolean).slice(0, 6) : [],
+    floaterOpacity: typeof raw.floaterOpacity === 'number' && Number.isFinite(raw.floaterOpacity)
+      ? clamp(raw.floaterOpacity, 0.06, 0.6)
+      : DEFAULT_DECOR.floaterOpacity,
+    cardSticker: glyph(raw.cardSticker),
+    bannerAr: typeof raw.bannerAr === 'string' ? raw.bannerAr.slice(0, 80) : '',
+    bannerEn: typeof raw.bannerEn === 'string' ? raw.bannerEn.slice(0, 80) : '',
+  };
+}
+
+/**
+ * Resolve a venue's saved theme into what the shell should render.
+ * The JSON document wins whenever present (the new model); legacy venues that
+ * saved only a preset id keep their CSS-defined skin from menu-themes.css.
+ */
+export function resolveMenuSkin(theme?: string | null, customJson?: string | null):
+  { themeId: string; style?: Record<string, string>; decor?: MenuThemeDecor; attrs?: Record<string, string> } {
+  if (customJson && customJson.trim().startsWith('{')) {
+    const custom = parseCustomTheme(customJson);
+    return { themeId: CUSTOM_THEME, style: customThemeVars(custom), decor: custom.decor, attrs: menuStructuralAttrs(custom) };
+  }
+  return { themeId: resolveThemeId(theme) };
+}
+
+/**
+ * The data-* attributes that select the structural-kit CSS recipes for a JSON theme.
+ * Spread onto the .cust-bg shell (alongside data-menu-theme="custom"); named themes,
+ * which own their full look in CSS, never receive these.
+ */
+export function menuStructuralAttrs(custom: MenuThemeCustom): Record<string, string> {
+  const attrs: Record<string, string> = {
+    'data-card-style': custom.cardStyle,
+    'data-card-badge': custom.cardBadge,
+    'data-header-style': custom.headerStyle,
+  };
+  if (custom.skin && (MENU_SKINS as readonly string[]).includes(custom.skin)) {
+    attrs['data-menu-skin'] = custom.skin;
+  }
+  return attrs;
+}
+
 export function customThemeVars(custom: MenuThemeCustom): Record<string, string> {
   const bg = customBackground(custom);
   const paper = customPaper(custom);
-  return {
+  const radius = RADIUS_PRESETS[custom.radius] ?? RADIUS_PRESETS.soft;
+  const darkPaper = relLuminance(custom.paper) < 0.4;
+  const bg2 = mix(custom.paper, '#ffffff', darkPaper ? 0.1 : 0.7);
+  const visualSurface = alphaBlend(custom.surface, custom.paper, 0.72);
+  const visualSurface2 = alphaBlend(custom.surface, custom.paper, 0.92);
+  const visualGlass = alphaBlend(custom.paper, custom.canvas, 0.78);
+  const safeText = readableText(custom.text, 4.5, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
+  const safeMuted = readableText(custom.muted, 3, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
+  const cartInk = readableOn(custom.cartBg);
+  const safeAccentText = readableText(custom.accent, 4.5, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
+  const cartBarText = readableText(custom.accent, 4.5, custom.cartBg);
+  const vars: Record<string, string> = {
+    // native widgets (scrollbars, inputs) should match the skin's brightness
+    colorScheme: darkPaper ? 'dark' : 'light',
+    '--font-display': FONT_STACKS[custom.font] ?? FONT_STACKS.system,
+    '--r-mark': radius.mark,
+    '--r-card': radius.card,
+    '--r-thumb': radius.thumb,
+    '--r-ctl': radius.ctl,
     '--menu-canvas': bg.canvas,
     '--menu-paper-color': custom.paper,
-    '--menu-paper-edge': hexAlpha(custom.text, 0.13),
+    '--menu-paper-edge': hexAlpha(safeText, 0.13),
     '--menu-paper-img': paper.image,
     '--menu-paper-size': paper.size,
     '--menu-paper-repeat': paper.repeat,
     '--bg': custom.paper,
-    '--bg-2': mix(custom.paper, '#ffffff', 0.7),
+    '--bg-2': bg2,
     '--surface': hexAlpha(custom.surface, 0.72),
     '--surface-2': hexAlpha(custom.surface, 0.92),
-    '--line': hexAlpha(custom.text, 0.11),
-    '--line-2': hexAlpha(custom.text, 0.19),
-    '--text': custom.text,
-    '--muted': custom.muted,
-    '--faint': hexAlpha(custom.muted, 0.72),
+    '--line': hexAlpha(safeText, 0.11),
+    '--line-2': hexAlpha(safeText, 0.19),
+    '--text': safeText,
+    '--muted': safeMuted,
+    '--faint': hexAlpha(safeMuted, 0.72),
     '--accent': custom.accent,
     '--accent-2': custom.accent2,
     '--accent-ink': readableOn(custom.accent),
@@ -165,23 +428,26 @@ export function customThemeVars(custom: MenuThemeCustom): Record<string, string>
     // Prices/totals/labels render in accent ON paper & surface. Keep the accent's hue
     // but push its lightness until it clears WCAG AA, so a bright accent (yellow, lime,
     // cyan, light gold) can never wash out to invisible on the menu or basket pages.
-    '--accent-text': readableText(custom.accent, 4.5, custom.paper, custom.surface),
+    '--accent-text': safeAccentText,
     '--canvas': custom.canvas,
     '--glass': hexAlpha(custom.paper, 0.78),
-    '--ring': hexAlpha(custom.text, 0.08),
-    '--shadow': `0 34px 78px -46px ${hexAlpha(custom.text, 0.45)}`,
-    '--shadow-sm': `0 14px 30px -18px ${hexAlpha(custom.text, 0.25)}`,
+    '--ring': hexAlpha(safeText, 0.08),
+    '--shadow': `0 34px 78px -46px ${hexAlpha(safeText, 0.45)}`,
+    '--shadow-sm': `0 14px 30px -18px ${hexAlpha(safeText, 0.25)}`,
     '--cart-bg': custom.cartBg,
-    '--cart-ink': readableOn(custom.cartBg),
-    '--cart-line': hexAlpha(readableOn(custom.cartBg), 0.14),
-    '--cart-accent': custom.accent2,
-    '--cart-accent-2': custom.accent,
-    '--cart-accent-ink': readableOn(custom.accent2),
+    '--cart-ink': cartInk,
+    '--cart-line': hexAlpha(cartInk, 0.14),
+    '--cart-accent': custom.accent,
+    '--cart-accent-2': custom.accent2,
+    '--cart-accent-ink': readableOn(custom.accent),
     // Cart-bar total + count sit on the dark/light --cart-bg — guarantee legibility too.
-    '--cart-accent-text': readableText(custom.accent2, 4.5, custom.cartBg),
-    '--cart-sub': hexAlpha(readableOn(custom.cartBg), 0.68),
+    '--cart-accent-text': cartBarText,
+    '--cart-sub': readableText(safeMuted, 3, custom.cartBg),
     '--cart-count-bg': custom.cartBg,
   };
+  // pinned card sticker renders via .c-item::after { content: var(--decor-card) }
+  if (custom.decor.cardSticker) vars['--decor-card'] = JSON.stringify(custom.decor.cardSticker);
+  return vars;
 }
 
 function customBackground(custom: MenuThemeCustom): { canvas: string } {
@@ -272,9 +538,17 @@ function mix(a: string, b: string, weight: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
 }
 
+function alphaBlend(fg: string, bg: string, alpha: number): string {
+  const f = toRgb(fg);
+  const b = toRgb(bg);
+  const r = Math.round(f.r * alpha + b.r * (1 - alpha));
+  const g = Math.round(f.g * alpha + b.g * (1 - alpha));
+  const bl = Math.round(f.b * alpha + b.b * (1 - alpha));
+  return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
+}
+
 function readableOn(hex: string): string {
-  const { r, g, b } = toRgb(hex);
-  return (r * 0.299 + g * 0.587 + b * 0.114) > 160 ? '#171109' : '#FFF9EF';
+  return contrastRatio('#171109', hex) >= contrastRatio('#FFF9EF', hex) ? '#171109' : '#FFF9EF';
 }
 
 // Keep a colour's hue but push its lightness until it clears `min` WCAG contrast

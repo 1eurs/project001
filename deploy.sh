@@ -42,6 +42,7 @@ echo ""
 echo "==> Syncing project to $PI_USER@$PI_HOST:$PI_DIR"
 rsync -avz --delete \
   --exclude '.git' \
+  --exclude 'docker-compose.override.yml' \
   --exclude 'target/' \
   --exclude '.DS_Store' \
   --exclude '.claude/' \
@@ -53,6 +54,19 @@ rsync -avz --delete \
 echo ""
 echo "==> Fixing permissions for nginx read access"
 ssh "$PI_USER@$PI_HOST" "sudo chmod -R a+rX $PI_DIR/frontend-react/dist/ && sudo chmod a+X /home/$PI_USER"
+
+echo ""
+echo "==> Uploading nginx gzip tuning"
+ssh "$PI_USER@$PI_HOST" "sudo tee /etc/nginx/conf.d/cafeqr-gzip.conf > /dev/null" <<'GZIP'
+# Compress JSON/JS/CSS leaving the Pi. Cloudflare re-compresses to visitors, but
+# without this the origin->edge hop crosses the tunnel uncompressed.
+# text/event-stream is deliberately absent: SSE must never be gzip-buffered.
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 5;
+gzip_min_length 512;
+gzip_types text/plain text/css application/json application/javascript text/javascript image/svg+xml application/manifest+json;
+GZIP
 
 echo ""
 echo "==> Uploading nginx config for $BASE_PATH"
@@ -69,13 +83,16 @@ location /api/ {
     client_max_body_size 50M;
 }
 
-# File uploads
+# File uploads — filenames are UUIDs, so a URL's content never changes; cache hard.
+# (Matches the Cache-Control the backend itself sends; hide avoids double headers.)
 location /files/ {
     proxy_pass http://127.0.0.1:8080/files/;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
+    proxy_hide_header Cache-Control;
+    add_header Cache-Control "public, max-age=31536000, immutable";
     client_max_body_size 50M;
 }
 
@@ -84,8 +101,7 @@ location /serva {
     alias /home/pi/cafeqr/frontend-react/dist;
     try_files $uri $uri/ /serva/index.html;
     location ~ ^/serva/assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+        add_header Cache-Control "public, max-age=31536000, immutable";
     }
 }
 
@@ -151,6 +167,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "public, max-age=31536000, immutable";
         client_max_body_size 50M;
     }
 
@@ -158,8 +176,7 @@ server {
         root /home/pi/cafeqr/frontend-react/dist;
         try_files $uri $uri/ /index.html;
         location ~ ^/assets/ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
+            add_header Cache-Control "public, max-age=31536000, immutable";
         }
     }
 }

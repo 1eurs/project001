@@ -39,8 +39,8 @@ export default function CartPage() {
   const t = useT(DICT);
   const nav = useNavigate();
   const toast = useToast();
-  const { slug, branchId, tableToken, orderType: venueOrderType, restaurant } = useVenue();
-  const orderType: OrderType = tableToken ? 'DINE_IN' : venueOrderType === 'CAR' ? 'CAR' : 'TAKEAWAY';
+  const { slug, branchId, tableToken, restaurant } = useVenue();
+  const orderType: OrderType = tableToken ? 'DINE_IN' : 'CAR';
 
   const menuPath = menuPathOf(slug, branchId, tableToken, orderType);
   const cartKey = cartKeyOf(slug, branchId, tableToken, orderType);
@@ -48,7 +48,7 @@ export default function CartPage() {
   const { bump, setNote, clear } = useCartStore();
 
   // At checkout they're firmly "ordering"; share the cart so staff can see it coming.
-  usePresence(branchId, tableToken ?? (orderType === 'CAR' ? 'car' : 'takeaway'), true,
+  usePresence(branchId, tableToken ?? 'car', true,
     cart.map((l) => ({ menuItemId: l.id, quantity: l.qty })));
 
   const { data } = useQuery({

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError, consumePrimedMenu } from '../../lib/api';
 import type { OrderType, PublicMenu, PublicItem, ReturningCustomer } from '../../lib/types';
 import { deviceToken } from '../../lib/customerProfile';
 import { omr } from '../../lib/format';
@@ -9,20 +9,20 @@ import { useI18n, useT, pick, LangToggle, type Dict } from '../../lib/i18n';
 import { useCartStore, useCart } from '../../lib/cart';
 import { useToast } from '../../lib/toast';
 import { useVenue, cartKeyOf, menuUrlOf } from './venue';
+import { readMenuCache, writeMenuCache } from './menuCache';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د',
-        soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', takeaway: 'سفري', car: 'خدمة السيارة', added: 'أُضيف ✓',
+        soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'خدمة السيارة', added: 'أُضيف ✓',
         welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', reorderLast: '↻ اطلب طلبك السابق', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min',
-        soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', takeaway: 'Takeaway', car: 'Outdoor car', added: 'Added ✓',
+        soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Outdoor car', added: 'Added ✓',
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', reorderLast: '↻ Reorder your last order', lastAdded: 'Your last order is in the cart ✓' },
 };
 
-const thumb = (it: PublicItem) => {
-  if (it.imageUrl) return { backgroundImage: `url('${it.imageUrl}')` };
+const fallbackThumb = (it: PublicItem) => {
   const hue = (it.id * 47) % 360;
   return { backgroundImage: `linear-gradient(155deg, hsl(${hue} 42% 34%) -30%, #15171C 70%)` };
 };
@@ -34,14 +34,20 @@ export default function MenuPage() {
   const { lang } = useI18n();
   const t = useT(DICT);
   const nav = useNavigate();
-  const location = useLocation();
-  const orderType: OrderType = token ? 'DINE_IN' : location.pathname.endsWith('/car') ? 'CAR' : 'TAKEAWAY';
+  const orderType: OrderType = token ? 'DINE_IN' : 'CAR';
 
   const url = menuUrlOf(slug, bId, token);
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  // Two fast paths: the fetch index.html primed before the bundle loaded, and the
+  // last menu this device saw (shown immediately while the refetch runs).
+  const cachedMenu = useMemo(() => readMenuCache(url), [url]);
+  const { data, isLoading, isError, error, refetch, isPlaceholderData } = useQuery({
     queryKey: ['menu', url],
-    queryFn: () => api.get<PublicMenu>(url, { auth: false }),
+    queryFn: () => consumePrimedMenu<PublicMenu>(url) ?? api.get<PublicMenu>(url, { auth: false }),
+    placeholderData: cachedMenu,
   });
+  useEffect(() => {
+    if (data && !isPlaceholderData) writeMenuCache(url, data);
+  }, [data, isPlaceholderData, url]);
 
   const setVenue = useVenue((s) => s.setVenue);
   useEffect(() => {
@@ -94,7 +100,7 @@ export default function MenuPage() {
 
   // Report live presence: "viewing" while browsing, "ordering" once they've added items —
   // including what's in the cart so the counter can see demand building up.
-  usePresence(bId, token ?? (orderType === 'CAR' ? 'car' : 'takeaway'), count > 0,
+  usePresence(bId, token ?? 'car', count > 0,
     cart.map((l) => ({ menuItemId: l.id, quantity: l.qty })));
 
   // sticky category nav highlight
@@ -157,9 +163,7 @@ export default function MenuPage() {
         <div className="c-meta">
           {data.table
             ? <span className="c-table">🪑 {t('table')} <span className="num">{data.table.tableNumber}</span></span>
-            : orderType === 'CAR'
-              ? <span className="c-table">🚗 {t('car')}</span>
-            : <span className="c-table">🥡 {t('takeaway')}</span>}
+            : <span className="c-table">🚗 {t('car')}</span>}
           {data.branch && <span>{pick(data.branch, 'name', lang)}</span>}
         </div>
       </header>
@@ -196,7 +200,7 @@ export default function MenuPage() {
             </div>
           </div>
         )}
-        {data.categories.map((c) => (
+        {data.categories.map((c, ci) => (
           <section className="c-cat" id={'cat-' + c.id} data-cat={c.id} key={c.id}>
             <div className="c-cat-head">
               <h2>{pick(c, 'name', lang)}</h2>
@@ -206,10 +210,16 @@ export default function MenuPage() {
             {pick(c, 'description', lang) && <p className="c-cat-desc">{pick(c, 'description', lang)}</p>}
             {c.items.map((it, idx) => {
               const line = cart.find((l) => l.id === it.id);
+              // First few photos are likely the LCP element — fetch them eagerly at high
+              // priority; everything below the fold lazy-loads as the customer scrolls.
+              const eager = ci === 0 && idx < 4;
               return (
                 <article className={'c-item' + (it.available ? '' : ' out')} style={{ animationDelay: `${idx * 60}ms` }} key={it.id}>
-                  <div className="c-thumb" style={thumb(it)}>
-                    {!it.imageUrl && <span className="glyph">{pick(it, 'name', lang).charAt(0)}</span>}
+                  <div className="c-thumb" style={it.imageUrl ? undefined : fallbackThumb(it)}>
+                    {it.imageUrl
+                      ? <img src={it.imageUrl} alt="" decoding="async" loading={eager ? 'eager' : 'lazy'}
+                          {...({ fetchpriority: eager ? 'high' : 'low' } as object)} />
+                      : <span className="glyph">{pick(it, 'name', lang).charAt(0)}</span>}
                   </div>
                   {!it.available && <span className="c-badge">{t('soldout')}</span>}
                   <div className="c-body">

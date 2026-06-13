@@ -21,6 +21,9 @@ HELP.md
 .env
 *.local
 
+### Local-only docker compose overrides (never deployed) ###
+docker-compose.override.yml
+
 ### Node / Vite (frontend-react) ###
 node_modules/
 dist/

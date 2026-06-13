@@ -44,6 +44,10 @@ public class Restaurant extends BaseEntity {
     @Column(name = "menu_theme_custom_json")
     private String themeCustomJson;
 
+    /** Premium "Pro look" entitlement — unlocks the advanced theme editor for this café. */
+    @Column(name = "premium_look", nullable = false)
+    private boolean premiumLook = false;
+
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
@@ -133,6 +137,14 @@ public class Restaurant extends BaseEntity {
 
     public void setThemeCustomJson(String themeCustomJson) {
         this.themeCustomJson = themeCustomJson;
+    }
+
+    public boolean isPremiumLook() {
+        return premiumLook;
+    }
+
+    public void setPremiumLook(boolean premiumLook) {
+        this.premiumLook = premiumLook;
     }
 
     public boolean isActive() {

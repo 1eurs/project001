@@ -32,6 +32,7 @@ public interface CustomerProfileRepository extends JpaRepository<CustomerProfile
             JOIN orders o ON o.id = oi.order_id
             WHERE o.restaurant_id = :restaurantId
               AND o.customer_phone = :phone
+              AND oi.menu_item_id IS NOT NULL
               AND o.status NOT IN ('DECLINED', 'CANCELLED')
             GROUP BY oi.menu_item_id
             ORDER BY score DESC

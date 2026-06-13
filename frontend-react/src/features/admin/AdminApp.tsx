@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, ApiError, logout } from '../../lib/api';
+import { api, ApiError, changeEmail, logout, updateProfile } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
@@ -26,13 +26,22 @@ const DICT: Dict = {
         oneTime: 'دفع مرة واحدة', lifetime: 'مدى الحياة',
         endDate: 'ينتهي', renew: 'تجديد', renewed: 'تم التجديد الاشتراك', expired: 'منتهٍ', expiringSoon: 'قريب الانتهاء',
         activate: 'تفعيل', deactivate: 'إيقاف', save: 'حفظ', cancel: 'إلغاء', create: 'إنشاء',
+        premiumLook: 'الثيم المتقدّم', premiumOn: 'مُفعّل', premiumOff: 'عادي', premiumEnable: '✦ تفعيل الثيم المتقدّم', premiumDisable: 'إيقاف الثيم المتقدّم',
         createT: 'إنشاء مطعم', createP: 'يُنشأ المطعم وحساب المالك (اختياري) معاً.',
         rName: 'اسم المطعم', rSlug: 'المعرّف (slug)', oName: 'اسم المالك', oEmail: 'بريد المالك', oPass: 'كلمة المرور',
         loginTitle: 'منصّة Serva.', loginSub: 'دخول مدير المنصّة', createdOk: 'تم الإنشاء', saved: 'تم الحفظ', enabled: 'مفعّل', disabled: 'متوقف',
         navRestaurants: 'المطاعم', navOnboarding: 'طلبات الاشتراك', onboarding: 'طلبات الاشتراك',
         kPending: 'بانتظار الدفع', thCafe: 'المقهى', thOwner: 'المالك', thAmount: 'المبلغ', thRef: 'المرجع', thActions: 'إجراءات',
         confirmPay: 'تأكيد الدفع', reject: 'رفض', confirmed: 'تم تأكيد الدفع', rejected: 'تم رفض الطلب', noPending: 'لا توجد طلبات بانتظار الدفع',
-        rejectConfirm: 'رفض هذا الطلب؟ سيبقى المقهى غير مُفعّل.' },
+        rejectConfirm: 'رفض هذا الطلب؟ سيبقى المقهى غير مُفعّل.',
+        profile: 'الملف الشخصي', editProfile: 'تعديل الملف الشخصي', editProfileSub: 'غيّر اسمك ورقم هاتفك على حساب المنصّة.',
+        fullName: 'الاسم الكامل', profileSaved: 'تم حفظ الملف الشخصي',
+        language: 'اللغة', arabic: 'العربية', english: 'English',
+        changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
+        changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', changeEmailSub: 'أدخل كلمة المرور الحالية والبريد الجديد.',
+        currentPw: 'كلمة المرور الحالية', newPw: 'كلمة المرور الجديدة', confirmPw: 'تأكيد كلمة المرور', newEmail: 'البريد الجديد',
+        pwChanged: 'تم تغيير كلمة المرور', pwTooShort: 'كلمة المرور 8 أحرف على الأقل', pwMismatch: 'كلمتا المرور غير متطابقتين',
+        emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا', role_PLATFORM_ADMIN: 'مشرف المنصة' },
   en: { restaurants: 'Restaurants', cur: 'OMR', logoutT: 'Logout',
         kTotal: 'Total restaurants', kActive: 'Active', kInactive: 'Inactive', kNew: 'New this month',
         kOrders30: 'Orders · 30 days', kRevenue30: 'Revenue · 30 days',
@@ -47,13 +56,22 @@ const DICT: Dict = {
         oneTime: 'One-time access', lifetime: 'Lifetime',
         endDate: 'Ends', renew: 'Renew', renewed: 'Subscription renewed', expired: 'Expired', expiringSoon: 'Expiring soon',
         activate: 'Activate', deactivate: 'Deactivate', save: 'Save', cancel: 'Cancel', create: 'Create',
+        premiumLook: 'Premium look', premiumOn: 'On', premiumOff: 'Standard', premiumEnable: '✦ Enable premium look', premiumDisable: 'Disable premium look',
         createT: 'Create restaurant', createP: 'Creates the restaurant and (optionally) the owner account.',
         rName: 'Restaurant name', rSlug: 'Slug', oName: 'Owner name', oEmail: 'Owner email', oPass: 'Password',
         loginTitle: 'Serva. platform', loginSub: 'Platform admin sign-in', createdOk: 'Created', saved: 'Saved', enabled: 'On', disabled: 'Off',
         navRestaurants: 'Restaurants', navOnboarding: 'Onboarding', onboarding: 'Onboarding',
         kPending: 'Awaiting payment', thCafe: 'Café', thOwner: 'Owner', thAmount: 'Amount', thRef: 'Reference', thActions: 'Actions',
         confirmPay: 'Confirm payment', reject: 'Reject', confirmed: 'Payment confirmed', rejected: 'Onboarding rejected', noPending: 'No cafés awaiting payment',
-        rejectConfirm: 'Reject this signup? The café stays inactive.' },
+        rejectConfirm: 'Reject this signup? The café stays inactive.',
+        profile: 'Profile', editProfile: 'Edit profile', editProfileSub: 'Update your name and phone on the platform account.',
+        fullName: 'Full name', profileSaved: 'Profile saved',
+        language: 'Language', arabic: 'Arabic', english: 'English',
+        changePassword: 'Change password', changeEmail: 'Change email',
+        changePwSub: 'Enter your current password, then a new one.', changeEmailSub: 'Enter your current password and new email.',
+        currentPw: 'Current password', newPw: 'New password', confirmPw: 'Confirm new password', newEmail: 'New email',
+        pwChanged: 'Password changed', pwTooShort: 'Use at least 8 characters', pwMismatch: 'Passwords don’t match',
+        emailChanged: 'Email changed', emailInvalid: 'Enter a valid email', role_PLATFORM_ADMIN: 'Platform admin' },
 };
 
 const SUB_STATUSES: SubscriptionStatus[] = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'EXPIRED'];
@@ -86,9 +104,7 @@ export default function AdminApp() {
 }
 
 function AdminInner() {
-  const { user } = useAuth();
   const t = useT(DICT);
-  const { lang } = useI18n();
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -140,7 +156,11 @@ function AdminInner() {
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  const initials = (user?.fullName ?? 'PA').split(' ').map((s) => s[0]).slice(0, 2).join('');
+  const togglePremium = useMutation({
+    mutationFn: (r: Restaurant) => api.patch<Restaurant>(`/api/admin/restaurants/${r.id}/premium-look?enabled=${!r.premiumLook}`),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['admin-restaurants'] }); setSelected(r); toast(r.premiumLook ? t('premiumOn') : t('premiumOff')); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
 
   return (
     <div className="adm">
@@ -159,7 +179,7 @@ function AdminInner() {
         <div className="atop">
           <div><h2>{view === 'onboarding' ? t('onboarding') : t('restaurants')}</h2><div className="crumb">/admin/{view}</div></div>
           <div className="spacer" />
-          <div className="who"><div className="av">{initials}</div><div><div className="nm">{user?.fullName}</div><div className="rl">PLATFORM_ADMIN</div></div></div>
+          <AdminAccountMenu t={t} />
         </div>
 
         <div className="acontent">
@@ -218,11 +238,200 @@ function AdminInner() {
 
       <div className={'drawer-bg' + (selected ? ' open' : '')} onClick={() => setSelected(null)} />
       <aside className={'drawer' + (selected ? ' open' : '')}>
-        {selected && <DrawerBody r={selected} stats={stats.get(selected.id)} onToggle={() => toggleActive.mutate(selected)} onEditSub={() => setModal('sub')} onClose={() => setSelected(null)} />}
+        {selected && <DrawerBody r={selected} stats={stats.get(selected.id)} onToggle={() => toggleActive.mutate(selected)} onTogglePremium={() => togglePremium.mutate(selected)} onEditSub={() => setModal('sub')} onClose={() => setSelected(null)} />}
       </aside>
 
       {modal === 'create' && <CreateModal onClose={() => setModal(null)} onDone={() => { qc.invalidateQueries({ queryKey: ['admin-restaurants'] }); setModal(null); toast(t('createdOk')); }} />}
       {modal === 'sub' && selected && <SubModal restaurant={selected} onClose={() => setModal(null)} onDone={() => { qc.invalidateQueries({ queryKey: ['sub', selected.id] }); setModal(null); toast(t('saved')); }} />}
+    </div>
+  );
+}
+
+function AdminAccountMenu({ t }: { t: (k: string) => string }) {
+  const { user } = useAuth();
+  const { lang, setLang } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const initials = (user?.fullName ?? 'PA').split(' ').map((s) => s[0]).slice(0, 2).join('');
+  const roleLabel = t('role_PLATFORM_ADMIN');
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="who" ref={ref}>
+      <button className="who-btn" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>
+        <div className="av">{initials}</div>
+        <div className="who-txt"><div className="nm">{user?.fullName}</div><div className="rl">{roleLabel}</div></div>
+        <span className="who-caret" aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div className="acct-menu" role="menu">
+          <div className="acct-head">
+            <div className="av lg">{initials}</div>
+            <div className="acct-id">
+              <div className="acct-name">{user?.fullName}</div>
+              <div className="acct-mail" title={user?.email}>{user?.email}</div>
+              <span className="acct-role">{roleLabel}</span>
+            </div>
+          </div>
+          <div className="acct-sep" />
+          <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setProfileOpen(true); }}>
+            <span className="ai-ic">👤</span>{t('editProfile')}
+          </button>
+          <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setPwOpen(true); }}>
+            <span className="ai-ic">🔒</span>{t('changePassword')}
+          </button>
+          <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setEmailOpen(true); }}>
+            <span className="ai-ic">@</span>{t('changeEmail')}
+          </button>
+          <div className="acct-sep" />
+          <div className="acct-lang" role="group" aria-label={t('language')}>
+            <span>{t('language')}</span>
+            <div className="acct-lang-btns">
+              <button className={lang === 'ar' ? 'on' : ''} onClick={() => setLang('ar')}>{t('arabic')}</button>
+              <button className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>{t('english')}</button>
+            </div>
+          </div>
+          <button className="acct-item danger" role="menuitem" onClick={() => logout()}>
+            <span className="ai-ic">⏻</span>{t('logoutT')}
+          </button>
+        </div>
+      )}
+      {profileOpen && <EditProfileModal t={t} onClose={() => setProfileOpen(false)} />}
+      {pwOpen && <ChangePasswordModal t={t} onClose={() => setPwOpen(false)} />}
+      {emailOpen && <ChangeEmailModal t={t} onClose={() => setEmailOpen(false)} />}
+    </div>
+  );
+}
+
+function EditProfileModal({ t, onClose }: { t: (k: string) => string; onClose: () => void }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [fullName, setFullName] = useState(user!.fullName);
+  const [phone, setPhone] = useState(user!.phone ?? '');
+  const name = fullName.trim();
+  const phoneValue = phone.trim();
+
+  const save = useMutation({
+    mutationFn: () => updateProfile(name, phoneValue || null),
+    onSuccess: () => { toast(t('profileSaved')); onClose(); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const unchanged = name === user!.fullName && phoneValue === (user!.phone ?? '');
+  const canSave = name.length > 0 && !unchanged && !save.isPending;
+
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card">
+        <h3>{t('editProfile')}</h3>
+        <div className="ph">{t('editProfileSub')}</div>
+        <div className="pwform">
+          <input className="input" autoComplete="name" placeholder={t('fullName')}
+            value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          <input className="input num" autoComplete="tel" placeholder={t('phone')}
+            value={phone} onChange={(e) => setPhone(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSave) save.mutate(); }} />
+        </div>
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" disabled={!canSave} onClick={() => save.mutate()}>{save.isPending ? '…' : t('save')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangePasswordModal({ t, onClose }: { t: (k: string) => string; onClose: () => void }) {
+  const toast = useToast();
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+
+  const change = useMutation({
+    mutationFn: () => api.post('/api/auth/change-password', { currentPassword: cur, newPassword: next }),
+    onSuccess: () => { toast(t('pwChanged')); onClose(); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const tooShort = next.length > 0 && next.length < 8;
+  const mismatch = confirm.length > 0 && next !== confirm;
+  const canSave = !!cur && next.length >= 8 && next === confirm && !change.isPending;
+
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card">
+        <h3>{t('changePassword')}</h3>
+        <div className="ph">{t('changePwSub')}</div>
+        <div className="pwform">
+          <input className="input" type="password" autoComplete="current-password" placeholder={t('currentPw')}
+            value={cur} onChange={(e) => setCur(e.target.value)} />
+          <input className="input" type="password" autoComplete="new-password" placeholder={t('newPw')}
+            value={next} onChange={(e) => setNext(e.target.value)} />
+          {tooShort && <div className="pwhint bad">{t('pwTooShort')}</div>}
+          <input className="input" type="password" autoComplete="new-password" placeholder={t('confirmPw')}
+            value={confirm} onChange={(e) => setConfirm(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSave) change.mutate(); }} />
+          {mismatch && <div className="pwhint bad">{t('pwMismatch')}</div>}
+        </div>
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" disabled={!canSave} onClick={() => change.mutate()}>{change.isPending ? '…' : t('save')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangeEmailModal({ t, onClose }: { t: (k: string) => string; onClose: () => void }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState(user!.email);
+  const email = next.trim();
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const change = useMutation({
+    mutationFn: () => changeEmail(cur, email),
+    onSuccess: () => { toast(t('emailChanged')); onClose(); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const invalid = email.length > 0 && !validEmail;
+  const unchanged = email.toLowerCase() === user!.email.toLowerCase();
+  const canSave = !!cur && validEmail && !unchanged && !change.isPending;
+
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card">
+        <h3>{t('changeEmail')}</h3>
+        <div className="ph">{t('changeEmailSub')}</div>
+        <div className="pwform">
+          <input className="input" type="password" autoComplete="current-password" placeholder={t('currentPw')}
+            value={cur} onChange={(e) => setCur(e.target.value)} />
+          <input className="input" type="email" autoComplete="username" placeholder={t('newEmail')}
+            value={next} onChange={(e) => setNext(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSave) change.mutate(); }} />
+          {invalid && <div className="pwhint bad">{t('emailInvalid')}</div>}
+        </div>
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" disabled={!canSave} onClick={() => change.mutate()}>{change.isPending ? '…' : t('save')}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -297,7 +506,7 @@ function OnboardingView({ t }: { t: (k: string) => string }) {
   );
 }
 
-function DrawerBody({ r, stats, onToggle, onEditSub, onClose }: { r: Restaurant; stats?: AdminRestaurantStats; onToggle: () => void; onEditSub: () => void; onClose: () => void }) {
+function DrawerBody({ r, stats, onToggle, onTogglePremium, onEditSub, onClose }: { r: Restaurant; stats?: AdminRestaurantStats; onToggle: () => void; onTogglePremium: () => void; onEditSub: () => void; onClose: () => void }) {
   const t = useT(DICT);
   const qc = useQueryClient();
   const toast = useToast();
@@ -341,6 +550,7 @@ function DrawerBody({ r, stats, onToggle, onEditSub, onClose }: { r: Restaurant;
           <div className="kv"><span className="k">{t('email')}</span><span className="v">{r.email || '—'}</span></div>
           <div className="kv"><span className="k">{t('currency')}</span><span className="v num">{r.currency}</span></div>
           <div className="kv"><span className="k">{t('vat')}</span><span className="v num">{r.vatEnabled ? `${r.vatRate}%` : '—'}</span></div>
+          <div className="kv"><span className="k">{t('premiumLook')}</span><span className="v"><span className={'chip ' + (r.premiumLook ? 'ok' : '')}><span className="d" />{r.premiumLook ? t('premiumOn') : t('premiumOff')}</span></span></div>
           <div className="kv"><span className="k">{t('created')}</span><span className="v num">{r.createdAt?.slice(0, 10)}</span></div>
         </div>
         <div className="sect"><h4>{t('activity')}</h4>
@@ -378,6 +588,7 @@ function DrawerBody({ r, stats, onToggle, onEditSub, onClose }: { r: Restaurant;
       </div>
       <div className="drawer-ft">
         {r.active ? <button className="btn danger" onClick={onToggle}>{t('deactivate')}</button> : <button className="btn" onClick={onToggle}>{t('activate')}</button>}
+        <button className="btn ghost" onClick={onTogglePremium}>{r.premiumLook ? t('premiumDisable') : t('premiumEnable')}</button>
         {sub && !isOneTime && sub.endDate && <button className="btn" disabled={renew.isPending} onClick={() => renew.mutate()}>{renew.isPending ? '…' : t('renew')}</button>}
         <button className="btn ghost" onClick={onEditSub}>{sub ? t('editSub') : t('addSub')}</button>
       </div>

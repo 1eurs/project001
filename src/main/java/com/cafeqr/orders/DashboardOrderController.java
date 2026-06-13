@@ -30,7 +30,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dashboard/orders")
 @Tag(name = "Dashboard orders")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','STAFF','KITCHEN_STAFF')")
+@PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF','KITCHEN_STAFF')")
 public class DashboardOrderController {
 
     private final OrderService orderService;
@@ -61,19 +61,20 @@ public class DashboardOrderController {
     }
 
     @Operation(summary = "Accept a pending order (optionally set prep time)")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
     @PatchMapping("/{orderId}/accept")
     public ApiResponse<OrderResponse> accept(@PathVariable Long orderId,
                                              @Valid @RequestBody(required = false) AcceptOrderRequest request) {
         return ApiResponse.ok("Order accepted", orderService.accept(orderId, request));
     }
 
-    @Operation(summary = "Decline a pending order")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @Operation(summary = "Decline a pending order (reason optional)")
+    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
     @PatchMapping("/{orderId}/decline")
     public ApiResponse<OrderResponse> decline(@PathVariable Long orderId,
-                                              @Valid @RequestBody DeclineOrderRequest request) {
-        return ApiResponse.ok("Order declined", orderService.decline(orderId, request.reason()));
+                                              @Valid @RequestBody(required = false) DeclineOrderRequest request) {
+        String reason = request != null ? request.reason() : null;
+        return ApiResponse.ok("Order declined", orderService.decline(orderId, reason));
     }
 
     @Operation(summary = "Move an accepted order to preparing")
@@ -89,14 +90,14 @@ public class DashboardOrderController {
     }
 
     @Operation(summary = "Complete a ready order")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
     @PatchMapping("/{orderId}/complete")
     public ApiResponse<OrderResponse> complete(@PathVariable Long orderId) {
         return ApiResponse.ok("Order completed", orderService.complete(orderId));
     }
 
     @Operation(summary = "Cancel an order")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
     @PatchMapping("/{orderId}/cancel")
     public ApiResponse<OrderResponse> cancel(@PathVariable Long orderId,
                                              @Valid @RequestBody(required = false) CancelOrderRequest request) {

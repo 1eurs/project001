@@ -11,7 +11,7 @@ import java.util.List;
 /** A customer's "I'm still on the menu" ping, sent from the public menu/cart pages. */
 public record PresenceHeartbeatRequest(
         @NotNull Long branchId,
-        /** The table's qrCodeToken, or "car" / "takeaway". */
+        /** The table's qrCodeToken, or "car". */
         @NotBlank @Size(max = 80) String qrKey,
         /** Stable per browser tab so the same visitor isn't double-counted. */
         @NotBlank @Size(max = 80) String sessionId,

@@ -135,7 +135,7 @@
 /* printable order invoice — 80mm receipt, portaled to <body> like the tents */
 .invoice-sheet{display:none}
 @media print{
-  .invoice-sheet{display:block !important;width:72mm;margin:0 auto;padding:2mm 0 6mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5}
+  .invoice-sheet{display:block !important;box-sizing:border-box;width:80mm;margin:0;padding:4mm 4mm 6mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5}
   .inv-name{text-align:center;font-size:16px;font-weight:800}
   .inv-sub{text-align:center;font-size:11px;color:#333}
   .inv-title{text-align:center;font-weight:700;margin:6px 0 8px;padding:3px 0;border-top:1px dashed #000;border-bottom:1px dashed #000}
@@ -175,6 +175,15 @@
 .look-stage-copy p{max-width:520px;color:var(--muted);font-size:13.5px;line-height:1.6}
 .look-preview{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#3b3f45}
 .look-preview-title{align-self:center;margin-bottom:10px;color:#878c93}
+/* Tall modern-phone proportion (~19.5:9): height drives the width so the mockup reads
+   like a current iPhone instead of the old short 9:16 slab. Capped by the viewport. */
+.look-preview-customer{aspect-ratio:9 / 19.5;height:min(900px,calc(100dvh - 180px));width:auto;max-width:100%;min-height:560px;display:flex;align-items:stretch;justify-content:center}
+.look-preview-customer .cust-bg{width:100%;height:100%;min-height:0;padding:0;background:transparent;display:block}
+.look-preview-customer .phone{width:100%;max-width:none;height:100%;border-radius:40px}
+.look-preview-customer .c-hdr{flex:0 0 auto}
+.look-preview-customer .c-scroll{min-height:0}
+.look-preview-customer .c-item{opacity:1;transform:none;animation:none}
+.look-preview-customer .c-cartbar{cursor:pointer}
 .look-phone{width:min(100%,390px);height:min(690px,calc(100dvh - 172px));min-height:600px;border-radius:34px;background-color:var(--menu-paper-color,var(--bg-2));background-image:var(--menu-paper-img,none);background-size:var(--menu-paper-size,auto);background-repeat:var(--menu-paper-repeat,no-repeat);border:1px solid var(--line-2);box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:11px;overflow:hidden;color:var(--text)}
 .look-phead{display:flex;align-items:center;gap:11px}
 .look-phead b{display:block;font-family:var(--font-display);font-size:18px;line-height:1.1}.look-phead span{display:block;color:var(--muted);font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;margin-top:4px;text-transform:uppercase}
@@ -198,6 +207,15 @@
 .look-controls-head h4{font-size:18px;font-weight:800}
 .look-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .look-control-title{font-size:13px;font-weight:800;margin-bottom:12px}
+.look-theme-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.look-theme-row button{min-height:86px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--text);border-radius:15px;display:grid;grid-template-columns:32px 1fr;grid-template-rows:auto auto;align-items:center;gap:3px 9px;cursor:pointer;padding:9px;text-align:start}
+.look-theme-row button:hover{border-color:var(--accent)}
+.look-theme-row button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 3px var(--accent-glow)}
+.look-theme-row button:disabled{opacity:.6;cursor:not-allowed}
+.look-theme-swatch{grid-row:1 / span 2;width:32px;height:48px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line-2)}
+.look-theme-row b{font-size:12px;font-weight:900;line-height:1.1}
+.look-theme-row small{font-size:10.5px;color:var(--muted);line-height:1.2}
+.look-theme-row button.on small{color:color-mix(in srgb,var(--accent-ink) 72%,transparent)}
 .look-motif-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(66px,1fr));gap:8px}
 .look-motif-row button{min-height:64px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--muted);border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:6px 4px}
 .look-motif-row button span{font-size:21px;line-height:1}.look-motif-row button b{font-size:11px;font-weight:800}
@@ -207,6 +225,10 @@
 .look-colors{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px}
 .look-color{position:relative;display:grid;grid-template-columns:34px 1fr;align-items:center;gap:10px;border:1px solid var(--line);background:var(--bg-2);border-radius:14px;padding:10px;color:var(--muted);font-size:12.5px;font-weight:800;cursor:pointer}
 .look-color input{position:absolute;inset:0;opacity:0;cursor:pointer}.look-color-chip{width:34px;height:34px;border-radius:11px;box-shadow:inset 0 0 0 1px var(--line-2),0 8px 18px -13px var(--text)}
+.look-json-hint{font-size:12px;color:var(--muted);line-height:1.45;margin:-4px 0 10px}
+.look-json-box{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line-2);background:var(--bg-2);color:var(--text);border-radius:14px;padding:11px 12px;font-family:var(--font-mono);font-size:11.5px;line-height:1.5}
+.look-json-box:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.look-json-err{color:var(--bad);font-size:12px;font-weight:800;margin:8px 0 0}
 
 /* ---- restaurant profile ---- */
 .profile-page{padding:18px 22px 28px}
@@ -305,6 +327,14 @@
 
   .newbanner{margin:12px 14px 0;width:calc(100% - 28px)}
 
+  .qa-strip{grid-template-columns:1fr;padding:10px 14px 0;gap:9px}
+  .qa-summary{padding:10px 11px}
+  .qa-summary-counts{gap:6px}
+  .qa-feed{display:flex;gap:9px;overflow-x:auto;padding-bottom:2px}
+  .qa-card{flex:0 0 min(82vw,320px);padding:10px 11px}
+  .qa-feed .qa-card:only-child{flex-basis:100%;width:auto}
+  .qa-cartline b,.qa-cart b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
   .board-tabs{display:flex;gap:8px;overflow-x:auto;padding:12px 14px 2px;scrollbar-width:none}
   .board-tabs::-webkit-scrollbar{display:none}
   .board-tabs button{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);
@@ -371,16 +401,35 @@
 .pay.unpaid{transition:.15s}
 .pay.unpaid:hover{color:var(--text);border-color:var(--accent)}
 
-/* ---- live QR activity (Tables tab) ---- */
+/* ---- live activity (KDS board + QR cards) ---- */
 .qa-d{width:8px;height:8px;border-radius:50%;background:var(--ready);flex:0 0 auto;animation:dlp 1.8s infinite}
-.qa-total{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ready);
-  border:1px solid rgba(61,224,160,.4);background:rgba(61,224,160,.1);border-radius:999px;padding:7px 13px}
-.qa-row{align-self:stretch;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;
-  border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
-.qa-live{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ready);
-  border:1px solid rgba(61,224,160,.4);background:rgba(61,224,160,.1);border-radius:999px;padding:3px 9px}
-.qa-today{font-size:11.5px;color:var(--faint)}
+.qa-strip{display:grid;grid-template-columns:minmax(160px,200px) minmax(0,1fr);gap:10px;padding:12px 22px 0;align-items:stretch}
+.qa-feed{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(220px,300px);gap:10px;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
+.qa-feed .qa-card:only-child{width:min(100%,300px)}
+.qa-summary,.qa-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:11px 12px}
+.qa-summary{display:flex;flex-direction:column;justify-content:center;gap:6px}
+.qa-kicker{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ready);letter-spacing:.04em}
+.qa-summary-counts,.qa-card-counts,.qa-live{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.qa-bigmetric{display:inline-flex;align-items:baseline;gap:6px;color:var(--preparing);font-size:12px;font-weight:900;line-height:1.1}
+.qa-bigmetric b{font-family:var(--font-mono);font-size:22px;color:var(--preparing)}
+.qa-metric,.qa-inline-metric{display:inline-flex;align-items:baseline;gap:5px;color:var(--muted);font-size:11.5px;font-weight:800;line-height:1}
+.qa-metric b,.qa-inline-metric b{font-family:var(--font-mono);font-size:16px;color:var(--text)}
+.qa-metric.hot,.qa-inline-metric.hot{color:var(--preparing)}
+.qa-metric.hot b,.qa-inline-metric.hot b{color:var(--preparing)}
+.qa-card{display:grid;gap:7px;min-width:0}
+.qa-card.active{border-color:color-mix(in srgb,var(--preparing) 55%,var(--line));background:color-mix(in srgb,var(--preparing) 8%,var(--surface))}
+.qa-card-top{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px}
+.qa-type{font-family:var(--font-mono);font-size:11px;font-weight:800;color:var(--accent-ink);background:var(--accent);border-radius:6px;padding:4px 7px;line-height:1}
+.qa-place{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qa-cartline,.qa-cart{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;color:var(--preparing);font-size:12px;line-height:1.35}
+.qa-cartline span,.qa-cart span{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+.qa-cartline b,.qa-cart b{font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qa-row{align-self:stretch;display:grid;gap:8px;border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
+.qa-row-top{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:7px}
+.qa-live{border:1px solid rgba(61,224,160,.4);background:rgba(61,224,160,.1);border-radius:8px;padding:6px 8px}
+.qa-today{font-size:11.5px;color:var(--faint);line-height:1.45}
 .qa-today .num{color:var(--muted);font-family:var(--font-mono)}
+.qa-row .qa-cart{border:1px solid var(--line);background:var(--bg-2);border-radius:8px;padding:8px 9px;text-align:start}
 
 /* =====================================================================
    BOLD skin — carries the landing's neo-brutalist poster vibe into the
@@ -480,6 +529,7 @@
 .dash .dnav-bottom button.on{color:var(--ink)}
 .dash .board-tabs button{border:2px solid var(--ink)}
 .dash .board-tabs button.on{box-shadow:var(--hard-sm)}
-
-/* live cart peek under a QR card — what customers are building right now */
-.qa-cart{flex-basis:100%;font-size:11.5px;color:var(--preparing);text-align:center;line-height:1.5}
+.dash .qa-summary,.dash .qa-card,.dash .qa-row .qa-cart,.dash .qa-live{border:2px solid var(--ink);border-radius:7px}
+.dash .qa-summary,.dash .qa-card{box-shadow:var(--hard-sm)}
+.dash .qa-type{background:var(--lime);color:var(--ink);border:2px solid var(--ink);border-radius:5px}
+.dash .qa-card.active{background:var(--surface);border-color:var(--ink)}

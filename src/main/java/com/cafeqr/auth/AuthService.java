@@ -209,6 +209,15 @@ public class AuthService {
         return issueTokens(CustomUserDetails.from(user), user);
     }
 
+    @Transactional
+    public UserResponse updateProfile(Long userId, String fullName, String phone) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
+        user.setFullName(fullName.trim());
+        user.setPhone(phone == null || phone.isBlank() ? null : phone.trim());
+        return UserResponse.from(user);
+    }
+
     @Transactional(readOnly = true)
     public UserResponse currentUser(Long userId) {
         return userRepository.findById(userId)

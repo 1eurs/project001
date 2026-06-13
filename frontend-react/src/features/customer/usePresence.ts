@@ -19,7 +19,7 @@ export interface PresenceCartLine { menuItemId: number; quantity: number; }
  * Reports that this visitor is on a QR's menu right now, so the café dashboard can show the live
  * funnel. Pings on mount + every 20s while mounted (and immediately when the cart changes);
  * no-op without a branch.
- * @param qrKey    the table's qrCodeToken, or "car" / "takeaway"
+ * @param qrKey    the table's qrCodeToken, or "car"
  * @param ordering true once they have items in cart / are at checkout (vs just viewing)
  * @param cart     current cart lines so staff can see live demand (sent while ordering)
  */

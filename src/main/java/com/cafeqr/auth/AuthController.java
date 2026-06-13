@@ -8,6 +8,7 @@ import com.cafeqr.auth.dto.LoginRequest;
 import com.cafeqr.auth.dto.RefreshRequest;
 import com.cafeqr.auth.dto.RegisterPlatformAdminRequest;
 import com.cafeqr.auth.dto.ResetPasswordRequest;
+import com.cafeqr.auth.dto.UpdateProfileRequest;
 import com.cafeqr.auth.dto.UserResponse;
 import com.cafeqr.auth.security.CustomUserDetails;
 import com.cafeqr.auth.security.SecurityUtils;
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -99,5 +101,14 @@ public class AuthController {
     public ApiResponse<UserResponse> me() {
         CustomUserDetails current = SecurityUtils.currentUser();
         return ApiResponse.ok(authService.currentUser(current.getUserId()));
+    }
+
+    @Operation(summary = "Update the signed-in user's profile",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @PatchMapping("/me")
+    public ApiResponse<UserResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        UserResponse user = authService.updateProfile(SecurityUtils.currentUser().getUserId(),
+                request.fullName(), request.phone());
+        return ApiResponse.ok("Profile updated", user);
     }
 }

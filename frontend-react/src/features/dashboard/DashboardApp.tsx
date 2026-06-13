@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { create as createQrMatrix } from 'qrcode/lib/core/qrcode.js';
 import { api, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken, onAuthChange } from '../../lib/api';
@@ -11,8 +12,9 @@ import { useOrderSound, SoundToggle, notify } from '../../lib/alerts';
 import { useWakeLock } from '../../lib/wakeLock';
 import { omr, fmtElapsed } from '../../lib/format';
 import { carColorOf } from '../../lib/carColors';
-import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity } from '../../lib/types';
+import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem } from '../../lib/types';
 import { BRAND } from '../../lib/brand';
+import { ensureGoogleFonts, BOLD_FONTS } from '../../lib/fonts';
 import Login from '../auth/Login';
 import MenuManager, { MenuLookManager } from './MenuManager';
 import OrdersPage from './OrdersPage';
@@ -24,10 +26,10 @@ const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
         nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_profile: 'ملف المطعم',
         col_PENDING: 'جديد', col_ACCEPTED: 'مقبول', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
-        table: 'طاولة', takeaway: 'سفري', car: 'خدمة السيارة', note: 'ملاحظة',
+        table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة',
         accept: 'قبول', decline: 'رفض', startPrep: 'بدء التحضير', ready: 'جاهز', complete: 'اكتمل', cancel: 'إلغاء',
         unpaid: 'تحديد كمدفوع', paid: 'مدفوع', confirm: 'تأكيد', back: 'رجوع',
-        acceptT: 'قبول الطلب', acceptP: 'كم دقيقة للتحضير؟', declineT: 'رفض الطلب', declineP: 'سبب الرفض (يظهر للعميل)',
+        acceptT: 'قبول الطلب', acceptP: 'كم دقيقة للتحضير؟', declineT: 'رفض الطلب', declineP: 'سبب الرفض (اختياري، يظهر للعميل)',
         cancelT: 'إلغاء الطلب', cancelP: 'سبب الإلغاء (اختياري)', reason: 'السبب',
         tablesTitle: 'الطاولات ورموز QR', addTable: '＋ طاولة', tableNumber: 'رقم الطاولة', add: 'إضافة',
         print: 'طباعة الكل', printOne: 'طباعة الرمز', printInv: 'طباعة الفاتورة', regenerate: 'تجديد الرمز', del: 'حذف', scan: 'امسح للطلب', copy: 'نسخ الرابط', copied: 'تم النسخ', carQr: 'رمز سيارات الخارج',
@@ -35,6 +37,7 @@ const DICT: Dict = {
         syncing: 'مزامنة الطلبات', autoRefresh: 'التحديث التلقائي يعمل', newOrder: 'طلب جديد', newOrders: 'طلبات جديدة', tapView: 'اضغط للعرض',
         loginTitle: 'لوحة Serva.', loginSub: 'سجّل الدخول لإدارة الطلبات المباشرة', saved: 'تم الحفظ',
         orderingNow: 'يطلبون الآن', qaNow: 'الآن', qaToday: 'اليوم', qaOrders: 'طلب',
+        qaLive: 'سلات نشطة', qaViewing: 'يتصفح', qaOrdering: 'في السلة الآن', qaCart: 'الأصناف',
         qaCartHint: 'محتوى السلة الآن — قد يتغير قبل إرسال الطلب',
         account: 'الحساب', email: 'البريد', language: 'اللغة', arabic: 'العربية', english: 'English', changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
         changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', currentPw: 'كلمة المرور الحالية',
@@ -47,10 +50,10 @@ const DICT: Dict = {
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
         nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_profile: 'Restaurant profile',
         col_PENDING: 'New', col_ACCEPTED: 'Accepted', col_PREPARING: 'Preparing', col_READY: 'Ready',
-        table: 'Table', takeaway: 'Takeaway', car: 'Outdoor car', note: 'Note',
+        table: 'Table', car: 'Outdoor car', note: 'Note',
         accept: 'Accept', decline: 'Decline', startPrep: 'Start preparing', ready: 'Ready', complete: 'Complete', cancel: 'Cancel',
         unpaid: 'Mark paid', paid: 'Paid', confirm: 'Confirm', back: 'Back',
-        acceptT: 'Accept order', acceptP: 'How many minutes to prepare?', declineT: 'Decline order', declineP: 'Reason (shown to customer)',
+        acceptT: 'Accept order', acceptP: 'How many minutes to prepare?', declineT: 'Decline order', declineP: 'Reason (optional, shown to customer)',
         cancelT: 'Cancel order', cancelP: 'Cancel reason (optional)', reason: 'Reason',
         tablesTitle: 'Tables & QR codes', addTable: '＋ Table', tableNumber: 'Table number', add: 'Add',
         print: 'Print all', printOne: 'Print QR', printInv: 'Print invoice', regenerate: 'Regenerate', del: 'Delete', scan: 'Scan to order', copy: 'Copy link', copied: 'Copied', carQr: 'Outdoor car QR',
@@ -58,6 +61,7 @@ const DICT: Dict = {
         syncing: 'Syncing orders', autoRefresh: 'Auto-refresh on', newOrder: 'New order', newOrders: 'new orders', tapView: 'Tap to view',
         loginTitle: 'Serva. dashboard', loginSub: 'Sign in to manage live orders', saved: 'Saved',
         orderingNow: 'ordering now', qaNow: 'now', qaToday: 'Today', qaOrders: 'orders',
+        qaLive: 'Active carts', qaViewing: 'Viewing', qaOrdering: 'in cart now', qaCart: 'Items',
         qaCartHint: 'In their cart right now — may change before the order is placed',
         account: 'Account', email: 'Email', language: 'Language', arabic: 'Arabic', english: 'English', changePassword: 'Change password', changeEmail: 'Change email',
         changePwSub: 'Enter your current password, then a new one.', currentPw: 'Current password',
@@ -81,8 +85,12 @@ const LIVE_SET = new Set<OrderStatus>(['PENDING', 'ACCEPTED', 'PREPARING', 'READ
 export default function DashboardApp() {
   const { user, authed } = useAuth();
   const t = useT(DICT);
+  useEffect(() => { ensureGoogleFonts(BOLD_FONTS); }, []);
   if (!authed || !user) {
     return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} />;
+  }
+  if (user.role === 'PLATFORM_ADMIN') {
+    return <Navigate to="/admin" replace />;
   }
   return <Shell />;
 }
@@ -379,6 +387,86 @@ function ChangeEmailModal({ t, onClose }: { t: (k: string) => string; onClose: (
 /* ============================ KDS BOARD ============================ */
 type Modal = { type: 'accept' | 'decline' | 'cancel'; order: OrderResponse } | null;
 
+/* Live "who's on the menu right now" per QR — initial fetch + 30s safety poll,
+   with SSE pushing instant snapshots into the same query cache. Shared by the
+   KDS board strip and the Tables tab. Rebuilds the stream when the JWT rotates —
+   EventSource can't update its URL itself. */
+function useQrActivity(branchId?: number) {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['qr-activity', branchId],
+    queryFn: () => api.get<QrActivity>(`/api/dashboard/qr-activity?branchId=${branchId}`),
+    enabled: !!branchId,
+    refetchInterval: 30_000,
+  });
+  const [token, setToken] = useState(accessTokenValue);
+  useEffect(() => onAuthChange(() => setToken(accessTokenValue())), []);
+  useEffect(() => {
+    if (!branchId) return;
+    const url = `/api/dashboard/qr-activity/stream?branchId=${branchId}${token ? `&access_token=${encodeURIComponent(token)}` : ''}`;
+    const es = new EventSource(url);
+    const onMsg = (e: MessageEvent) => {
+      try { qc.setQueryData(['qr-activity', branchId], JSON.parse(e.data) as QrActivity); } catch { /* ignore */ }
+    };
+    es.addEventListener('qr-activity', onMsg as EventListener);
+    return () => { es.removeEventListener('qr-activity', onMsg as EventListener); es.close(); };
+  }, [branchId, qc, token]);
+  return data;
+}
+
+function cartPreview(cart: QrCartItem[] | undefined, lang: string, limit = 3) {
+  if (!cart?.length) return '';
+  const shown = cart.slice(0, limit).map((i) =>
+    `${i.quantity}× ${lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}`);
+  return `${shown.join(' · ')}${cart.length > limit ? ' ...' : ''}`;
+}
+
+function ActivitySummary({ ordering, t }: { ordering: number; t: (k: string) => string }) {
+  return (
+    <div className="qa-summary">
+      <span className="qa-kicker"><span className="qa-d" />{t('qaLive')}</span>
+      <span className="qa-bigmetric"><b>{ordering}</b>{t('qaOrdering')}</span>
+    </div>
+  );
+}
+
+/* Slim "get ready" strip above the KDS columns: only carts being built now.
+   Pure browsing is intentionally hidden so the kitchen sees signals, not noise. */
+function LiveActivityStrip({ activity, tokenToTable, t, lang }: {
+  activity?: QrActivity; tokenToTable: Map<string, string>; t: (k: string) => string; lang: string;
+}) {
+  if (!activity || activity.totalOrdering <= 0) return null;
+  const chips = Object.entries(activity.liveByKey)
+    .map(([key, v]) => ({ key, ...v, cart: activity.cartsByKey?.[key] ?? [] }))
+    .filter((v) => v.ordering > 0 || v.cart.length > 0)
+    .sort((a, b) => (b.cart.length - a.cart.length) || (b.ordering - a.ordering));
+  const placeOf = (key: string) => {
+    if (key === 'car' || key === 'takeaway') return { code: 'CAR', label: t('car') };
+    const table = tokenToTable.get(key) ?? '';
+    return { code: table ? `T${table}` : 'TBL', label: `${t('table')} ${table}`.trim() };
+  };
+  return (
+    <section className="qa-strip" aria-label={t('orderingNow')}>
+      <ActivitySummary ordering={activity.totalOrdering} t={t} />
+      <div className="qa-feed">
+        {chips.map((c) => {
+          const place = placeOf(c.key);
+          const cart = cartPreview(c.cart, lang);
+          return (
+            <article className="qa-card active" key={c.key} title={t('qaCartHint')}>
+              <div className="qa-card-top">
+                <span className="qa-type">{place.code}</span>
+                <b className="qa-place">{place.label}</b>
+              </div>
+              <div className="qa-cartline"><b>{cart || `${c.ordering} ${t('qaOrdering')}`}</b></div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () => void; onStatus: (s: StreamStatus) => void }) {
   const { user } = useAuth();
   const { lang } = useI18n();
@@ -399,6 +487,12 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
     const list: TableResponse[] = Array.isArray(tablesRaw) ? tablesRaw : tablesRaw?.content ?? [];
     return new Map(list.map((tb) => [tb.id, tb.tableNumber]));
   }, [tablesRaw]);
+  // live activity is keyed by qrCodeToken, not table id
+  const tokenToTable = useMemo(() => {
+    const list: TableResponse[] = Array.isArray(tablesRaw) ? tablesRaw : tablesRaw?.content ?? [];
+    return new Map(list.map((tb) => [tb.qrCodeToken, tb.tableNumber]));
+  }, [tablesRaw]);
+  const activity = useQrActivity(branchId);
 
   const liveKey = ['live', branchId ?? 'all'];
   const { data: orders = [] } = useQuery({
@@ -507,7 +601,7 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
     if (!modal) return;
     const id = modal.order.id;
     if (modal.type === 'accept') act.mutate({ path: `/api/dashboard/orders/${id}/accept`, body: { prepTimeMinutes: Number(field) || null } });
-    if (modal.type === 'decline') act.mutate({ path: `/api/dashboard/orders/${id}/decline`, body: { reason: field } });
+    if (modal.type === 'decline') act.mutate({ path: `/api/dashboard/orders/${id}/decline`, body: { reason: field || null } });
     if (modal.type === 'cancel') act.mutate({ path: `/api/dashboard/orders/${id}/cancel`, body: { reason: field || null } });
     setModal(null);
   };
@@ -522,6 +616,8 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
           <b>{unacked}</b> {t('newOrders')} · {t('tapView')}
         </button>
       )}
+
+      <LiveActivityStrip activity={activity} tokenToTable={tokenToTable} t={t} lang={lang} />
 
       <div className="board-tabs">
         {COLS.map((c) => {
@@ -588,9 +684,7 @@ function OrderCard({ o, tableNo, t, lang, canAccept, onAccept, onDecline, onCanc
   const mins = (Date.now() - new Date(o.createdAt).getTime()) / 60000;
   const where = o.orderType === 'DINE_IN'
     ? <span className="where">🪑 <span className="tg">{t('table')} {o.tableId ? (tableNo.get(o.tableId) ?? o.tableId) : ''}</span></span>
-    : o.orderType === 'CAR'
-      ? <span className="where">🚗 <span className="tg">{t('car')}{o.carPlate ? ` · ${o.carPlate}` : ''}</span><CarColorTag color={o.carColor} lang={lang} /></span>
-    : <span className="where">🥡 <span className="tg">{t('takeaway')}</span></span>;
+    : <span className="where">🚗 <span className="tg">{t('car')}{o.carPlate ? ` · ${o.carPlate}` : ''}</span><CarColorTag color={o.carColor} lang={lang} /></span>;
   return (
     <div className="ocard">
       <div className="ocard-top"><span className="ordno">{o.orderNumber}</span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
@@ -721,49 +815,22 @@ function TablesPage({ branchId }: { branchId?: number }) {
   const carUrl = branchId && restaurantSlug ? carUrlOf(restaurantSlug, branchId) : null;
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tables', branchId] });
 
-  // Live "ordering now" + today's orders per QR. Initial fetch + 30s safety poll; the SSE below
-  // pushes instant updates into this same cache.
-  const { data: activity } = useQuery({
-    queryKey: ['qr-activity', branchId],
-    queryFn: () => api.get<QrActivity>(`/api/dashboard/qr-activity?branchId=${branchId}`),
-    enabled: !!branchId,
-    refetchInterval: 30_000,
-  });
-  // Realtime: push fresh snapshots straight into the query cache (no polling delay).
-  // Rebuilds the stream when the JWT rotates — EventSource can't update its URL itself.
-  const [qaToken, setQaToken] = useState(accessTokenValue);
-  useEffect(() => onAuthChange(() => setQaToken(accessTokenValue())), []);
-  useEffect(() => {
-    if (!branchId) return;
-    const url = `/api/dashboard/qr-activity/stream?branchId=${branchId}${qaToken ? `&access_token=${encodeURIComponent(qaToken)}` : ''}`;
-    const es = new EventSource(url);
-    const onMsg = (e: MessageEvent) => {
-      try { qc.setQueryData(['qr-activity', branchId], JSON.parse(e.data) as QrActivity); } catch { /* ignore */ }
-    };
-    es.addEventListener('qr-activity', onMsg as EventListener);
-    return () => { es.removeEventListener('qr-activity', onMsg as EventListener); es.close(); };
-  }, [branchId, qc, qaToken]);
+  // Live "ordering now" + today's orders per QR (shared hook: fetch + poll + SSE).
+  const activity = useQrActivity(branchId);
   const todayOf = (key?: string) => (key ? activity?.todayByKey[key] : undefined);
   const ActivityRow = ({ liveKey, todayKey }: { liveKey: string; todayKey: string }) => {
-    const live = activity?.liveByKey[liveKey];
     const day = todayOf(todayKey);
     // Peek into carts being built on this QR right now — a soft "get ready" signal.
-    const cartPeek = live && live.present > 0 ? activity?.cartsByKey?.[liveKey] : undefined;
+    const live = activity?.liveByKey[liveKey];
+    const cartPeek = live && live.ordering > 0 ? activity?.cartsByKey?.[liveKey] : undefined;
+    const cartText = cartPreview(cartPeek, lang, 4);
     return (
       <div className="qa-row">
-        {live && live.present > 0 && (
-          <span className="qa-live" title={t('qaNow')}>
-            👀 {live.present}{live.ordering > 0 && <> · 🛒 {live.ordering}</>}
-          </span>
-        )}
-        <span className="qa-today">{t('qaToday')}: {day?.orders ?? 0} {t('qaOrders')} · <span className="num">{omr(day?.revenue ?? 0)}</span> {t('cur')}</span>
-        {cartPeek && cartPeek.length > 0 && (
-          <span className="qa-cart" title={t('qaCartHint')}>
-            🛒 {cartPeek.slice(0, 4).map((c) =>
-              `${c.quantity}× ${lang === 'ar' ? (c.nameAr || c.nameEn) : (c.nameEn || c.nameAr)}`).join(' · ')}
-            {cartPeek.length > 4 ? ' …' : ''}
-          </span>
-        )}
+        <div className="qa-row-top">
+          {live && live.ordering > 0 && !cartText && <span className="qa-live" title={t('qaNow')}><b>{live.ordering}</b> {t('qaOrdering')}</span>}
+          <span className="qa-today">{t('qaToday')}: {day?.orders ?? 0} {t('qaOrders')} · <span className="num">{omr(day?.revenue ?? 0)}</span> {t('cur')}</span>
+        </div>
+        {cartText && <div className="qa-cart" title={t('qaCartHint')}><b>{cartText}</b></div>}
       </div>
     );
   };
@@ -804,9 +871,6 @@ function TablesPage({ branchId }: { branchId?: number }) {
           <input className="input" style={{ maxWidth: 160 }} value={num} onChange={(e) => setNum(e.target.value)} placeholder={t('tableNumber')} />
           <button className="btn sm" disabled={!num.trim() || create.isPending}>{t('add')}</button>
         </form>
-        {!!activity?.totalPresent && (
-          <span className="qa-total"><span className="qa-d" />👀 {activity.totalPresent}{activity.totalOrdering > 0 && <> · 🛒 {activity.totalOrdering}</>} {t('orderingNow')}</span>
-        )}
         <div style={{ flex: 1 }} />
         <button className="btn sm ghost" disabled={!tables.length && !carUrl} onClick={printAll}>🖨 {t('print')}</button>
       </div>

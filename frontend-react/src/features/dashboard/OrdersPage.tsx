@@ -10,14 +10,14 @@ import type { OrderSummaryResponse, PageResponse, OrderResponse, OrderStatus, Bl
 import InvoicePrint from './InvoicePrint';
 
 const DICT: Dict = {
-  ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', takeaway: 'سفري', car: 'خدمة السيارة', carPlate: 'لوحة السيارة', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
+  ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', car: 'خدمة السيارة', carPlate: 'لوحة السيارة', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
         prev: 'السابق', next: 'التالي', page: 'صفحة', none: 'لا طلبات', markPaid: 'تحديد كمدفوع', paid: 'مدفوع', unpaid: 'غير مدفوع', items: 'الأصناف', timeline: 'التسلسل الزمني',
         customer: 'العميل', note: 'ملاحظة العميل', carColor: 'لون السيارة', subtotal: 'المجموع', vat: 'الضريبة', total: 'الإجمالي', close: 'إغلاق', detail: 'تفاصيل الطلب', printInv: 'طباعة الفاتورة',
         st_PENDING: 'جديد', st_ACCEPTED: 'مقبول', st_PREPARING: 'تحضير', st_READY: 'جاهز', st_COMPLETED: 'مكتمل', st_DECLINED: 'مرفوض', st_CANCELLED: 'ملغى',
         ts_createdAt: 'أُنشئ', ts_acceptedAt: 'قُبل', ts_preparingAt: 'بدأ التحضير', ts_readyAt: 'جاهز', ts_completedAt: 'اكتمل', ts_declinedAt: 'رُفض', ts_cancelledAt: 'أُلغي',
         blockPhone: 'حظر الرقم', blockConfirm: 'حظر هذا الرقم من الطلب؟ (طلبات وهمية / إزعاج)', blockedOk: 'تم حظر الرقم',
         blockedNumbers: 'الأرقام المحظورة', unblock: 'إلغاء الحظر', unblockConfirm: 'إلغاء حظر هذا الرقم؟', noBlocked: 'لا أرقام محظورة', reason: 'السبب', by: 'بواسطة' },
-  en: { cur: 'OMR', all: 'All', table: 'Table', takeaway: 'Takeaway', car: 'Outdoor car', carPlate: 'Car plate', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
+  en: { cur: 'OMR', all: 'All', table: 'Table', car: 'Outdoor car', carPlate: 'Car plate', thNo: 'Order', thTime: 'Time', thType: 'Type', thStatus: 'Status', thPay: 'Payment', thTotal: 'Total',
         prev: 'Prev', next: 'Next', page: 'Page', none: 'No orders', markPaid: 'Mark paid', paid: 'Paid', unpaid: 'Unpaid', items: 'Items', timeline: 'Timeline',
         customer: 'Customer', note: 'Customer note', carColor: 'Car color', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', close: 'Close', detail: 'Order detail', printInv: 'Print invoice',
         st_PENDING: 'New', st_ACCEPTED: 'Accepted', st_PREPARING: 'Preparing', st_READY: 'Ready', st_COMPLETED: 'Completed', st_DECLINED: 'Declined', st_CANCELLED: 'Cancelled',
@@ -35,7 +35,7 @@ const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '�
 const orderTypeLabel = (o: { orderType: string; carPlate?: string | null }, t: (key: string) => string) => {
   if (o.orderType === 'DINE_IN') return `🪑 ${t('table')}`;
   if (o.orderType === 'CAR') return `🚗 ${t('car')}${o.carPlate ? ` · ${o.carPlate}` : ''}`;
-  return `🥡 ${t('takeaway')}`;
+  return `🚗 ${t('car')}`;
 };
 
 export default function OrdersPage({ branchId }: { branchId?: number }) {

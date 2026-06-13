@@ -82,6 +82,19 @@ class AuthServiceTest {
                 .isEqualTo(ErrorCode.EMAIL_ALREADY_EXISTS);
     }
 
+    @Test
+    void updateProfileTrimsNameAndPhone() {
+        User user = user(7L, "owner@test.test");
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+
+        var updated = authService.updateProfile(7L, "  New Owner  ", "  +96890000000  ");
+
+        assertThat(user.getFullName()).isEqualTo("New Owner");
+        assertThat(user.getPhone()).isEqualTo("+96890000000");
+        assertThat(updated.fullName()).isEqualTo("New Owner");
+        assertThat(updated.phone()).isEqualTo("+96890000000");
+    }
+
     private static User user(Long id, String email) {
         User user = new User();
         user.setId(id);

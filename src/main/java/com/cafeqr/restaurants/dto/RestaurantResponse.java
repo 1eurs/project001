@@ -19,6 +19,7 @@ public record RestaurantResponse(
         String theme,
         String themeCustomJson,
         boolean active,
+        boolean premiumLook,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -26,6 +27,6 @@ public record RestaurantResponse(
         return new RestaurantResponse(
                 r.getId(), r.getName(), r.getSlug(), r.getLogoUrl(), r.getPhone(), r.getEmail(),
                 r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(), r.getTheme(), r.getThemeCustomJson(), r.isActive(),
-                r.getCreatedAt(), r.getUpdatedAt());
+                r.isPremiumLook(), r.getCreatedAt(), r.getUpdatedAt());
     }
 }

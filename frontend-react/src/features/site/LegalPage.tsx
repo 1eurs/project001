@@ -1,7 +1,9 @@
 // Template legal copy for launch. HAVE THIS REVIEWED BY COUNSEL and replace the contact details
 // + add your registered company legal name / CR number before relying on it in production.
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../lib/i18n';
+import { ensureGoogleFonts, BOLD_FONTS } from '../../lib/fonts';
 import '../landing-designs/designs/l4.css';
 
 type Doc = 'terms' | 'privacy' | 'refund';
@@ -91,6 +93,7 @@ const DOCS: Record<Doc, Record<'ar' | 'en', Content>> = {
 
 export default function LegalPage({ doc }: { doc: Doc }) {
   const { lang } = useI18n();
+  useEffect(() => { ensureGoogleFonts(BOLD_FONTS); }, []);
   const d = DOCS[doc][lang];
 
   return (

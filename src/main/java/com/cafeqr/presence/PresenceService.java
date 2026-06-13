@@ -35,7 +35,7 @@ public class PresenceService {
         this.events = events;
     }
 
-    /** {@code qrKey} = a table's qrCodeToken, or {@code "car"} / {@code "takeaway"}. */
+    /** {@code qrKey} = a table's qrCodeToken, or {@code "car"}. */
     public void heartbeat(Long branchId, String qrKey, String sessionId, boolean ordering, List<CartLine> cart) {
         if (branchId == null || isBlank(qrKey) || isBlank(sessionId)) {
             return;

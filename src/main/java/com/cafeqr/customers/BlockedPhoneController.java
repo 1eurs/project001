@@ -21,7 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dashboard/blocked-phones")
 @Tag(name = "Blocked phones")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER')")
 public class BlockedPhoneController {
 
     private final CustomerService customerService;
@@ -30,7 +30,7 @@ public class BlockedPhoneController {
         this.customerService = customerService;
     }
 
-    @Operation(summary = "List blocked phone numbers (restaurantId required for platform admin)")
+    @Operation(summary = "List blocked phone numbers")
     @GetMapping
     public ApiResponse<List<BlockedPhoneResponse>> list(@RequestParam(required = false) Long restaurantId) {
         return ApiResponse.ok(customerService.listBlocked(restaurantId));

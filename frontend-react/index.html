@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0E0F12" />
-    <title>Serva. — قائمة وطلب عبر QR لمطاعم ومقاهي عُمان | QR menu & ordering</title>
-    <meta name="description" content="Serva. Your order, one scan away. منصّة عربية أولاً للطلب عبر رمز QR للطاولات والسيارات — لمطاعم ومقاهي عُمان." />
-    <meta name="keywords" content="QR menu, cafe ordering, Oman, قائمة QR, طلب المقهى, شاشة المطبخ, kitchen display, مقهى" />
+    <title>Serva. — اطلب من أي مكان | QR ordering</title>
+    <meta name="description" content="اطلب من أي مكان — من الطاولة أو الكاونتر أو السيارة. طلب عبر QR للمقاهي والمطاعم، دون تطبيق. Order from anywhere — QR ordering for cafés & restaurants." />
+    <meta name="keywords" content="QR menu, cafe ordering, restaurant ordering, قائمة QR, طلب المقهى, شاشة المطبخ, kitchen display, مقهى" />
 
     <!-- Icons / tab logo -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -20,20 +20,26 @@
     <meta property="og:url" content="https://serva.om/" />
     <meta property="og:locale" content="ar_OM" />
     <meta property="og:locale:alternate" content="en_US" />
-    <meta property="og:title" content="Serva. — QR menu & ordering for Omani restaurants and cafés" />
-    <meta property="og:description" content="Scan, order from the table or car, track live. Arabic-first, built for hospitality." />
+    <meta property="og:title" content="Serva. — Order from anywhere." />
+    <meta property="og:description" content="Table, counter, or car — one scan, no app. QR ordering for cafés and restaurants." />
+    <meta property="og:image" content="https://serva.om/og.png" />
+    <meta property="og:image:secure_url" content="https://serva.om/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Serva — اطلب من أي مكان. Order from anywhere: table, counter, or car. No app." />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Serva. — QR menu & ordering for Omani restaurants and cafés" />
-    <meta name="twitter:description" content="Scan, order from the table or car, track live. Arabic-first, built for hospitality." />
+    <meta name="twitter:title" content="Serva. — Order from anywhere." />
+    <meta name="twitter:description" content="Table, counter, or car — one scan, no app. QR ordering for cafés and restaurants." />
+    <meta name="twitter:image" content="https://serva.om/og.png" />
+    <meta name="twitter:image:alt" content="Serva — اطلب من أي مكان. Order from anywhere: table, counter, or car. No app." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Only the core UI fonts load up front. Menu-theme display fonts, the dashboard's
+         Bricolage, and the /designs gallery fonts are injected on demand by the routes
+         that use them (src/lib/fonts.ts), so a customer scanning a QR pays for none of it. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Markazi+Text:wght@400;500;600;700&family=Baloo+Bhaijaan+2:wght@500;600;700&family=Tajawal:wght@400;500;700&family=El+Messiri:wght@500;600;700&family=Reem+Kufi:wght@500;600;700&family=Sora:wght@600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <!-- Extra display fonts used by the /designs dashboard gallery -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Outfit:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Space+Mono:wght@400;700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <script>
@@ -43,6 +49,20 @@
         var l = localStorage.getItem('cafeqr_lang') || 'ar';
         document.documentElement.lang = l;
         document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+      } catch (e) {}
+    </script>
+    <script>
+      // QR scans land straight on /r/... — start fetching the menu JSON now, in
+      // parallel with the JS bundle, instead of waiting for React to boot first.
+      // MenuPage picks the in-flight response up via consumePrimedMenu().
+      try {
+        var pm = location.pathname.match(/^\/r\/([^/]+)(?:\/b\/(\d+)(?:\/t\/([^/]+))?)?/);
+        if (pm) {
+          var purl = pm[3] ? '/api/public/qr/' + pm[3] + '/menu'
+                   : pm[2] ? '/api/public/restaurants/' + pm[1] + '/branches/' + pm[2] + '/menu'
+                   : '/api/public/restaurants/' + pm[1] + '/menu';
+          window.__menuPrime = { url: purl, res: fetch(purl, { headers: { Accept: 'application/json' } }) };
+        }
       } catch (e) {}
     </script>
   </head>

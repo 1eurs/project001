@@ -1,20 +1,33 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, upload, ApiError } from '../../lib/api';
-import { useAuth } from '../../lib/auth';
+import { useAuth, canUsePremiumThemes } from '../../lib/auth';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import { omr } from '../../lib/format';
+import { omr, estimateVat } from '../../lib/format';
 import type { CategoryResponse, MenuItemResponse, Restaurant } from '../../lib/types';
+import { ensureGoogleFonts } from '../../lib/fonts';
+import { MenuDecorLayer } from '../customer/MenuDecor';
 import {
+  ALL_MENU_FONT_SPECS,
+  CARD_BADGE_OPTIONS,
+  CARD_STYLE_OPTIONS,
   CUSTOM_THEME,
   DEFAULT_CUSTOM_THEME,
+  FONT_OPTIONS,
+  FONT_STACKS,
+  HEADER_STYLE_OPTIONS,
   MOTIF_OPTIONS,
+  RADIUS_OPTIONS,
+  THEME_PRESETS,
   customThemeVars,
+  menuStructuralAttrs,
   parseCustomTheme,
   serializeCustomTheme,
   type MenuThemeCustom,
+  type MenuThemePreset,
 } from '../customer/menuThemes';
+import '../customer/customer.css';
 import '../customer/menu-themes.css';
 
 const DICT: Dict = {
@@ -22,39 +35,80 @@ const DICT: Dict = {
         nameAr: 'الاسم (عربي)', nameEn: 'الاسم (إنجليزي)', descAr: 'الوصف (عربي)', descEn: 'الوصف (إنجليزي)',
         price: 'السعر', prep: 'دقائق التحضير', category: 'القسم', available: 'متوفر الآن', image: 'الصورة', uploadImg: 'رفع صورة', uploading: 'جارٍ الرفع…',
         save: 'حفظ', cancel: 'إلغاء', del: 'حذف', cur: 'ر.ع', noItems: 'لا أصناف بعد',
-        delCat: 'حذف هذا القسم وكل أصنافه؟', delItem: 'حذف هذا الصنف؟', empty: 'لا توجد أقسام — ابدأ بإضافة قسم', items: 'أصناف',
+        delCat: 'لا يمكن حذف قسم فيه أصناف. احذف الأصناف أولاً.', delItem: 'سيختفي الصنف من قائمة العملاء. الطلبات القديمة تبقى محفوظة.',
+        deleteCatTitle: 'حذف القسم', deleteItemTitle: 'حذف الصنف', deleteConfirm: 'حذف الآن', deleting: 'جارٍ الحذف…',
+        categoryHasItems: 'هذا القسم فيه أصناف. احذف الأصناف أولاً ثم ارجع لحذف القسم.',
+        empty: 'لا توجد أقسام — ابدأ بإضافة قسم', items: 'أصناف',
         lookTitle: 'شكل قائمة العملاء', lookSub: 'صمّم شاشة الطلب كهوية صغيرة للمقهى: ألوان واضحة، رسمة خفيفة، وسلة بارزة.',
-        custom: 'لوحة التحكم', preview: 'فتح المعاينة', saveLook: 'حفظ الشكل', saved: 'تم الحفظ', shuffle: 'خلط سريع', resetLook: 'رجوع للأصل',
+        custom: 'لوحة التحكم', presets: 'الثيمات الجاهزة', preview: 'فتح المعاينة', saveLook: 'حفظ الشكل', saved: 'تم الحفظ', shuffle: 'خلط سريع', resetLook: 'رجوع للأصل',
         studioKicker: 'استوديو القائمة', motifStudio: 'تصميم القائمة', colorStudio: 'الألوان المهمة', phonePreview: 'المعاينة الحية',
         sampleCat: 'المشروبات', sampleCat2: 'الحلويات', sampleCat3: 'الفطور',
         sampleItem: 'لاتيه عماني', sampleItem2: 'كيكة تمر', sampleItem3: 'شاي كرك', sampleItem4: 'كرواسون زعتر', sampleItem5: 'قهوة باردة',
         sampleDesc: 'حليب، قهوة عربية، هيل', sampleDesc2: 'تمر، طحينة، رشة بحرية', sampleDesc3: 'شاي أسود، حليب، زعفران', samplePrice: '٢.٤٠', viewCart: 'عرض السلة',
-        paper: 'سطح الهاتف', surface: 'البطاقات', text: 'النص', muted: 'النص الثانوي', accent: 'اللون الأساسي', accent2: 'لون مساعد', motifColor: 'لون الرسمة', cartBg: 'شريط السلة',
+        canvas: 'الخلفية الخارجية', paper: 'سطح الهاتف', surface: 'البطاقات', text: 'النص', muted: 'النص الثانوي', accent: 'اللون الأساسي', accent2: 'لون مساعد',
+        motifColor: 'لون الرسمة', cartBg: 'شريط السلة',
         motif: 'الرسمة الخفيفة', motifOpacity: 'وضوح الرسمة', mt_none: 'بدون', mt_bean: 'بن', mt_cup: 'كوب', mt_palm: 'نخلة', mt_star: 'نجمة',
-        mt_crescent: 'هلال', mt_leaf: 'ورقة', mt_drop: 'قطرة', mt_geo: 'هندسي' },
+        mt_crescent: 'هلال', mt_leaf: 'ورقة', mt_drop: 'قطرة', mt_geo: 'هندسي',
+        fontLbl: 'الخط', cornersLbl: 'الحواف', r_sharp: 'حادة', r_soft: 'ناعمة', r_round: 'دائرية',
+        ft_system: 'الافتراضي', ft_markazi: 'مركزي', ft_baloo: 'بالو', ft_tajawal: 'تجوال', ft_elmessiri: 'المسيري', ft_reemkufi: 'ريم كوفي', ft_sora: 'سورا',
+        cardStyleLbl: 'شكل البطاقة', cs_flat: 'مسطّحة', cs_outline: 'مُحدّدة', cs_ticket: 'تذكرة', cs_comic: 'كوميك', cs_glow: 'توهّج',
+        cardBadgeLbl: 'شارة الزاوية', cb_none: 'بدون', cb_disc: 'قرص', cb_tab: 'لسان', cb_ribbon: 'شريط',
+        headerStyleLbl: 'ترويسة القسم', hs_plain: 'بسيطة', hs_band: 'شريط', hs_side: 'جانبي',
+        jsonTitle: 'كود الثيم (JSON)', jsonHint: 'الصق ثيماً جاهزاً (مثلاً من مولّد ذكاء اصطناعي) ثم اضغط تحميل، أو انسخ الحالي لتعديله لاحقاً.',
+        jsonLoad: 'تحميل', jsonCopy: 'نسخ', jsonCopied: 'تم النسخ ✓', jsonBad: 'JSON غير صالح', jsonPlace: 'الصق JSON هنا…',
+        cartTitle: 'سلّتك', subtotal: 'المجموع الفرعي', vatLbl: 'الضريبة', totalLbl: 'الإجمالي', place: 'إرسال الطلب', tableLbl: 'طاولة',
+        stickersLbl: 'الملصقات والتهنئة', stickerFree: 'ملصقات مخصصة (إيموجي)', cardStickerLbl: 'ملصق على الأصناف',
+        stickerOpacity: 'وضوح الملصقات', bannerArLbl: 'شريط التهنئة (عربي)', bannerEnLbl: 'شريط التهنئة (إنجليزي)',
+        sp_none: 'بدون', sp_coffee: 'قهوة', sp_roses: 'ورود', sp_footy: 'كورة', sp_oman: 'عُمان', sp_party: 'احتفال', sp_night: 'ليل',
+        itemNote: 'ملاحظة على الصنف…', custName: 'الاسم (اختياري)', custPhone: 'الجوال (اختياري)',
+        orderNote: 'ملاحظة على الطلب', orderNotePh: 'مثال: بدون سكر…', finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.',
+        trackTitle: 'تتبّع الطلب', orderNo: 'رقم الطلب', thanks: 'شكراً لك', backMenu: 'العودة للقائمة',
+        head_PENDING: 'تم الإرسال — بانتظار المقهى', head_ACCEPTED: 'تم القبول', head_PREPARING: 'قيد التحضير', head_READY: 'جاهز للتقديم',
+        st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!' },
   en: { addCat: '＋ Category', addItem: '＋ Item', editCat: 'Edit category', newCat: 'New category', editItem: 'Edit item', newItem: 'New item',
         nameAr: 'Name (Arabic)', nameEn: 'Name (English)', descAr: 'Description (Arabic)', descEn: 'Description (English)',
         price: 'Price', prep: 'Prep minutes', category: 'Category', available: 'Available now', image: 'Photo', uploadImg: 'Upload photo', uploading: 'Uploading…',
         save: 'Save', cancel: 'Cancel', del: 'Delete', cur: 'OMR', noItems: 'No items yet',
-        delCat: 'Delete this category and all its items?', delItem: 'Delete this item?', empty: 'No categories — add one to start', items: 'items',
+        delCat: 'A category with items cannot be deleted. Delete the items first.', delItem: 'This item will disappear from the customer menu. Old orders stay saved.',
+        deleteCatTitle: 'Delete category', deleteItemTitle: 'Delete item', deleteConfirm: 'Delete now', deleting: 'Deleting…',
+        categoryHasItems: 'This category still has items. Delete the items first, then come back to delete the category.',
+        empty: 'No categories — add one to start', items: 'items',
         lookTitle: 'Customer menu look', lookSub: 'Design the ordering screen as a tiny brand system: readable colors, a light motif, and a strong cart bar.',
-        custom: 'Control board', preview: 'Open preview', saveLook: 'Save look', saved: 'Saved', shuffle: 'Quick mix', resetLook: 'Reset default',
+        custom: 'Control board', presets: 'Ready themes', preview: 'Open preview', saveLook: 'Save look', saved: 'Saved', shuffle: 'Quick mix', resetLook: 'Reset default',
         studioKicker: 'Menu studio', motifStudio: 'Menu design', colorStudio: 'Core colors', phonePreview: 'Live preview',
         sampleCat: 'Drinks', sampleCat2: 'Desserts', sampleCat3: 'Breakfast',
         sampleItem: 'Omani latte', sampleItem2: 'Date cake', sampleItem3: 'Karak tea', sampleItem4: 'Zaatar croissant', sampleItem5: 'Cold brew',
         sampleDesc: 'Milk, Arabic coffee, cardamom', sampleDesc2: 'Dates, tahini, sea salt', sampleDesc3: 'Black tea, milk, saffron', samplePrice: '2.40', viewCart: 'View cart',
-        paper: 'Phone surface', surface: 'Cards', text: 'Text', muted: 'Secondary text', accent: 'Primary', accent2: 'Secondary', motifColor: 'Motif color', cartBg: 'Cart bar',
+        canvas: 'Outer background', paper: 'Phone surface', surface: 'Cards', text: 'Text', muted: 'Secondary text', accent: 'Primary', accent2: 'Secondary',
+        motifColor: 'Motif color', cartBg: 'Cart bar',
         motif: 'Light motif', motifOpacity: 'Motif strength', mt_none: 'None', mt_bean: 'Beans', mt_cup: 'Cup', mt_palm: 'Palm', mt_star: 'Star',
-        mt_crescent: 'Crescent', mt_leaf: 'Leaf', mt_drop: 'Drop', mt_geo: 'Geometric' },
+        mt_crescent: 'Crescent', mt_leaf: 'Leaf', mt_drop: 'Drop', mt_geo: 'Geometric',
+        fontLbl: 'Font', cornersLbl: 'Corners', r_sharp: 'Sharp', r_soft: 'Soft', r_round: 'Round',
+        ft_system: 'Default', ft_markazi: 'Markazi', ft_baloo: 'Baloo', ft_tajawal: 'Tajawal', ft_elmessiri: 'El Messiri', ft_reemkufi: 'Reem Kufi', ft_sora: 'Sora',
+        cardStyleLbl: 'Card style', cs_flat: 'Flat', cs_outline: 'Outline', cs_ticket: 'Ticket', cs_comic: 'Comic', cs_glow: 'Glow',
+        cardBadgeLbl: 'Corner badge', cb_none: 'None', cb_disc: 'Disc', cb_tab: 'Tab', cb_ribbon: 'Ribbon',
+        headerStyleLbl: 'Section header', hs_plain: 'Plain', hs_band: 'Band', hs_side: 'Side bar',
+        jsonTitle: 'Theme code (JSON)', jsonHint: 'Paste a ready theme (e.g. from an AI generator) and hit Load, or copy the current one to tweak later.',
+        jsonLoad: 'Load', jsonCopy: 'Copy', jsonCopied: 'Copied ✓', jsonBad: 'Invalid JSON', jsonPlace: 'Paste JSON here…',
+        cartTitle: 'Your cart', subtotal: 'Subtotal', vatLbl: 'VAT', totalLbl: 'Total', place: 'Place order', tableLbl: 'Table',
+        stickersLbl: 'Stickers & greeting', stickerFree: 'Custom stickers (emoji)', cardStickerLbl: 'Sticker on items',
+        stickerOpacity: 'Sticker strength', bannerArLbl: 'Greeting ribbon (Arabic)', bannerEnLbl: 'Greeting ribbon (English)',
+        sp_none: 'None', sp_coffee: 'Coffee', sp_roses: 'Roses', sp_footy: 'Footy', sp_oman: 'Oman', sp_party: 'Party', sp_night: 'Night',
+        itemNote: 'Note for this item…', custName: 'Name (optional)', custPhone: 'Phone (optional)',
+        orderNote: 'Order note', orderNotePh: 'e.g. no sugar…', finalNote: 'Final total is confirmed by the cafe when your order is accepted.',
+        trackTitle: 'Track order', orderNo: 'Order', thanks: 'Thank you', backMenu: 'Back to menu',
+        head_PENDING: 'Sent — waiting for the cafe', head_ACCEPTED: 'Accepted', head_PREPARING: 'Preparing', head_READY: 'Ready to serve',
+        st_PENDING: 'Order sent', st_ACCEPTED: 'Cafe accepted', st_PREPARING: 'Being prepared', st_READY: 'Ready!' },
 };
 
 const thumb = (it: MenuItemResponse) => it.imageUrl
   ? { backgroundImage: `url('${it.imageUrl}')` }
   : { backgroundImage: `linear-gradient(155deg, hsl(${(it.id * 47) % 360} 42% 34%) -30%, #15171C 70%)` };
 
-type CustomColorKey = 'paper' | 'surface' | 'text' | 'muted' | 'accent' | 'accent2' | 'motifColor' | 'cartBg';
+type CustomColorKey = 'canvas' | 'paper' | 'surface' | 'text' | 'muted' | 'accent' | 'accent2' | 'motifColor' | 'cartBg';
 
-const CUSTOM_FIELDS: { key: CustomColorKey; label: string }[] = [
+const MENU_COLOR_FIELDS: { key: CustomColorKey; label: string }[] = [
+  { key: 'canvas', label: 'canvas' },
   { key: 'paper', label: 'paper' },
   { key: 'surface', label: 'surface' },
   { key: 'text', label: 'text' },
@@ -67,6 +121,42 @@ const CUSTOM_FIELDS: { key: CustomColorKey; label: string }[] = [
 const MOTIF_MARKS: Record<MenuThemeCustom['motif'], string> = {
   none: '—', bean: '◖', cup: '☕', palm: '♧', star: '✦', crescent: '☾', leaf: '❧', drop: '❍', geo: '❖',
 };
+const CARD_STYLE_MARKS: Record<MenuThemeCustom['cardStyle'], string> = {
+  flat: '▭', outline: '▢', ticket: '✂', comic: '✸', glow: '✦',
+};
+const CARD_BADGE_MARKS: Record<MenuThemeCustom['cardBadge'], string> = {
+  none: '—', disc: '⬤', tab: '▬', ribbon: '◤',
+};
+const HEADER_STYLE_MARKS: Record<MenuThemeCustom['headerStyle'], string> = {
+  plain: '—', band: '▰', side: '▏',
+};
+
+// Only one ready theme is offered (Oman National Day). Set false to hide the row.
+const SHOW_READY_THEMES = true;
+
+// One-tap sticker sets; "custom stickers" input below them accepts any emoji.
+const STICKER_PACKS: { key: string; floaters: string[]; cardSticker: string }[] = [
+  { key: 'none', floaters: [], cardSticker: '' },
+  { key: 'coffee', floaters: ['☕', '🫘', '🥐'], cardSticker: '☕' },
+  { key: 'roses', floaters: ['🌹', '💐', '🌷', '🤍'], cardSticker: '🌹' },
+  { key: 'footy', floaters: ['⚽', '🏆', '🇴🇲'], cardSticker: '⚽' },
+  { key: 'oman', floaters: ['🇴🇲', '❤️', '🤍', '💚'], cardSticker: '🇴🇲' },
+  { key: 'party', floaters: ['🎉', '✨', '🎈'], cardSticker: '🎉' },
+  { key: 'night', floaters: ['🌙', '⭐', '🏮'], cardSticker: '🌙' },
+];
+
+type DeleteTarget =
+  | { type: 'category'; id: number; name: string; itemCount: number }
+  | { type: 'item'; id: number; name: string };
+
+/** Split typed emoji into whole graphemes (flags/ZWJ sequences stay intact). */
+function splitGraphemes(s: string): string[] {
+  // Intl.Segmenter is missing from our TS lib target but present in all modern browsers
+  type Segmenter = new (locale?: string, opts?: { granularity: string }) => { segment(input: string): Iterable<{ segment: string }> };
+  const Seg = (Intl as unknown as { Segmenter?: Segmenter }).Segmenter;
+  if (Seg) return [...new Seg(undefined, { granularity: 'grapheme' }).segment(s)].map((g) => g.segment);
+  return Array.from(s);
+}
 
 export default function MenuManager() {
   const { user } = useAuth();
@@ -85,6 +175,7 @@ export default function MenuManager() {
     m.forEach((a) => a.sort((x, y) => x.displayOrder - y.displayOrder));
     return m;
   }, [itemsQ.data]);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const invalidate = () => { qc.invalidateQueries({ queryKey: ['menu-cats', rid] }); qc.invalidateQueries({ queryKey: ['menu-items', rid] }); };
   const err = (e: unknown) => toast(e instanceof ApiError ? e.message : 'Error');
@@ -93,8 +184,15 @@ export default function MenuManager() {
     mutationFn: (it: MenuItemResponse) => api.patch(`/api/menu/items/${it.id}/availability`, { available: !it.available }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['menu-items', rid] }), onError: err,
   });
-  const delItem = useMutation({ mutationFn: (id: number) => api.del(`/api/menu/items/${id}`), onSuccess: invalidate, onError: err });
-  const delCat = useMutation({ mutationFn: (id: number) => api.del(`/api/menu/categories/${id}`), onSuccess: invalidate, onError: err });
+  const delItem = useMutation({ mutationFn: (id: number) => api.del(`/api/menu/items/${id}`), onSuccess: () => { invalidate(); setDeleteTarget(null); }, onError: err });
+  const delCat = useMutation({ mutationFn: (id: number) => api.del(`/api/menu/categories/${id}`), onSuccess: () => { invalidate(); setDeleteTarget(null); }, onError: err });
+  const deleting = delItem.isPending || delCat.isPending;
+  const categoryDeleteBlocked = deleteTarget?.type === 'category' && deleteTarget.itemCount > 0;
+  const confirmDelete = () => {
+    if (!deleteTarget || deleting || categoryDeleteBlocked) return;
+    if (deleteTarget.type === 'item') delItem.mutate(deleteTarget.id);
+    else delCat.mutate(deleteTarget.id);
+  };
 
   const [catModal, setCatModal] = useState<CategoryResponse | 'new' | null>(null);
   const [itemModal, setItemModal] = useState<MenuItemResponse | { categoryId: number } | null>(null);
@@ -116,7 +214,7 @@ export default function MenuManager() {
                 <div className="mcat-actions">
                   <button className="btn sm ghost" onClick={() => setItemModal({ categoryId: c.id })}>{t('addItem')}</button>
                   <button className="iconbtn" title={t('editCat')} onClick={() => setCatModal(c)}>✎</button>
-                  <button className="iconbtn danger" title={t('del')} onClick={() => { if (confirm(t('delCat'))) delCat.mutate(c.id); }}>🗑</button>
+                  <button className="iconbtn danger" title={t('del')} onClick={() => setDeleteTarget({ type: 'category', id: c.id, name: pick(c, 'name', lang), itemCount: items.length })}>🗑</button>
                 </div>
               </div>
               {items.length === 0 ? <div className="col-empty" style={{ marginTop: 4 }}>{t('noItems')}</div> : (
@@ -133,7 +231,7 @@ export default function MenuManager() {
                       <div className="mitem-price num">{omr(it.price)} <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span></div>
                       <button className={'switch' + (it.available ? ' on' : '')} title={t('available')} onClick={() => toggleAvail.mutate(it)}><span /></button>
                       <button className="iconbtn" title={t('editItem')} onClick={() => setItemModal(it)}>✎</button>
-                      <button className="iconbtn danger" title={t('del')} onClick={() => { if (confirm(t('delItem'))) delItem.mutate(it.id); }}>🗑</button>
+                      <button className="iconbtn danger" title={t('del')} onClick={() => setDeleteTarget({ type: 'item', id: it.id, name: pick(it, 'name', lang) })}>🗑</button>
                     </div>
                   ))}
                 </div>
@@ -141,6 +239,26 @@ export default function MenuManager() {
             </section>
           );
         })}
+
+      {deleteTarget && (
+        <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget && !deleting) setDeleteTarget(null); }}>
+          <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-menu-title">
+            <h3 id="delete-menu-title">{t(deleteTarget.type === 'item' ? 'deleteItemTitle' : 'deleteCatTitle')}</h3>
+            <div className="ph">
+              <b style={{ display: 'block', color: 'var(--text)', marginBottom: 6 }}>{deleteTarget.name}</b>
+              {categoryDeleteBlocked ? t('categoryHasItems') : t(deleteTarget.type === 'item' ? 'delItem' : 'delCat')}
+            </div>
+            <div className="modal-actions">
+              <button className="btn ghost" disabled={deleting} onClick={() => setDeleteTarget(null)}>{t('cancel')}</button>
+              {!categoryDeleteBlocked && (
+                <button className="btn danger" disabled={deleting} onClick={confirmDelete}>
+                  {deleting ? t('deleting') : t('deleteConfirm')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {catModal && <CategoryEditor rid={rid} cat={catModal === 'new' ? null : catModal} onClose={() => setCatModal(null)} onDone={() => { invalidate(); setCatModal(null); }} />}
       {itemModal && <ItemEditor rid={rid} cats={cats} item={'id' in itemModal ? itemModal : null} defaultCat={'categoryId' in itemModal ? itemModal.categoryId : undefined} onClose={() => setItemModal(null)} onDone={() => { invalidate(); setItemModal(null); }} />}
@@ -154,18 +272,48 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
   const toast = useToast();
   const qc = useQueryClient();
-  const [customDraft, setCustomDraft] = useState<MenuThemeCustom>(DEFAULT_CUSTOM_THEME);
+  // The whole look is one JSON document (draft); presets only prefill it. activeId
+  // remembers which preset the draft came from ('custom' once the owner tweaks it).
+  const [draft, setDraft] = useState<MenuThemeCustom>(DEFAULT_CUSTOM_THEME);
+  const [activeId, setActiveId] = useState<string>(CUSTOM_THEME);
+
+  // The editor shows every selectable display font (picker chips + live preview),
+  // so it needs the full set — venues' menus load only their own font.
+  useEffect(() => { ensureGoogleFonts(ALL_MENU_FONT_SPECS); }, []);
 
   const restaurantQ = useQuery({ queryKey: ['restaurant', rid], queryFn: () => api.get<Restaurant>(`/api/restaurants/${rid}`) });
+  const catsQ = useQuery({ queryKey: ['menu-cats', rid], queryFn: () => api.get<CategoryResponse[]>(`/api/menu/categories?restaurantId=${rid}`) });
+  const itemsQ = useQuery({ queryKey: ['menu-items', rid], queryFn: () => api.get<MenuItemResponse[]>(`/api/menu/items?restaurantId=${rid}`) });
+  const cats = useMemo(() => [...(catsQ.data ?? [])].sort((a, b) => a.displayOrder - b.displayOrder), [catsQ.data]);
+  const itemsByCat = useMemo(() => {
+    const m = new Map<number, MenuItemResponse[]>();
+    (itemsQ.data ?? []).forEach((i) => { const a = m.get(i.categoryId) ?? []; a.push(i); m.set(i.categoryId, a); });
+    m.forEach((a) => a.sort((x, y) => x.displayOrder - y.displayOrder));
+    return m;
+  }, [itemsQ.data]);
+
   const saveTheme = useMutation({
-    mutationFn: (body: { theme: string; themeCustomJson?: string | null }) => api.patch<Restaurant>(`/api/restaurants/${rid}/theme`, body),
+    mutationFn: () => api.patch<Restaurant>(`/api/restaurants/${rid}/theme`, { theme: activeId, themeCustomJson: serializeCustomTheme(draft) }),
     onSuccess: (r) => { qc.setQueryData(['restaurant', rid], r); toast(t('saved')); },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
   useEffect(() => {
-    if (restaurantQ.data) setCustomDraft(parseCustomTheme(restaurantQ.data.themeCustomJson));
-  }, [restaurantQ.data?.id, restaurantQ.data?.themeCustomJson]);
+    const r = restaurantQ.data;
+    if (!r) return;
+    const preset = THEME_PRESETS.find((p) => p.id === r.theme);
+    if (r.themeCustomJson) {
+      setDraft(parseCustomTheme(r.themeCustomJson));
+      setActiveId(r.theme ?? CUSTOM_THEME);
+    } else if (preset) {
+      // legacy preset save (id only, no JSON) — seed the editor from the preset document
+      setDraft({ ...preset.config });
+      setActiveId(preset.id);
+    } else {
+      setDraft(DEFAULT_CUSTOM_THEME);
+      setActiveId(CUSTOM_THEME);
+    }
+  }, [restaurantQ.data?.id, restaurantQ.data?.theme, restaurantQ.data?.themeCustomJson]);
 
   const previewUrl = restaurantQ.data
     ? `/r/${restaurantQ.data.slug}${branchId != null ? `/b/${branchId}` : ''}`
@@ -174,44 +322,99 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
     if (previewUrl) window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // Premium "Pro look" tier unlocks the advanced studio (structural kits, occasion decor,
+  // theme JSON). Granted per café by a platform admin; admins themselves always have it.
+  const premium = !!restaurantQ.data?.premiumLook || canUsePremiumThemes(user?.role);
+
   return (
     <div className="tables-wrap look-page">
       <LookPanel
-        customDraft={customDraft}
+        draft={draft}
+        activeId={activeId}
         saving={saveTheme.isPending}
+        premium={premium}
         previewUrl={previewUrl}
+        restaurant={restaurantQ.data}
+        cats={cats}
+        itemsByCat={itemsByCat}
         onPreview={openPreview}
-        onCustomChange={setCustomDraft}
-        onRandomize={() => setCustomDraft(randomCustomTheme(customDraft))}
-        onReset={() => setCustomDraft(DEFAULT_CUSTOM_THEME)}
-        onCustomSave={() => saveTheme.mutate({ theme: CUSTOM_THEME, themeCustomJson: serializeCustomTheme(customDraft) })}
+        onChange={(next) => { setActiveId(CUSTOM_THEME); setDraft(next); }}
+        onPresetPick={(preset) => { setActiveId(preset.id); setDraft({ ...preset.config }); }}
+        onRandomize={() => { setActiveId(CUSTOM_THEME); setDraft(randomCustomTheme(draft, premium)); }}
+        onReset={() => { setActiveId(CUSTOM_THEME); setDraft(DEFAULT_CUSTOM_THEME); }}
+        onSave={() => saveTheme.mutate()}
         t={t}
       />
     </div>
   );
 }
 
-function LookPanel({ customDraft, saving, previewUrl, onPreview, onCustomChange, onRandomize, onReset, onCustomSave, t }:
+function LookPanel({ draft, activeId, saving, premium, previewUrl, restaurant, cats, itemsByCat, onPreview, onChange, onPresetPick, onRandomize, onReset, onSave, t }:
   {
-    customDraft: MenuThemeCustom;
+    draft: MenuThemeCustom;
+    activeId: string;
     saving: boolean;
+    premium: boolean;
     previewUrl: string | null;
+    restaurant?: Restaurant;
+    cats: CategoryResponse[];
+    itemsByCat: Map<number, MenuItemResponse[]>;
     onPreview: () => void;
-    onCustomChange: (custom: MenuThemeCustom) => void;
+    onChange: (custom: MenuThemeCustom) => void;
+    onPresetPick: (preset: MenuThemePreset) => void;
     onRandomize: () => void;
     onReset: () => void;
-    onCustomSave: () => void;
+    onSave: () => void;
     t: (k: string) => string;
   }) {
+  const { lang } = useI18n();
+  // Import/export the whole look as a JSON document — the same shape an AI generator
+  // emits. Paste → Load runs it through parseCustomTheme (sanitised, contrast-safe);
+  // Copy serialises the current draft so owners can save or hand it back to a model.
+  const [jsonText, setJsonText] = useState('');
+  const [jsonErr, setJsonErr] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyJson = () => {
+    const s = serializeCustomTheme(draft);
+    setJsonText(s);
+    setCopied(true);
+    navigator.clipboard?.writeText(s).catch(() => {});
+    setTimeout(() => setCopied(false), 1500);
+  };
+  const loadJson = () => {
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+      onChange(parseCustomTheme(jsonText));
+      setJsonErr(false);
+    } catch {
+      setJsonErr(true);
+    }
+  };
   return (
     <div className="look-studio">
       {/* The stage is a fixed neutral canvas — it follows neither the dashboard theme nor
           the generated menu theme. Only the phone inside reflects the menu's colours. */}
       <section className="look-stage">
-        <MiniMenuPreview custom={customDraft} t={t} />
+        <LivePreview draft={draft} restaurant={restaurant} cats={cats} itemsByCat={itemsByCat} />
       </section>
 
       <section className="look-controls">
+        {SHOW_READY_THEMES && (
+        <div className="look-control-block">
+          <div className="look-control-title">{t('presets')}</div>
+          <div className="look-theme-row">
+            {THEME_PRESETS.map((preset) => (
+              <button className={activeId === preset.id ? 'on' : ''} key={preset.id} type="button" onClick={() => onPresetPick(preset)}>
+                <span className="look-theme-swatch" style={{ background: `linear-gradient(135deg, ${preset.config.paper} 0 48%, ${preset.config.accent} 48% 73%, ${preset.config.accent2} 73%)` }} />
+                <b>{lang === 'ar' ? preset.labelAr : preset.labelEn}</b>
+                <small>{lang === 'ar' ? preset.descAr : preset.descEn}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+        )}
+
         <div className="look-controls-head">
           <div>
             <span>{t('custom')}</span>
@@ -221,7 +424,7 @@ function LookPanel({ customDraft, saving, previewUrl, onPreview, onCustomChange,
             <button className="btn sm ghost" type="button" onClick={onRandomize}>{t('shuffle')}</button>
             <button className="btn sm ghost" type="button" onClick={onReset}>{t('resetLook')}</button>
             <button className="btn sm ghost" type="button" disabled={!previewUrl} onClick={onPreview}>↗ {t('preview')}</button>
-            <button className="btn sm" type="button" disabled={saving} onClick={onCustomSave}>{t('saveLook')}</button>
+            <button className="btn sm" type="button" disabled={saving} onClick={onSave}>{t('saveLook')}</button>
           </div>
         </div>
 
@@ -229,7 +432,7 @@ function LookPanel({ customDraft, saving, previewUrl, onPreview, onCustomChange,
           <div className="look-control-title">{t('motif')}</div>
           <div className="look-motif-row">
             {MOTIF_OPTIONS.map((motif) => (
-              <button className={customDraft.motif === motif ? 'on' : ''} key={motif} type="button" onClick={() => onCustomChange({ ...customDraft, motif })}>
+              <button className={draft.motif === motif ? 'on' : ''} key={motif} type="button" onClick={() => onChange({ ...draft, motif })}>
                 <span>{MOTIF_MARKS[motif]}</span>
                 <b>{t('mt_' + motif)}</b>
               </button>
@@ -242,85 +445,471 @@ function LookPanel({ customDraft, saving, previewUrl, onPreview, onCustomChange,
               min="0.04"
               max="0.3"
               step="0.01"
-              disabled={customDraft.motif === 'none'}
-              value={customDraft.motifOpacity}
-              onChange={(e) => onCustomChange({ ...customDraft, motifOpacity: Number(e.target.value) })}
+              disabled={draft.motif === 'none'}
+              value={draft.motifOpacity}
+              onChange={(e) => onChange({ ...draft, motifOpacity: Number(e.target.value) })}
             />
           </label>
         </div>
 
+        <div className="look-control-block look-motif-block">
+          <div className="look-control-title">{t('fontLbl')}</div>
+          <div className="look-motif-row">
+            {FONT_OPTIONS.map((font) => (
+              <button className={draft.font === font ? 'on' : ''} key={font} type="button" onClick={() => onChange({ ...draft, font })}>
+                <span style={{ fontFamily: FONT_STACKS[font] }}>أب</span>
+                <b>{t('ft_' + font)}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="look-control-block look-motif-block">
+          <div className="look-control-title">{t('cornersLbl')}</div>
+          <div className="look-motif-row">
+            {RADIUS_OPTIONS.map((radius) => (
+              <button className={draft.radius === radius ? 'on' : ''} key={radius} type="button" onClick={() => onChange({ ...draft, radius })}>
+                <span>{radius === 'sharp' ? '▭' : radius === 'soft' ? '▢' : '◯'}</span>
+                <b>{t('r_' + radius)}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {premium && (<>
+        <div className="look-control-block look-motif-block">
+          <div className="look-control-title">{t('cardStyleLbl')}</div>
+          <div className="look-motif-row">
+            {CARD_STYLE_OPTIONS.map((cs) => (
+              <button className={draft.cardStyle === cs ? 'on' : ''} key={cs} type="button" onClick={() => onChange({ ...draft, cardStyle: cs })}>
+                <span>{CARD_STYLE_MARKS[cs]}</span>
+                <b>{t('cs_' + cs)}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="look-control-block look-motif-block">
+          <div className="look-control-title">{t('cardBadgeLbl')}</div>
+          <div className="look-motif-row">
+            {CARD_BADGE_OPTIONS.map((cb) => (
+              <button className={draft.cardBadge === cb ? 'on' : ''} key={cb} type="button" onClick={() => onChange({ ...draft, cardBadge: cb })}>
+                <span>{CARD_BADGE_MARKS[cb]}</span>
+                <b>{t('cb_' + cb)}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="look-control-block look-motif-block">
+          <div className="look-control-title">{t('headerStyleLbl')}</div>
+          <div className="look-motif-row">
+            {HEADER_STYLE_OPTIONS.map((hs) => (
+              <button className={draft.headerStyle === hs ? 'on' : ''} key={hs} type="button" onClick={() => onChange({ ...draft, headerStyle: hs })}>
+                <span>{HEADER_STYLE_MARKS[hs]}</span>
+                <b>{t('hs_' + hs)}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="look-control-block look-motif-block">
+          <div className="look-control-title">{t('stickersLbl')}</div>
+          <div className="look-motif-row">
+            {STICKER_PACKS.map((pack) => {
+              const on = JSON.stringify(draft.decor.floaters) === JSON.stringify(pack.floaters) && draft.decor.cardSticker === pack.cardSticker;
+              return (
+                <button className={on ? 'on' : ''} key={pack.key} type="button"
+                  onClick={() => onChange({ ...draft, decor: { ...draft.decor, floaters: [...pack.floaters], cardSticker: pack.cardSticker } })}>
+                  <span>{pack.floaters[0] ?? '—'}</span>
+                  <b>{t('sp_' + pack.key)}</b>
+                </button>
+              );
+            })}
+          </div>
+          <label className="look-range">
+            <span>{t('stickerOpacity')}</span>
+            <input
+              type="range"
+              min="0.06"
+              max="0.6"
+              step="0.02"
+              disabled={draft.decor.floaters.length === 0}
+              value={draft.decor.floaterOpacity}
+              onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, floaterOpacity: Number(e.target.value) } })}
+            />
+          </label>
+          <div className="row2">
+            <div className="field">
+              <label>{t('stickerFree')}</label>
+              <input
+                value={draft.decor.floaters.join(' ')}
+                placeholder="🌹 💐 🌷"
+                onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, floaters: splitGraphemes(e.target.value).filter((g) => g.trim()).slice(0, 6) } })}
+              />
+            </div>
+            <div className="field">
+              <label>{t('cardStickerLbl')}</label>
+              <input
+                value={draft.decor.cardSticker}
+                placeholder="🌹"
+                onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, cardSticker: splitGraphemes(e.target.value).filter((g) => g.trim()).pop() ?? '' } })}
+              />
+            </div>
+          </div>
+          <div className="row2">
+            <div className="field">
+              <label>{t('bannerArLbl')}</label>
+              <input
+                dir="rtl"
+                value={draft.decor.bannerAr}
+                placeholder="كل عام وكل أم بخير 🌹"
+                onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, bannerAr: e.target.value.slice(0, 80) } })}
+              />
+            </div>
+            <div className="field">
+              <label>{t('bannerEnLbl')}</label>
+              <input
+                dir="ltr"
+                value={draft.decor.bannerEn}
+                placeholder="Happy Mother's Day 🌹"
+                onChange={(e) => onChange({ ...draft, decor: { ...draft.decor, bannerEn: e.target.value.slice(0, 80) } })}
+              />
+            </div>
+          </div>
+        </div>
+        </>)}
+
         <div className="look-control-block">
           <div className="look-control-title">{t('colorStudio')}</div>
           <div className="look-colors">
-            {CUSTOM_FIELDS.map((field) => (
+            {MENU_COLOR_FIELDS.map((field) => (
               <label className="look-color" key={field.key}>
                 <input
                   type="color"
-                  value={customDraft[field.key]}
-                  onChange={(e) => onCustomChange({ ...customDraft, [field.key]: e.target.value })}
+                  value={draft[field.key]}
+                  onChange={(e) => onChange({ ...draft, [field.key]: e.target.value })}
                 />
-                <span className="look-color-chip" style={{ background: customDraft[field.key] }} />
+                <span className="look-color-chip" style={{ background: draft[field.key] }} />
                 <span>{t(field.label)}</span>
               </label>
             ))}
           </div>
         </div>
+
+        {premium && (
+        <div className="look-control-block">
+          <div className="look-control-title">{t('jsonTitle')}</div>
+          <p className="look-json-hint">{t('jsonHint')}</p>
+          <textarea
+            className="look-json-box"
+            dir="ltr"
+            spellCheck={false}
+            placeholder={t('jsonPlace')}
+            value={jsonText}
+            onChange={(e) => { setJsonText(e.target.value); setJsonErr(false); }}
+          />
+          {jsonErr && <div className="look-json-err">{t('jsonBad')}</div>}
+          <div className="look-actions" style={{ marginTop: 10 }}>
+            <button className="btn sm ghost" type="button" onClick={copyJson}>{copied ? t('jsonCopied') : t('jsonCopy')}</button>
+            <button className="btn sm" type="button" disabled={!jsonText.trim()} onClick={loadJson}>{t('jsonLoad')}</button>
+          </div>
+        </div>
+        )}
       </section>
     </div>
   );
 }
 
-function MiniMenuPreview({ custom, t }: { custom: MenuThemeCustom; t: (k: string) => string }) {
-  const style = customThemeVars(custom);
+interface PreviewItemData { id: number; name: string; sub: string; desc: string; price: number; imageUrl: string | null }
+interface PreviewSection { id: number; name: string; sub: string; desc: string; items: PreviewItemData[] }
+
+const previewThumb = (it: PreviewItemData) => it.imageUrl
+  ? { backgroundImage: `url('${it.imageUrl}')` }
+  : { backgroundImage: `linear-gradient(155deg, hsl(${(Math.abs(it.id) * 47) % 360} 42% 34%) -30%, #15171C 70%)` };
+
+/** A few sample dishes so brand-new cafés (empty menu) still get a styled preview.
+ *  Title follows the language; the English name is the Arabic-mode sub, like the real menu. */
+function sampleSections(t: (k: string) => string): PreviewSection[] {
+  return [
+    { id: -1, name: t('sampleCat'), sub: 'Drinks', desc: t('sampleDesc'), items: [
+      { id: -11, name: t('sampleItem'), sub: 'Omani latte', desc: t('sampleDesc'), price: 2.4, imageUrl: null },
+      { id: -12, name: t('sampleItem3'), sub: 'Karak tea', desc: t('sampleDesc3'), price: 1.2, imageUrl: null },
+      { id: -13, name: t('sampleItem5'), sub: 'Cold brew', desc: '', price: 1.6, imageUrl: null },
+    ] },
+    { id: -2, name: t('sampleCat2'), sub: 'Desserts', desc: '', items: [
+      { id: -21, name: t('sampleItem2'), sub: 'Date cake', desc: t('sampleDesc2'), price: 1.8, imageUrl: null },
+      { id: -22, name: t('sampleItem4'), sub: 'Zaatar croissant', desc: '', price: 1.6, imageUrl: null },
+    ] },
+  ];
+}
+
+const PREVIEW_FLOW = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'] as const;
+
+/**
+ * Live phone preview: the cafe's REAL menu rendered with the draft theme, walking the
+ * full customer journey — tap + to add, open the basket with VAT totals, place the
+ * (fake) order and watch the tracking screen step through the statuses.
+ * It always renders from the JSON draft, so what you see is exactly what saves.
+ */
+function LivePreview({ draft, restaurant, cats, itemsByCat }:
+  { draft: MenuThemeCustom; restaurant?: Restaurant; cats: CategoryResponse[]; itemsByCat: Map<number, MenuItemResponse[]> }) {
+  // The preview carries its OWN language: its EN/ع toggle flips only the phone, never the
+  // surrounding dashboard. It just starts from whatever language the dashboard is in.
+  const { lang: dashLang } = useI18n();
+  const [previewLang, setPreviewLang] = useState(dashLang);
+  const lang = previewLang;
+  const t = (k: string) => DICT[previewLang][k] ?? DICT.ar[k] ?? k;
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [view, setView] = useState<'menu' | 'cart' | 'track'>('menu');
+  const [activeCat, setActiveCat] = useState<number | null>(null);
+  const [placed, setPlaced] = useState<{ lines: { it: PreviewItemData; qty: number }[]; total: number; orderNumber: number } | null>(null);
+  const [stepIdx, setStepIdx] = useState(0);
+  const scrollRef = useRef<HTMLElement>(null);
+
+  // walk the fake order through the statuses so every themed state gets seen
+  useEffect(() => {
+    if (view !== 'track' || stepIdx >= PREVIEW_FLOW.length - 1) return;
+    const id = setTimeout(() => setStepIdx((i) => i + 1), 1800);
+    return () => clearTimeout(id);
+  }, [view, stepIdx]);
+
+  const style = customThemeVars(draft) as CSSProperties;
+
+  // Mirror the real customer menu exactly: the title follows the chosen language and,
+  // in Arabic, the English name rides underneath as the sub-line (the EN/ع toggle in the
+  // header flips it, just like the live menu).
+  const sections = useMemo<PreviewSection[]>(() => {
+    const real = cats
+      .map((c) => ({
+        id: c.id,
+        name: pick(c, 'name', lang),
+        sub: c.nameEn ?? '',
+        desc: pick(c, 'description', lang) ?? '',
+        items: (itemsByCat.get(c.id) ?? []).filter((i) => i.available).map((i) => ({
+          id: i.id, name: pick(i, 'name', lang), sub: i.nameEn ?? '', desc: pick(i, 'description', lang) ?? '', price: i.price, imageUrl: i.imageUrl ?? null,
+        })),
+      }))
+      .filter((s) => s.items.length > 0);
+    return real.length ? real : sampleSections(t);
+  }, [cats, itemsByCat, lang, t]);
+
+  const itemById = useMemo(() => {
+    const m = new Map<number, PreviewItemData>();
+    sections.forEach((s) => s.items.forEach((i) => m.set(i.id, i)));
+    return m;
+  }, [sections]);
+
+  const lines = Object.entries(cart)
+    .map(([id, qty]) => ({ it: itemById.get(Number(id)), qty }))
+    .filter((l): l is { it: PreviewItemData; qty: number } => !!l.it && l.qty > 0);
+  const count = lines.reduce((s, l) => s + l.qty, 0);
+  const subtotal = lines.reduce((s, l) => s + l.it.price * l.qty, 0);
+  const vatEnabled = restaurant?.vatEnabled ?? false;
+  const vat = estimateVat(subtotal, restaurant?.vatRate ?? 0, vatEnabled);
+  const total = subtotal + vat;
+
+  const bump = (id: number, delta: number) => setCart((c) => {
+    const qty = (c[id] ?? 0) + delta;
+    const next = { ...c };
+    if (qty <= 0) delete next[id]; else next[id] = qty;
+    if (Object.keys(next).length === 0) setView('menu');
+    return next;
+  });
+  const gotoCat = (id: number) => {
+    setActiveCat(id);
+    scrollRef.current?.querySelector(`[data-cat="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const placeOrder = () => {
+    if (lines.length === 0) return;
+    setPlaced({ lines, total, orderNumber: 100 + Math.floor(Math.random() * 900) });
+    setStepIdx(0);
+    setView('track');
+  };
+  // Unlike the real menu, the preview's cart bar is always visible and tappable —
+  // owners need to judge the cart screen's colors instantly. While the cart is empty
+  // the bar advertises a two-item sample, and tapping it seeds those items.
+  const seedLines = useMemo(() => {
+    const flat = sections.flatMap((s) => s.items);
+    return [flat[0] && { it: flat[0], qty: 2 }, flat[1] && { it: flat[1], qty: 1 }]
+      .filter((l): l is { it: PreviewItemData; qty: number } => !!l);
+  }, [sections]);
+  const barLines = lines.length > 0 ? lines : seedLines;
+  const barCount = barLines.reduce((s, l) => s + l.qty, 0);
+  const barSubtotal = barLines.reduce((s, l) => s + l.it.price * l.qty, 0);
+  const openCart = () => {
+    if (lines.length === 0) {
+      const seed: Record<number, number> = {};
+      seedLines.forEach((l) => { seed[l.it.id] = l.qty; });
+      setCart(seed);
+    }
+    setView('cart');
+  };
+  const backToMenu = () => {
+    setView('menu');
+    setCart({});
+    setPlaced(null);
+    setStepIdx(0);
+  };
+
+  const cafeName = restaurant?.name ?? t('lookTitle');
 
   return (
     <div className="look-preview">
       <div className="look-preview-title">{t('phonePreview')}</div>
-      <div className="look-phone" style={style as CSSProperties}>
-        <div className="look-phead">
-          <div className="look-pmark">ق</div>
-          <div>
-            <b>{t('lookTitle')}</b>
-            <span>Serva.</span>
+      <div className="look-preview-customer">
+        <div className="cust-bg" data-menu-theme={CUSTOM_THEME} style={style} {...menuStructuralAttrs(draft)}>
+          <div className="phone">
+            <MenuDecorLayer decor={draft.decor} />
+            {view === 'menu' ? (
+              <>
+                <header className="c-hdr">
+                  <div className="c-hdr-top">
+                    <div className="c-brand">
+                      <div className={'c-mark' + (restaurant?.logoUrl ? ' has-logo' : '')}>
+                        {restaurant?.logoUrl ? <img src={restaurant.logoUrl} alt={cafeName} /> : cafeName.charAt(0)}
+                      </div>
+                      <div>
+                        <h1>{cafeName}</h1>
+                      </div>
+                    </div>
+                    <div className="lang" role="group" aria-label="Language">
+                      <button aria-pressed={previewLang === 'ar'} onClick={() => setPreviewLang('ar')} lang="ar">ع</button>
+                      <button aria-pressed={previewLang === 'en'} onClick={() => setPreviewLang('en')} lang="en">EN</button>
+                    </div>
+                  </div>
+                  <div className="c-meta">
+                    <span className="c-table">🪑 {t('tableLbl')} <span className="num">5</span></span>
+                  </div>
+                </header>
+                <nav className="c-nav">
+                  {sections.map((s) => (
+                    <button key={s.id} className={(activeCat ?? sections[0]?.id) === s.id ? 'on' : ''} onClick={() => gotoCat(s.id)}>
+                      <span>{s.name}</span><em>{s.items.length}</em>
+                    </button>
+                  ))}
+                </nav>
+                <main className="c-scroll" ref={scrollRef}>
+                  {sections.map((s) => (
+                    <section className="c-cat" data-cat={s.id} key={s.id}>
+                      <div className="c-cat-head"><h2>{s.name}</h2><span className="c-rule" />{lang === 'ar' && s.sub && <span className="en">{s.sub}</span>}</div>
+                      {s.desc && <p className="c-cat-desc">{s.desc}</p>}
+                      {s.items.map((it) => {
+                        const qty = cart[it.id] ?? 0;
+                        return (
+                          <article className="c-item" key={it.id}>
+                            <div className="c-thumb" style={previewThumb(it)}>
+                              {!it.imageUrl && <span className="glyph">{it.name.charAt(0)}</span>}
+                            </div>
+                            <div className="c-body">
+                              <h3>{it.name}</h3>
+                              {lang === 'ar' && it.sub && <div className="sub">{it.sub}</div>}
+                              {it.desc && <p>{it.desc}</p>}
+                              <div className="c-foot">
+                                <div className="c-price"><span className="num">{omr(it.price)}</span><span className="cur">{t('cur')}</span></div>
+                                {qty > 0
+                                  ? <div className="c-qty">
+                                      <button onClick={() => bump(it.id, 1)}>+</button>
+                                      <span className="n num">{qty}</span>
+                                      <button onClick={() => bump(it.id, -1)}>−</button>
+                                    </div>
+                                  : <button className="c-add" type="button" aria-label="add" onClick={() => bump(it.id, 1)}>+</button>}
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </section>
+                  ))}
+                  <div className="c-bottom-spacer" />
+                </main>
+                <div className="c-cartbar show" onClick={openCart}>
+                  <div className="ico">🛒<span className="count">{barCount}</span></div>
+                  <div className="lbl"><b>{t('viewCart')}</b><span>{barCount} {t('items')}</span></div>
+                  <div className="total"><span className="num">{omr(barSubtotal)}</span></div>
+                  <div className="go">‹</div>
+                </div>
+              </>
+            ) : view === 'cart' ? (
+              <>
+                <header className="c-vhdr">
+                  <button className="c-back" onClick={() => setView('menu')} aria-label="back"><span className="arr">›</span></button>
+                  <h2>{t('cartTitle')}</h2>
+                </header>
+                <div className="c-vbody">
+                  {lines.map((l) => (
+                    <div className="c-line" key={l.it.id}>
+                      <div className="c-thumb" style={previewThumb(l.it)}>{!l.it.imageUrl && <span className="glyph">{l.it.name.charAt(0)}</span>}</div>
+                      <div className="c-line-main">
+                        <h4>{l.it.name}</h4>
+                        <div className="lp"><span className="num">{omr(l.it.price)}</span> {t('cur')}</div>
+                        <textarea className="c-notein" rows={1} placeholder={t('itemNote')} />
+                      </div>
+                      <div className="c-line-side">
+                        <div className="c-qty">
+                          <button onClick={() => bump(l.it.id, 1)}>+</button>
+                          <span className="n num">{l.qty}</span>
+                          <button onClick={() => bump(l.it.id, -1)}>−</button>
+                        </div>
+                        <div className="lt"><span className="num">{omr(l.it.price * l.qty)}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="field"><label>{t('custName')}</label><input placeholder="…" /></div>
+                  <div className="field"><label>{t('custPhone')}</label><input className="num" inputMode="tel" placeholder="9XXXXXXX" /></div>
+                  <div className="field"><label>{t('orderNote')}</label><textarea rows={2} placeholder={t('orderNotePh')} /></div>
+
+                  <div className="c-totals">
+                    <div className="row"><span>{t('subtotal')}</span><span className="num">{omr(subtotal)} {t('cur')}</span></div>
+                    {vatEnabled && <div className="row"><span>{t('vatLbl')} ({restaurant?.vatRate}%)</span><span className="num">{omr(vat)} {t('cur')}</span></div>}
+                    <div className="row grand"><span>{t('totalLbl')}</span><span className="num">{omr(total)} {t('cur')}</span></div>
+                    <div className="c-hint">{t('finalNote')}</div>
+                  </div>
+                </div>
+                <div className="c-foot-bar">
+                  <button className="btn full" type="button" onClick={placeOrder}>{t('place')} · <span className="num">{omr(total)}</span></button>
+                </div>
+              </>
+            ) : placed && (
+              <>
+                <header className="c-vhdr">
+                  <button className="c-back" onClick={backToMenu} aria-label="back"><span className="arr">›</span></button>
+                  <h2>{t('trackTitle')}</h2>
+                </header>
+                <div className="c-vbody">
+                  <div className="c-track">
+                    <div className="no">{t('orderNo')} · <span className="num">{placed.orderNumber}</span></div>
+                    <div className="state"><span className="c-pulse" />{t('head_' + PREVIEW_FLOW[stepIdx])}</div>
+                    <div className="sub">{t('thanks')}</div>
+                  </div>
+                  <div className="c-stepper">
+                    {PREVIEW_FLOW.map((st, i) => {
+                      const cls = i < stepIdx ? 'done' : i === stepIdx ? 'active' : '';
+                      const icon = i < stepIdx ? '✓' : i === stepIdx ? '●' : String(i + 1);
+                      return (
+                        <div className={'c-step ' + cls} key={st}>
+                          <div className="dot">{icon}</div>
+                          <div className="txt"><b>{t('st_' + st)}</b></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {placed.lines.map((l) => (
+                      <div className="c-totals" style={{ marginBottom: 0, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} key={l.it.id}>
+                        <span><span className="num">{l.qty}×</span> {l.it.name}</span>
+                        <span className="num">{omr(l.it.price * l.qty)} {t('cur')}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="c-totals" style={{ marginTop: 14 }}>
+                    <div className="row grand"><span>{t('totalLbl')}</span><span className="num">{omr(placed.total)} {t('cur')}</span></div>
+                  </div>
+                  <button className="btn full ghost" style={{ marginTop: 18 }} onClick={backToMenu}>{t('backMenu')}</button>
+                </div>
+              </>
+            )}
           </div>
-        </div>
-        <div className="look-pnav">
-          <span className="on">{t('sampleCat')}<em>6</em></span>
-          <span>{t('sampleCat2')}<em>3</em></span>
-          <span>{t('sampleCat3')}<em>4</em></span>
-        </div>
-        <div className="look-pitems">
-          <div className="look-psection">{t('sampleCat')}</div>
-          <div className="look-pitem">
-            <div className="look-pthumb">ق</div>
-            <div><b>{t('sampleItem')}</b><span>{t('sampleDesc')}</span></div>
-            <strong>{t('samplePrice')}</strong>
-          </div>
-          <div className="look-pitem compact">
-            <div className="look-pthumb alt">ك</div>
-            <div><b>{t('sampleItem3')}</b><span>{t('sampleDesc3')}</span></div>
-            <strong>١.٢٠</strong>
-          </div>
-          <div className="look-pitem compact">
-            <div className="look-pthumb alt">ب</div>
-            <div><b>{t('sampleItem5')}</b><span>{t('sampleCat')}</span></div>
-            <strong>٢.١٠</strong>
-          </div>
-          <div className="look-psection">{t('sampleCat2')}</div>
-          <div className="look-pitem compact">
-            <div className="look-pthumb alt">ت</div>
-            <div><b>{t('sampleItem2')}</b><span>{t('sampleDesc2')}</span></div>
-            <strong>١.٨٠</strong>
-          </div>
-          <div className="look-pitem compact">
-            <div className="look-pthumb alt">ز</div>
-            <div><b>{t('sampleItem4')}</b><span>{t('sampleCat3')}</span></div>
-            <strong>١.٦٠</strong>
-          </div>
-        </div>
-        <div className="look-pcart">
-          <span>{t('viewCart')}</span>
-          <strong>{t('samplePrice')}</strong>
         </div>
       </div>
     </div>
@@ -348,7 +937,7 @@ const PALETTE_RECIPES: PaletteRecipe[] = [
   { paper: '#0E0F12', surface: '#1A1D22', text: '#F3F5F0', muted: '#A6ADA9', accent: '#10B981', accent2: '#34D399', cartBg: '#F3F5F0' }, // onyx green
 ];
 
-function randomCustomTheme(current: MenuThemeCustom): MenuThemeCustom {
+function randomCustomTheme(current: MenuThemeCustom, premium: boolean): MenuThemeCustom {
   // avoid landing on the same palette twice in a row
   const pool = PALETTE_RECIPES.filter((r) => r.paper.toLowerCase() !== current.paper.toLowerCase());
   const recipe = (pool.length ? pool : PALETTE_RECIPES)[Math.floor(Math.random() * (pool.length ? pool.length : PALETTE_RECIPES.length))];
@@ -357,7 +946,11 @@ function randomCustomTheme(current: MenuThemeCustom): MenuThemeCustom {
   const accent2 = rotateHue(recipe.accent2, shift);
   const motif = MOTIF_OPTIONS[1 + Math.floor(Math.random() * (MOTIF_OPTIONS.length - 1))];
   return {
-    ...current,
+    // Start from the default look, not the current draft: Quick mix wipes the theme
+    // first so it produces a fresh, clean combination instead of layering a new palette
+    // on top of accumulated font/radius/background/decor/skin edits.
+    ...DEFAULT_CUSTOM_THEME,
+    decor: { ...DEFAULT_CUSTOM_THEME.decor },
     canvas: recipe.paper,
     paper: recipe.paper,
     surface: recipe.surface,
@@ -369,6 +962,13 @@ function randomCustomTheme(current: MenuThemeCustom): MenuThemeCustom {
     motifColor: Math.random() > 0.4 ? accent : accent2,
     motifOpacity: Number((0.1 + Math.random() * 0.12).toFixed(2)),
     cartBg: recipe.cartBg,
+    // Structural kit is premium — only let "Quick mix" roam the layout space for cafés
+    // that have it; free-tier stays on the default flat card/plain header (from the reset above).
+    ...(premium ? {
+      cardStyle: CARD_STYLE_OPTIONS[Math.floor(Math.random() * CARD_STYLE_OPTIONS.length)],
+      cardBadge: CARD_BADGE_OPTIONS[Math.floor(Math.random() * CARD_BADGE_OPTIONS.length)],
+      headerStyle: HEADER_STYLE_OPTIONS[Math.floor(Math.random() * HEADER_STYLE_OPTIONS.length)],
+    } : {}),
   };
 }
 

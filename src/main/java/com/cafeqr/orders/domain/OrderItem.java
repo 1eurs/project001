@@ -28,7 +28,7 @@ public class OrderItem {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    @Column(name = "menu_item_id", nullable = false)
+    @Column(name = "menu_item_id")
     private Long menuItemId;
 
     @Column(name = "name_en_snapshot", nullable = false)

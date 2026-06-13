@@ -1,6 +1,8 @@
 package com.cafeqr.restaurants;
 
 import com.cafeqr.common.exception.BadRequestException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cafeqr.common.exception.ConflictException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
@@ -19,6 +21,8 @@ import java.math.BigDecimal;
 
 @Service
 public class RestaurantService {
+
+    private static final ObjectMapper THEME_JSON = new ObjectMapper();
 
     private final RestaurantRepository restaurantRepository;
 
@@ -106,15 +110,34 @@ public class RestaurantService {
     @Transactional
     public RestaurantResponse updateTheme(Long id, String theme, String themeCustomJson) {
         Restaurant restaurant = getEntity(id);
+        String json = (themeCustomJson == null || themeCustomJson.isBlank()) ? null : themeCustomJson.trim();
+        if (json != null && !isJsonObject(json)) {
+            throw new BadRequestException("themeCustomJson must be a valid JSON object");
+        }
         restaurant.setTheme(theme);
-        restaurant.setThemeCustomJson("custom".equals(theme) ? themeCustomJson : null);
+        restaurant.setThemeCustomJson(json);
         return RestaurantResponse.from(restaurant);
+    }
+
+    private boolean isJsonObject(String json) {
+        try {
+            return THEME_JSON.readTree(json).isObject();
+        } catch (JsonProcessingException e) {
+            return false;
+        }
     }
 
     @Transactional
     public RestaurantResponse setActive(Long id, boolean active) {
         Restaurant restaurant = getEntity(id);
         restaurant.setActive(active);
+        return RestaurantResponse.from(restaurant);
+    }
+
+    @Transactional
+    public RestaurantResponse setPremiumLook(Long id, boolean premiumLook) {
+        Restaurant restaurant = getEntity(id);
+        restaurant.setPremiumLook(premiumLook);
         return RestaurantResponse.from(restaurant);
     }
 

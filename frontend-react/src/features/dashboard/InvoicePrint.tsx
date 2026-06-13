@@ -49,14 +49,14 @@ export default function InvoicePrint({ order, onDone }: { order: OrderResponse; 
   const cc = carColorOf(order.carColor);
   const typeLine = order.orderType === 'DINE_IN'
     ? `طاولة / Table${tableNumber ? ` ${tableNumber}` : ''}`
-    : order.orderType === 'CAR'
-      ? `سيارة / Car${order.carPlate ? ` · ${order.carPlate}` : ''}${cc ? ` · ${cc.ar} / ${cc.en}` : ''}`
-      : 'سفري / Takeaway';
+    : `سيارة / Car${order.carPlate ? ` · ${order.carPlate}` : ''}${cc ? ` · ${cc.ar} / ${cc.en}` : ''}`;
   const showVat = !!r?.vatEnabled || order.vatAmount > 0;
+  const noteLines = order.items.reduce((sum, item) => sum + (item.note ? 1 : 0), 0);
+  const receiptHeightMm = Math.min(600, Math.max(130, 92 + order.items.length * 11 + noteLines * 6));
 
   return createPortal(
     <div className="invoice-sheet" dir="rtl">
-      <style>{'@page{size:80mm auto;margin:3mm}'}</style>
+      <style>{`@page{size:80mm ${receiptHeightMm}mm;margin:0}@media print{html,body{width:80mm;margin:0!important;background:#fff!important}}`}</style>
       <div className="inv-name">{r?.name ?? ''}</div>
       {r?.phone && <div className="inv-sub num">{r.phone}</div>}
       <div className="inv-title">فاتورة / Invoice</div>

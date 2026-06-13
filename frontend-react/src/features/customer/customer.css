@@ -64,6 +64,7 @@ html[dir="ltr"] .c-rule{background:linear-gradient(270deg,var(--line-2),transpar
 .c-item.out{opacity:.5}
 .c-thumb{position:relative;flex:0 0 82px;width:82px;height:82px;border-radius:var(--r-thumb,14px);overflow:hidden;background-size:cover;background-position:center;
   box-shadow:inset 0 0 0 1px var(--menu-paper-edge,rgba(255,255,255,.06))}
+.c-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .c-thumb .glyph{position:absolute;inset:0;display:grid;place-items:center;font-weight:600;font-size:30px;color:rgba(255,255,255,.55)}
 .c-body{flex:1;min-width:0;display:flex;flex-direction:column}
 .c-body h3{font-family:var(--font-display);font-weight:600;font-size:16px;line-height:1.25}
@@ -263,3 +264,17 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 .c-sorry h3{font-size:15.5px;font-weight:700}
 .c-sorry .why{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.55}
 .c-sorry .next{font-size:13px;color:var(--text);margin-top:10px;line-height:1.55}
+
+/* ---- theme decor: greeting ribbon, floating stickers, pinned card sticker ---- */
+.menu-ribbon{flex:0 0 auto;text-align:center;font-family:var(--font-display);font-weight:700;font-size:12.5px;
+  letter-spacing:.2px;padding:7px 16px;color:var(--accent-ink);
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.menu-floaters{position:absolute;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+.menu-floaters span{position:absolute;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.20));
+  transform:rotate(var(--rot,0deg));animation:decor-bob 5.5s ease-in-out infinite}
+@keyframes decor-bob{0%,100%{transform:rotate(var(--rot,0deg)) translateY(0)}50%{transform:rotate(var(--rot,0deg)) translateY(-7px)}}
+@media (prefers-reduced-motion:reduce){.menu-floaters span{animation:none}}
+/* sticker pinned on every item card — set per-theme via --decor-card */
+.c-item::after{content:var(--decor-card,none);position:absolute;top:-8px;inset-inline-end:10px;font-size:17px;
+  transform:rotate(14deg);filter:drop-shadow(0 2px 4px rgba(0,0,0,.22));pointer-events:none}

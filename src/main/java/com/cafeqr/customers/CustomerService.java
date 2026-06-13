@@ -133,6 +133,7 @@ public class CustomerService {
                     .map(o -> new ReturningCustomerResponse.LastOrder(
                             o.getCreatedAt(),
                             o.getItems().stream()
+                                    .filter(i -> i.getMenuItemId() != null)
                                     .map(i -> new ReturningCustomerResponse.LastOrderItem(
                                             i.getMenuItemId(), i.getNameEnSnapshot(),
                                             i.getNameArSnapshot(), i.getQuantity()))

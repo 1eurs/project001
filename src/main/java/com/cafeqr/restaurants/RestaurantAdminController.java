@@ -69,4 +69,11 @@ public class RestaurantAdminController {
     public ApiResponse<RestaurantResponse> deactivate(@PathVariable Long id) {
         return ApiResponse.ok("Restaurant deactivated", restaurantService.setActive(id, false));
     }
+
+    @Operation(summary = "Toggle the premium menu-look entitlement")
+    @PatchMapping("/{id}/premium-look")
+    public ApiResponse<RestaurantResponse> setPremiumLook(@PathVariable Long id, @RequestParam boolean enabled) {
+        return ApiResponse.ok(enabled ? "Premium look enabled" : "Premium look disabled",
+                restaurantService.setPremiumLook(id, enabled));
+    }
 }

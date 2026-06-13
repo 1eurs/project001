@@ -208,9 +208,10 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.DECLINED);
         order.setDeclinedAt(Instant.now());
-        order.setDeclineReason(reason);
+        String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
+        order.setDeclineReason(trimmed);
         notifyAndStream(order, NotificationType.ORDER_DECLINED, "order.declined",
-                "Order " + order.getOrderNumber() + " declined: " + reason);
+                "Order " + order.getOrderNumber() + " declined" + (trimmed != null ? ": " + trimmed : ""));
         return OrderResponse.from(order);
     }
 
@@ -282,7 +283,7 @@ public class OrderService {
             }
             return table.getId();
         }
-        return null; // takeaway
+        return null;
     }
 
     private String normalizeCarPlate(CreateOrderRequest request) {

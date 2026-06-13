@@ -9,10 +9,10 @@ import java.util.Map;
  *
  * @param totalPresent  customers on any of the branch's menus right now
  * @param totalOrdering how many of those are actively ordering (cart/checkout)
- * @param liveByKey     present + ordering keyed by qrCodeToken (tables) / "car" / "takeaway"
+ * @param liveByKey     present + ordering keyed by qrCodeToken (tables) / "car"
  * @param cartsByKey    what those customers have in their carts right now (same keys); a soft
  *                      signal — carts change until the order is placed
- * @param todayByKey    today's orders + revenue keyed by table id (string) / "car" / "takeaway"
+ * @param todayByKey    today's orders + revenue keyed by table id (string) / "car"
  */
 public record QrActivityResponse(
         int totalPresent,

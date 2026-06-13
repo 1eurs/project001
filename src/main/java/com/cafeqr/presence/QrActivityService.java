@@ -147,6 +147,6 @@ public class QrActivityService {
     }
 
     private static String typeKey(OrderType type) {
-        return type == OrderType.CAR ? "car" : type == OrderType.TAKEAWAY ? "takeaway" : "other";
+        return type == OrderType.DINE_IN ? "other" : "car";
     }
 }
