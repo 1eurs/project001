@@ -12,7 +12,7 @@ import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ForbiddenException;
 import com.cafeqr.common.exception.ResourceNotFoundException;
 import com.cafeqr.restaurants.RestaurantService;
-import com.cafeqr.users.domain.Role;
+import com.cafeqr.users.domain.Permission;
 import com.cafeqr.users.domain.User;
 import com.cafeqr.users.dto.CreateUserRequest;
 import com.cafeqr.users.dto.UpdateUserRequest;
@@ -25,12 +25,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
-/** Creation and management of staff accounts, enforcing the role hierarchy and tenant scoping. */
+/**
+ * Creation and management of staff accounts. There are no roles: a creator grants a subset of the
+ * {@link Permission permissions} they themselves hold, scoped to their own restaurant/branch.
+ */
 @Service
 public class UserManagementService {
-
-    private static final Set<Role> BRANCH_ROLES =
-            EnumSet.of(Role.BRANCH_MANAGER, Role.STAFF, Role.KITCHEN_STAFF);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -53,18 +53,25 @@ public class UserManagementService {
     @Transactional
     public UserResponse create(CreateUserRequest request) {
         CustomUserDetails creator = SecurityUtils.currentUser();
-        if (userRepository.existsByEmailIgnoreCase(request.email())) {
+        if (userRepository.existsByUsernameIgnoreCase(request.username())) {
+            throw new ConflictException(ErrorCode.CONFLICT, "Username is already taken");
+        }
+        if (request.email() != null && !request.email().isBlank()
+                && userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new ConflictException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered");
         }
 
-        Target target = resolveTarget(creator, request);
+        Set<Permission> permissions = grantable(creator, request.permissions());
+        Target target = resolveTarget(creator, permissions, request.restaurantId(), request.branchId());
 
         User user = new User();
-        user.setFullName(request.fullName());
-        user.setEmail(request.email());
-        user.setPhone(request.phone());
+        user.setUsername(request.username().trim());
+        user.setFullName(blankToNull(request.fullName()) != null ? request.fullName().trim() : request.username().trim());
+        user.setEmail(blankToNull(request.email()));
+        user.setPhone(blankToNull(request.phone()));
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setRole(request.role());
+        user.setOwner(false);
+        user.setPermissions(permissions);
         user.setRestaurantId(target.restaurantId());
         user.setBranchId(target.branchId());
         user.setActive(true);
@@ -92,14 +99,23 @@ public class UserManagementService {
     @Transactional
     public UserResponse update(Long userId, UpdateUserRequest request) {
         User user = guardedTarget(userId);
+        CustomUserDetails editor = SecurityUtils.currentUser();
         if (request.fullName() != null) {
             user.setFullName(request.fullName());
         }
         if (request.phone() != null) {
-            user.setPhone(request.phone());
+            user.setPhone(blankToNull(request.phone()));
         }
         if (request.password() != null) {
             user.setPasswordHash(passwordEncoder.encode(request.password()));
+        }
+        if (request.permissions() != null && !user.isOwner()) {
+            // Owners keep their full permission set; only their profile/password can be edited here.
+            user.setPermissions(grantable(editor, request.permissions()));
+        }
+        if (request.branchId() != null && !user.isOwner()) {
+            Branch branch = requireBranchInRestaurant(user.getRestaurantId(), request.branchId());
+            user.setBranchId(branch.getId());
         }
         return UserResponse.from(user);
     }
@@ -113,70 +129,84 @@ public class UserManagementService {
 
     // ----------------------------------------------------------------- internals
 
+    /**
+     * Restricts a requested permission set to what the creator may actually grant: only permissions
+     * the creator holds, and never {@code PLATFORM_ADMIN} unless the creator is one.
+     */
+    private Set<Permission> grantable(CustomUserDetails creator, Set<Permission> requested) {
+        Set<Permission> result = EnumSet.noneOf(Permission.class);
+        if (requested == null) {
+            return result;
+        }
+        for (Permission p : requested) {
+            if (p == Permission.PLATFORM_ADMIN && !creator.isPlatformAdmin()) {
+                throw new ForbiddenException("You cannot grant platform-admin access");
+            }
+            if (!creator.isPlatformAdmin() && !creator.hasPermission(p)) {
+                throw new ForbiddenException("You cannot grant access you do not have: " + p);
+            }
+            result.add(p);
+        }
+        return result;
+    }
+
     private User guardedTarget(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
-        if (user.getRole() == Role.PLATFORM_ADMIN) {
-            // Only another platform admin may manage platform admins.
-            if (!SecurityUtils.currentUser().isPlatformAdmin()) {
-                throw new ForbiddenException("You cannot manage this user");
-            }
-            return user;
+        CustomUserDetails editor = SecurityUtils.currentUser();
+        // Platform admins and the restaurant owner are protected: only a platform admin (or the
+        // account itself) may manage them.
+        boolean protectedAccount = user.hasPermission(Permission.PLATFORM_ADMIN) || user.isOwner();
+        if (protectedAccount && !editor.isPlatformAdmin() && !editor.getUserId().equals(user.getId())) {
+            throw new ForbiddenException("You cannot manage this user");
         }
         if (user.getBranchId() != null) {
             accessGuard.requireBranchAccess(user.getRestaurantId(), user.getBranchId());
-        } else {
+        } else if (user.getRestaurantId() != null) {
             accessGuard.requireRestaurantAccess(user.getRestaurantId());
+        } else if (!editor.isPlatformAdmin()) {
+            throw new ForbiddenException("You cannot manage this user");
         }
         return user;
     }
 
-    private Target resolveTarget(CustomUserDetails creator, CreateUserRequest request) {
-        Role role = request.role();
-        return switch (creator.getRole()) {
-            case PLATFORM_ADMIN -> resolveForAdmin(role, request);
-            case RESTAURANT_OWNER -> resolveForOwner(creator, role, request);
-            case BRANCH_MANAGER -> resolveForManager(creator, role);
-            default -> throw new ForbiddenException("You are not allowed to create users");
-        };
-    }
-
-    private Target resolveForAdmin(Role role, CreateUserRequest request) {
-        if (role == Role.PLATFORM_ADMIN) {
-            return new Target(null, null);
+    /** Resolves the tenant/branch a new account belongs to, from the creator's own scope. */
+    private Target resolveTarget(CustomUserDetails creator, Set<Permission> permissions,
+                                 Long requestedRestaurantId, Long requestedBranchId) {
+        if (creator.isPlatformAdmin()) {
+            if (permissions.contains(Permission.PLATFORM_ADMIN)) {
+                return new Target(null, null); // another platform admin
+            }
+            if (requestedRestaurantId == null) {
+                throw new BadRequestException("restaurantId is required to create this user");
+            }
+            restaurantService.getEntity(requestedRestaurantId);
+            Long branchId = (requestedBranchId != null)
+                    ? requireBranchInRestaurant(requestedRestaurantId, requestedBranchId).getId() : null;
+            return new Target(requestedRestaurantId, branchId);
         }
-        if (request.restaurantId() == null) {
-            throw new BadRequestException("restaurantId is required for this role");
+        if (creator.getRestaurantId() == null) {
+            throw new ForbiddenException("You are not allowed to create users");
         }
-        restaurantService.getEntity(request.restaurantId());
-        if (role == Role.RESTAURANT_OWNER) {
-            return new Target(request.restaurantId(), null);
+        // A branch-scoped creator can only create within their own branch.
+        if (creator.getBranchId() != null) {
+            return new Target(creator.getRestaurantId(), creator.getBranchId());
         }
-        // branch-level role
-        Branch branch = requireBranchInRestaurant(request.restaurantId(), request.branchId());
-        return new Target(branch.getRestaurantId(), branch.getId());
-    }
-
-    private Target resolveForOwner(CustomUserDetails creator, Role role, CreateUserRequest request) {
-        if (!BRANCH_ROLES.contains(role)) {
-            throw new ForbiddenException("Owners may only create branch managers and staff");
-        }
-        Branch branch = requireBranchInRestaurant(creator.getRestaurantId(), request.branchId());
-        return new Target(creator.getRestaurantId(), branch.getId());
-    }
-
-    private Target resolveForManager(CustomUserDetails creator, Role role) {
-        if (role != Role.STAFF && role != Role.KITCHEN_STAFF) {
-            throw new ForbiddenException("Branch managers may only create staff and kitchen staff");
-        }
-        return new Target(creator.getRestaurantId(), creator.getBranchId());
+        // Restaurant-wide creator: branch is optional (null = restaurant-wide).
+        Long branchId = (requestedBranchId != null)
+                ? requireBranchInRestaurant(creator.getRestaurantId(), requestedBranchId).getId() : null;
+        return new Target(creator.getRestaurantId(), branchId);
     }
 
     private Branch requireBranchInRestaurant(Long restaurantId, Long branchId) {
         if (branchId == null) {
-            throw new BadRequestException("branchId is required for branch-level roles");
+            throw new BadRequestException("branchId is required");
         }
         return branchService.getEntityInRestaurant(restaurantId, branchId);
+    }
+
+    private static String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
     }
 
     private record Target(Long restaurantId, Long branchId) {}

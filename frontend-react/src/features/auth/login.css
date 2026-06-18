@@ -1,9 +1,10 @@
-.login{--paper:#f5efe3;--ink:#07130d;--lime:#34e2a4;--sun:#f5b83d;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;overflow-x:hidden;color:var(--ink);
+.login{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;overflow-x:hidden;color:var(--ink);
+  /* palette (--paper/--ink/--lime/--sun) comes from the shared block in theme.css */
   background:
-    linear-gradient(90deg,rgba(4,120,87,.08) 1px,transparent 1px) 0 0/34px 34px,
-    linear-gradient(180deg,rgba(4,120,87,.06) 1px,transparent 1px) 0 0/34px 34px,
+    linear-gradient(90deg,rgba(16,185,129,.07) 1px,transparent 1px) 0 0/34px 34px,
+    linear-gradient(180deg,rgba(16,185,129,.05) 1px,transparent 1px) 0 0/34px 34px,
     var(--paper)}
-.login-card{width:100%;max-width:390px;min-width:0;background:#fffaf1;border:3px solid var(--ink);border-radius:0;
+.login-card{width:100%;max-width:390px;min-width:0;background:var(--bg-2);border:3px solid var(--ink);border-radius:0;
   padding:30px 28px;box-shadow:8px 8px 0 var(--ink)}
 .demo-note{overflow-wrap:anywhere}
 .login-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}

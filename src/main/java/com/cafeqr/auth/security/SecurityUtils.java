@@ -19,4 +19,30 @@ public final class SecurityUtils {
         }
         return principal;
     }
+
+    /**
+     * Id of the currently authenticated user, or {@code null} when the call is
+     * anonymous (public endpoints). Used for event attribution where the actor
+     * may be absent — e.g. a customer placing an order vs. staff accepting one.
+     */
+    public static Long currentUserIdOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof CustomUserDetails principal)) {
+            return null;
+        }
+        return principal.getUserId();
+    }
+
+    /**
+     * Display name of the currently authenticated user, or {@code null} when
+     * anonymous. Snapshot alongside {@link #currentUserIdOrNull()} into event
+     * logs so historical actor names survive a user being renamed or deleted.
+     */
+    public static String currentUserNameOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof CustomUserDetails principal)) {
+            return null;
+        }
+        return principal.getUsername();
+    }
 }

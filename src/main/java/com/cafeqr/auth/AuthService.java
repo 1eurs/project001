@@ -19,7 +19,7 @@ import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
 import com.cafeqr.common.exception.UnauthorizedException;
 import com.cafeqr.common.util.Tokens;
-import com.cafeqr.users.domain.Role;
+import com.cafeqr.users.domain.Permission;
 import com.cafeqr.users.domain.User;
 import com.cafeqr.users.repository.UserRepository;
 import org.springframework.context.ApplicationEventPublisher;
@@ -68,7 +68,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse registerPlatformAdmin(RegisterPlatformAdminRequest request) {
-        if (userRepository.existsByRole(Role.PLATFORM_ADMIN)) {
+        if (userRepository.existsByPermission(Permission.PLATFORM_ADMIN)) {
             throw new ConflictException(ErrorCode.CONFLICT,
                     "A platform admin already exists. Ask an existing admin to create more accounts.");
         }
@@ -78,10 +78,12 @@ public class AuthService {
 
         User user = new User();
         user.setFullName(request.fullName());
+        user.setUsername(request.email());
         user.setEmail(request.email());
         user.setPhone(request.phone());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setRole(Role.PLATFORM_ADMIN);
+        user.setOwner(false);
+        user.setPermissions(Permission.platformAdminSet());
         user.setActive(true);
         userRepository.save(user);
 
@@ -91,7 +93,7 @@ public class AuthService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+                new UsernamePasswordAuthenticationToken(request.username(), request.password()));
         CustomUserDetails principal = (CustomUserDetails) authentication.getPrincipal();
         User user = userRepository.findById(principal.getUserId())
                 .orElseThrow(() -> ResourceNotFoundException.of("User", principal.getUserId()));

@@ -1,7 +1,7 @@
 package com.cafeqr.auth.security;
 
 import com.cafeqr.common.config.AppProperties;
-import com.cafeqr.users.domain.Role;
+import com.cafeqr.users.domain.Permission;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -12,13 +12,17 @@ import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
 
 /** Issues and verifies stateless JWT access tokens. */
 @Service
 public class JwtService {
 
-    private static final String CLAIM_EMAIL = "email";
-    private static final String CLAIM_ROLE = "role";
+    private static final String CLAIM_USERNAME = "usr";
+    private static final String CLAIM_PERMS = "perms";
+    private static final String CLAIM_OWNER = "own";
     private static final String CLAIM_RESTAURANT_ID = "rid";
     private static final String CLAIM_BRANCH_ID = "bid";
     private static final String CLAIM_TYPE = "typ";
@@ -37,11 +41,13 @@ public class JwtService {
     public String generateAccessToken(CustomUserDetails user) {
         Instant now = Instant.now();
         Instant expiry = now.plus(accessTtlMinutes, ChronoUnit.MINUTES);
+        List<String> perms = user.getPermissions().stream().map(Permission::name).toList();
         return Jwts.builder()
                 .issuer(issuer)
                 .subject(String.valueOf(user.getUserId()))
-                .claim(CLAIM_EMAIL, user.getUsername())
-                .claim(CLAIM_ROLE, user.getRole().name())
+                .claim(CLAIM_USERNAME, user.getUsername())
+                .claim(CLAIM_PERMS, perms)
+                .claim(CLAIM_OWNER, user.isOwner())
                 .claim(CLAIM_RESTAURANT_ID, user.getRestaurantId())
                 .claim(CLAIM_BRANCH_ID, user.getBranchId())
                 .claim(CLAIM_TYPE, TYPE_ACCESS)
@@ -65,12 +71,32 @@ public class JwtService {
                 .getPayload();
 
         Long userId = Long.valueOf(claims.getSubject());
-        String email = claims.get(CLAIM_EMAIL, String.class);
-        Role role = Role.valueOf(claims.get(CLAIM_ROLE, String.class));
+        String username = claims.get(CLAIM_USERNAME, String.class);
+        Set<Permission> permissions = readPermissions(claims);
+        boolean owner = Boolean.TRUE.equals(claims.get(CLAIM_OWNER, Boolean.class));
         Long restaurantId = readLong(claims, CLAIM_RESTAURANT_ID);
         Long branchId = readLong(claims, CLAIM_BRANCH_ID);
         // Password hash is irrelevant for token-based auth; principal is built from claims.
-        return new CustomUserDetails(userId, email, "N/A", role, restaurantId, branchId, true);
+        return new CustomUserDetails(userId, username, "N/A", permissions, owner,
+                restaurantId, branchId, true);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<Permission> readPermissions(Claims claims) {
+        Object raw = claims.get(CLAIM_PERMS);
+        Set<Permission> permissions = EnumSet.noneOf(Permission.class);
+        if (raw instanceof List<?> list) {
+            for (Object name : list) {
+                // Tolerate permissions that no longer exist (e.g. KITCHEN, merged into ORDERS) so a
+                // still-valid token issued before the change doesn't fail to parse.
+                try {
+                    permissions.add(Permission.valueOf(String.valueOf(name)));
+                } catch (IllegalArgumentException ignored) {
+                    // unknown / retired permission — skip it
+                }
+            }
+        }
+        return permissions;
     }
 
     private static Long readLong(Claims claims, String name) {

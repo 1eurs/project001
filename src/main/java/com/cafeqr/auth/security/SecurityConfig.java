@@ -1,5 +1,7 @@
 package com.cafeqr.auth.security;
 
+import jakarta.servlet.DispatcherType;
+
 import com.cafeqr.common.config.AppProperties;
 import com.cafeqr.common.ratelimit.RateLimitFilter;
 import com.cafeqr.common.ratelimit.RateLimiter;
@@ -51,6 +53,11 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // SSE order streams finish as ASYNC re-dispatches (and errors as ERROR
+                        // dispatches) on a thread with no SecurityContext; re-authorizing them
+                        // throws "Access Denied" on an already-committed response. Only the
+                        // initial REQUEST dispatch needs authorization.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh",
                                 "/api/auth/register-platform-admin",
                                 "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()

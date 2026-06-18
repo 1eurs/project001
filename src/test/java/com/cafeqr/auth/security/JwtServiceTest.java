@@ -1,8 +1,11 @@
 package com.cafeqr.auth.security;
 
 import com.cafeqr.common.config.AppProperties;
-import com.cafeqr.users.domain.Role;
+import com.cafeqr.users.domain.Permission;
 import org.junit.jupiter.api.Test;
+
+import java.util.EnumSet;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,15 +21,17 @@ class JwtServiceTest {
 
     @Test
     void generatesAndParsesTokenPreservingClaims() {
+        Set<Permission> perms = EnumSet.of(Permission.ORDERS, Permission.PAYMENTS, Permission.MENU);
         CustomUserDetails principal = new CustomUserDetails(
-                42L, "owner@cafe.com", "hash", Role.RESTAURANT_OWNER, 7L, null, true);
+                42L, "owner@cafe.com", "hash", perms, true, 7L, null, true);
 
         String token = jwtService.generateAccessToken(principal);
         CustomUserDetails parsed = jwtService.parsePrincipal(token);
 
         assertThat(parsed.getUserId()).isEqualTo(42L);
         assertThat(parsed.getUsername()).isEqualTo("owner@cafe.com");
-        assertThat(parsed.getRole()).isEqualTo(Role.RESTAURANT_OWNER);
+        assertThat(parsed.getPermissions()).containsExactlyInAnyOrderElementsOf(perms);
+        assertThat(parsed.isOwner()).isTrue();
         assertThat(parsed.getRestaurantId()).isEqualTo(7L);
         assertThat(parsed.getBranchId()).isNull();
     }
@@ -34,7 +39,7 @@ class JwtServiceTest {
     @Test
     void rejectsTamperedToken() {
         CustomUserDetails principal = new CustomUserDetails(
-                1L, "a@b.com", "hash", Role.STAFF, 1L, 1L, true);
+                1L, "a@b.com", "hash", EnumSet.of(Permission.ORDERS), false, 1L, 1L, true);
         String token = jwtService.generateAccessToken(principal);
 
         assertThatThrownBy(() -> jwtService.parsePrincipal(token + "tampered"))

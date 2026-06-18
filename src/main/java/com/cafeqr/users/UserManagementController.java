@@ -22,7 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/users")
 @Tag(name = "User management")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAuthority('TEAM')")
 public class UserManagementController {
 
     private final UserManagementService userManagementService;

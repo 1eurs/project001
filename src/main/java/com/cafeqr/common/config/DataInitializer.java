@@ -1,6 +1,6 @@
 package com.cafeqr.common.config;
 
-import com.cafeqr.users.domain.Role;
+import com.cafeqr.users.domain.Permission;
 import com.cafeqr.users.domain.User;
 import com.cafeqr.users.repository.UserRepository;
 import org.slf4j.Logger;
@@ -37,15 +37,17 @@ public class DataInitializer implements ApplicationRunner {
         if (bootstrap == null || !bootstrap.enabled()) {
             return;
         }
-        if (userRepository.existsByRole(Role.PLATFORM_ADMIN)) {
+        if (userRepository.existsByPermission(Permission.PLATFORM_ADMIN)) {
             return;
         }
 
         User admin = new User();
         admin.setFullName(bootstrap.adminFullName());
+        admin.setUsername(bootstrap.adminEmail());
         admin.setEmail(bootstrap.adminEmail());
         admin.setPasswordHash(passwordEncoder.encode(bootstrap.adminPassword()));
-        admin.setRole(Role.PLATFORM_ADMIN);
+        admin.setOwner(false);
+        admin.setPermissions(Permission.platformAdminSet());
         admin.setActive(true);
         userRepository.save(admin);
 
