@@ -22,19 +22,28 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/restaurants")
 @Tag(name = "Restaurants (admin)")
-@PreAuthorize("hasRole('PLATFORM_ADMIN')")
+@PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
 public class RestaurantAdminController {
 
     private final RestaurantService restaurantService;
+    private final RestaurantOnboardingService onboardingService;
 
-    public RestaurantAdminController(RestaurantService restaurantService) {
+    public RestaurantAdminController(RestaurantService restaurantService,
+                                    RestaurantOnboardingService onboardingService) {
         this.restaurantService = restaurantService;
+        this.onboardingService = onboardingService;
     }
 
-    @Operation(summary = "Create a restaurant")
+    @Operation(summary = "Onboard a restaurant (restaurant + optional owner + first branch + subscription)")
     @PostMapping
     public ApiResponse<RestaurantResponse> create(@Valid @RequestBody CreateRestaurantRequest request) {
-        return ApiResponse.ok("Restaurant created", restaurantService.create(request));
+        return ApiResponse.ok("Restaurant created", onboardingService.onboard(request));
+    }
+
+    @Operation(summary = "Renew a café's subscription for another term")
+    @PostMapping("/{id}/renew")
+    public ApiResponse<RestaurantResponse> renew(@PathVariable Long id) {
+        return ApiResponse.ok("Subscription renewed", onboardingService.renew(id));
     }
 
     @Operation(summary = "List restaurants")
@@ -75,5 +84,12 @@ public class RestaurantAdminController {
     public ApiResponse<RestaurantResponse> setPremiumLook(@PathVariable Long id, @RequestParam boolean enabled) {
         return ApiResponse.ok(enabled ? "Premium look enabled" : "Premium look disabled",
                 restaurantService.setPremiumLook(id, enabled));
+    }
+
+    @Operation(summary = "Set a restaurant's pricing plan (STANDARD or PRO)")
+    @PatchMapping("/{id}/plan")
+    public ApiResponse<RestaurantResponse> setPlan(@PathVariable Long id,
+                                                    @RequestParam com.cafeqr.restaurants.domain.Plan plan) {
+        return ApiResponse.ok("Plan set to " + plan, restaurantService.setPlan(id, plan));
     }
 }

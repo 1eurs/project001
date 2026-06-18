@@ -28,7 +28,7 @@ public class BranchController {
     }
 
     @Operation(summary = "Create a branch under a restaurant")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER')")
+    @PreAuthorize("hasAuthority('BRANCHES')")
     @PostMapping("/api/restaurants/{restaurantId}/branches")
     public ApiResponse<BranchResponse> create(@PathVariable Long restaurantId,
                                               @Valid @RequestBody CreateBranchRequest request) {
@@ -48,7 +48,7 @@ public class BranchController {
     }
 
     @Operation(summary = "Update a branch")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+    @PreAuthorize("hasAuthority('BRANCHES')")
     @PatchMapping("/api/branches/{branchId}")
     public ApiResponse<BranchResponse> update(@PathVariable Long branchId,
                                               @Valid @RequestBody UpdateBranchRequest request) {
@@ -56,14 +56,14 @@ public class BranchController {
     }
 
     @Operation(summary = "Activate a branch")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+    @PreAuthorize("hasAuthority('BRANCHES')")
     @PatchMapping("/api/branches/{branchId}/activate")
     public ApiResponse<BranchResponse> activate(@PathVariable Long branchId) {
         return ApiResponse.ok("Branch activated", branchService.setActive(branchId, true));
     }
 
     @Operation(summary = "Deactivate a branch")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+    @PreAuthorize("hasAuthority('BRANCHES')")
     @PatchMapping("/api/branches/{branchId}/deactivate")
     public ApiResponse<BranchResponse> deactivate(@PathVariable Long branchId) {
         return ApiResponse.ok("Branch deactivated", branchService.setActive(branchId, false));

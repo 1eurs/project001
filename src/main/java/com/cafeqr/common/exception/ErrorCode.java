@@ -25,5 +25,6 @@ public enum ErrorCode {
     EMPTY_ORDER,
     PAYMENT_ERROR,
     UPLOAD_ERROR,
+    PLAN_REQUIRED,
     INTERNAL_ERROR
 }

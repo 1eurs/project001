@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Tag(name = "Subscriptions (admin)")
-@PreAuthorize("hasRole('PLATFORM_ADMIN')")
+@PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;

@@ -9,7 +9,6 @@ import com.cafeqr.subscriptions.domain.BillingCycle;
 import com.cafeqr.subscriptions.domain.Subscription;
 import com.cafeqr.subscriptions.domain.SubscriptionStatus;
 import com.cafeqr.subscriptions.repository.SubscriptionRepository;
-import com.cafeqr.users.domain.Role;
 import com.cafeqr.users.domain.User;
 import com.cafeqr.users.repository.UserRepository;
 import org.slf4j.Logger;
@@ -96,7 +95,7 @@ public class SubscriptionLifecycleJob {
 
     private void sendReminder(Subscription s, boolean pastDue) {
         owner(s.getRestaurantId()).ifPresent(owner -> {
-            AppProperties.Onboarding o = props.onboarding();
+            AppProperties.Billing o = props.billing();
             String amount = fmt(s);
             String endDate = s.getEndDate() != null ? s.getEndDate().toString() : "";
             String ref = s.getPaymentReference() != null ? s.getPaymentReference() : "";
@@ -156,7 +155,7 @@ public class SubscriptionLifecycleJob {
 
     private void sendExpired(Subscription s) {
         owner(s.getRestaurantId()).ifPresent(owner -> {
-            AppProperties.Onboarding o = props.onboarding();
+            AppProperties.Billing o = props.billing();
             String amount = fmt(s);
             String endDate = s.getEndDate() != null ? s.getEndDate().toString() : "";
             String ref = s.getPaymentReference() != null ? s.getPaymentReference() : "";
@@ -205,19 +204,17 @@ public class SubscriptionLifecycleJob {
     // ------------------------------------------------------------------ helpers
 
     private java.util.Optional<User> owner(Long restaurantId) {
-        return userRepository.findByRestaurantIdOrderByIdAsc(restaurantId).stream()
-                .filter(u -> u.getRole() == Role.RESTAURANT_OWNER)
-                .findFirst();
+        return userRepository.findFirstByRestaurantIdAndOwnerTrueOrderByIdAsc(restaurantId);
     }
 
     private String fmt(Subscription s) {
-        AppProperties.Onboarding o = props.onboarding();
+        AppProperties.Billing o = props.billing();
         return (s.getPrice() != null ? s.getPrice().toPlainString() : "")
             + " " + (o != null ? o.currency() : "OMR");
     }
 
-    private static String bank(AppProperties.Onboarding o)    { return o != null ? o.bankName()      : ""; }
-    private static String accName(AppProperties.Onboarding o) { return o != null ? o.accountName()   : ""; }
-    private static String accNo(AppProperties.Onboarding o)   { return o != null ? o.accountNumber() : ""; }
-    private static String iban(AppProperties.Onboarding o)    { return o != null ? o.iban()          : ""; }
+    private static String bank(AppProperties.Billing o)    { return o != null ? o.bankName()      : ""; }
+    private static String accName(AppProperties.Billing o) { return o != null ? o.accountName()   : ""; }
+    private static String accNo(AppProperties.Billing o)   { return o != null ? o.accountNumber() : ""; }
+    private static String iban(AppProperties.Billing o)    { return o != null ? o.iban()          : ""; }
 }

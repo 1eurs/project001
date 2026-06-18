@@ -1,5 +1,6 @@
 package com.cafeqr.restaurants.dto;
 
+import com.cafeqr.restaurants.domain.Plan;
 import com.cafeqr.restaurants.domain.Restaurant;
 
 import java.math.BigDecimal;
@@ -20,6 +21,7 @@ public record RestaurantResponse(
         String themeCustomJson,
         boolean active,
         boolean premiumLook,
+        Plan plan,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -27,6 +29,6 @@ public record RestaurantResponse(
         return new RestaurantResponse(
                 r.getId(), r.getName(), r.getSlug(), r.getLogoUrl(), r.getPhone(), r.getEmail(),
                 r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(), r.getTheme(), r.getThemeCustomJson(), r.isActive(),
-                r.isPremiumLook(), r.getCreatedAt(), r.getUpdatedAt());
+                r.isPremiumLook(), r.getPlan(), r.getCreatedAt(), r.getUpdatedAt());
     }
 }

@@ -43,25 +43,11 @@ public class RestaurantService {
         restaurant.setVatEnabled(request.vatEnabled() == null || request.vatEnabled());
         restaurant.setVatRate(request.vatRate() != null ? request.vatRate() : new BigDecimal("5"));
         restaurant.setActive(true);
+        // Tier endpoints default the column to PRO via the DB; honor an explicit choice here.
+        if (request.plan() != null) {
+            restaurant.setPlan(request.plan());
+        }
         return RestaurantResponse.from(restaurantRepository.save(restaurant));
-    }
-
-    /**
-     * Creates an <b>inactive</b> restaurant for self-serve onboarding (reusing slug resolution).
-     * It stays inactive — and its public menu offline — until an admin confirms payment.
-     */
-    @Transactional
-    public Restaurant createPending(String name, String slug, String phone, String email) {
-        Restaurant restaurant = new Restaurant();
-        restaurant.setName(name);
-        restaurant.setSlug(resolveSlug(slug, name));
-        restaurant.setPhone(phone);
-        restaurant.setEmail(email);
-        restaurant.setCurrency("OMR");
-        restaurant.setVatEnabled(true);
-        restaurant.setVatRate(new BigDecimal("5"));
-        restaurant.setActive(false);
-        return restaurantRepository.save(restaurant);
     }
 
     @Transactional(readOnly = true)
@@ -138,6 +124,13 @@ public class RestaurantService {
     public RestaurantResponse setPremiumLook(Long id, boolean premiumLook) {
         Restaurant restaurant = getEntity(id);
         restaurant.setPremiumLook(premiumLook);
+        return RestaurantResponse.from(restaurant);
+    }
+
+    @Transactional
+    public RestaurantResponse setPlan(Long id, com.cafeqr.restaurants.domain.Plan plan) {
+        Restaurant restaurant = getEntity(id);
+        restaurant.setPlan(plan);
         return RestaurantResponse.from(restaurant);
     }
 

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
+import java.io.IOException;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -66,11 +67,38 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Resource not found", ErrorCode.NOT_FOUND.name()));
     }
 
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIo(IOException ex) {
+        // Client disconnected mid-response (e.g. browser navigated away). The socket is
+        // gone, so there's nothing to write back — log quietly instead of as an error.
+        if (isClientAbort(ex)) {
+            log.debug("Client aborted connection: {}", ex.getMessage());
+            return null;
+        }
+        return handleUnexpected(ex);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception ex) {
         log.error("Unhandled exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("An unexpected error occurred", ErrorCode.INTERNAL_ERROR.name()));
+    }
+
+    private static boolean isClientAbort(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause.getClass().getName().endsWith("ClientAbortException")) {
+                return true;
+            }
+            String message = cause.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase();
+                if (lower.contains("broken pipe") || lower.contains("connection reset")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static String formatFieldError(FieldError error) {

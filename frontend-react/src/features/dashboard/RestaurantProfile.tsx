@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, upload, ApiError } from '../../lib/api';
-import { useAuth } from '../../lib/auth';
+import { useAuth, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import type { Restaurant, Subscription, BranchResponse } from '../../lib/types';
@@ -182,7 +182,7 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
         <label className="field"><span>{t('currency')}</span><input value={form.currency} maxLength={3} onChange={(e) => set('currency', e.target.value.toUpperCase())} /></label>
         <label className="field"><span>{t('vatRate')}</span><input className="num" type="number" min="0" max="100" step="0.1" value={form.vatRate} onChange={(e) => set('vatRate', e.target.value)} /></label>
         <label className="checkrow profile-check"><input type="checkbox" checked={form.vatEnabled} onChange={(e) => set('vatEnabled', e.target.checked)} /> {t('vatEnabled')}</label>
-        {branch && (
+        {branch && can(user, 'BRANCHES') && (
           <label className="field"><span>{t('branchName')}</span>
             <div className="branch-row">
               <input value={branchName} onChange={(e) => setBranchName(e.target.value)} />

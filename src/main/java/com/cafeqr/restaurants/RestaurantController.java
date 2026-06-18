@@ -34,7 +34,7 @@ public class RestaurantController {
     }
 
     @Operation(summary = "Get a restaurant visible to the current user")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','STAFF','KITCHEN_STAFF')")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/api/restaurants/{restaurantId}")
     public ApiResponse<RestaurantResponse> get(@PathVariable Long restaurantId) {
         accessGuard.requireRestaurantAccess(restaurantId);
@@ -42,7 +42,7 @@ public class RestaurantController {
     }
 
     @Operation(summary = "Get the current restaurant's subscription (owner-visible)")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+    @PreAuthorize("hasAuthority('PROFILE')")
     @GetMapping("/api/restaurants/{restaurantId}/subscription")
     public ApiResponse<SubscriptionResponse> subscription(@PathVariable Long restaurantId) {
         accessGuard.requireRestaurantAccess(restaurantId);
@@ -50,7 +50,7 @@ public class RestaurantController {
     }
 
     @Operation(summary = "Update a restaurant visible to the current user")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+    @PreAuthorize("hasAuthority('PROFILE')")
     @PatchMapping("/api/restaurants/{restaurantId}")
     public ApiResponse<RestaurantResponse> update(@PathVariable Long restaurantId,
                                                   @Valid @RequestBody UpdateRestaurantRequest request) {
@@ -59,7 +59,7 @@ public class RestaurantController {
     }
 
     @Operation(summary = "Update the public menu theme")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+    @PreAuthorize("hasAuthority('PROFILE')")
     @PatchMapping("/api/restaurants/{restaurantId}/theme")
     public ApiResponse<RestaurantResponse> updateTheme(@PathVariable Long restaurantId,
                                                        @Valid @RequestBody UpdateRestaurantThemeRequest request) {

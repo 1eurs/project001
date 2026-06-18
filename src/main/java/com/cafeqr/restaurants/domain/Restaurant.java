@@ -3,6 +3,8 @@ package com.cafeqr.restaurants.domain;
 import com.cafeqr.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
@@ -47,6 +49,11 @@ public class Restaurant extends BaseEntity {
     /** Premium "Pro look" entitlement — unlocks the advanced theme editor for this café. */
     @Column(name = "premium_look", nullable = false)
     private boolean premiumLook = false;
+
+    /** Pricing tier — gates Pro analytics features. Defaults to PRO on rollout. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan", nullable = false, length = 20)
+    private Plan plan = Plan.PRO;
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
@@ -145,6 +152,14 @@ public class Restaurant extends BaseEntity {
 
     public void setPremiumLook(boolean premiumLook) {
         this.premiumLook = premiumLook;
+    }
+
+    public Plan getPlan() {
+        return plan;
+    }
+
+    public void setPlan(Plan plan) {
+        this.plan = plan;
     }
 
     public boolean isActive() {
