@@ -4,7 +4,7 @@ import { api, upload, ApiError } from '../../lib/api';
 import { useAuth, canUsePremiumThemes } from '../../lib/auth';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import { omr, estimateVat } from '../../lib/format';
+import { omr, estimateVat, discountPercent } from '../../lib/format';
 import type { CategoryResponse, MenuItemResponse, Restaurant } from '../../lib/types';
 import { ensureGoogleFonts } from '../../lib/fonts';
 import { MenuDecorLayer } from '../customer/MenuDecor';
@@ -33,8 +33,14 @@ import '../customer/menu-themes.css';
 const DICT: Dict = {
   ar: { addCat: '＋ قسم', addItem: '＋ صنف', editCat: 'تعديل القسم', newCat: 'قسم جديد', editItem: 'تعديل الصنف', newItem: 'صنف جديد',
         nameAr: 'الاسم (عربي)', nameEn: 'الاسم (إنجليزي)', descAr: 'الوصف (عربي)', descEn: 'الوصف (إنجليزي)',
-        price: 'السعر', prep: 'دقائق التحضير', category: 'القسم', available: 'متوفر الآن', image: 'الصورة', uploadImg: 'رفع صورة', uploading: 'جارٍ الرفع…',
+        price: 'السعر', prep: 'دقائق التحضير', category: 'القسم', available: 'متوفر الآن', image: 'الصورة', uploadImg: 'رفع صورة', uploading: 'جارٍ الرفع…', removeImg: 'حذف الصورة',
+        addPhoto: 'إضافة صورة', cover: 'الغلاف', photosHint: 'الصورة الأولى هي الغلاف',
+        options: 'الخيارات', optionsHint: 'مثل: الحجم (كبير/صغير) أو نوع الحليب', addGroup: '＋ مجموعة خيارات', groupNameAr: 'اسم المجموعة (ع)', groupNameEn: 'اسم المجموعة (EN)',
+        single: 'اختيار واحد', multi: 'متعدد', requiredOpt: 'إلزامي', addOption: '＋ خيار', optNameAr: 'الخيار (ع)', optNameEn: 'الخيار (EN)', priceDelta: 'فرق السعر',
         save: 'حفظ', cancel: 'إلغاء', del: 'حذف', cur: 'ر.ع', noItems: 'لا أصناف بعد',
+        discount: 'الخصم', discNone: 'بدون', discPercent: 'نسبة %', discFixed: 'سعر العرض',
+        discPercentVal: 'نسبة الخصم %', discNewPrice: 'السعر بعد الخصم', discStarts: 'يبدأ (اختياري)', discEnds: 'ينتهي (اختياري)',
+        discResult: 'السعر الآن', discScheduled: 'مجدول', discEnded: 'منتهٍ', saleBadge: 'عرض',
         delCat: 'لا يمكن حذف قسم فيه أصناف. احذف الأصناف أولاً.', delItem: 'سيختفي الصنف من قائمة العملاء. الطلبات القديمة تبقى محفوظة.',
         deleteCatTitle: 'حذف القسم', deleteItemTitle: 'حذف الصنف', deleteConfirm: 'حذف الآن', deleting: 'جارٍ الحذف…',
         categoryHasItems: 'هذا القسم فيه أصناف. احذف الأصناف أولاً ثم ارجع لحذف القسم.',
@@ -67,8 +73,14 @@ const DICT: Dict = {
         st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!' },
   en: { addCat: '＋ Category', addItem: '＋ Item', editCat: 'Edit category', newCat: 'New category', editItem: 'Edit item', newItem: 'New item',
         nameAr: 'Name (Arabic)', nameEn: 'Name (English)', descAr: 'Description (Arabic)', descEn: 'Description (English)',
-        price: 'Price', prep: 'Prep minutes', category: 'Category', available: 'Available now', image: 'Photo', uploadImg: 'Upload photo', uploading: 'Uploading…',
+        price: 'Price', prep: 'Prep minutes', category: 'Category', available: 'Available now', image: 'Photo', uploadImg: 'Upload photo', uploading: 'Uploading…', removeImg: 'Remove photo',
+        addPhoto: 'Add photo', cover: 'Cover', photosHint: 'First photo is the cover',
+        options: 'Options', optionsHint: 'e.g. Size (large/small) or milk type', addGroup: '＋ Option group', groupNameAr: 'Group name (AR)', groupNameEn: 'Group name (EN)',
+        single: 'Pick one', multi: 'Multiple', requiredOpt: 'Required', addOption: '＋ Option', optNameAr: 'Option (AR)', optNameEn: 'Option (EN)', priceDelta: 'Price +/-',
         save: 'Save', cancel: 'Cancel', del: 'Delete', cur: 'OMR', noItems: 'No items yet',
+        discount: 'Discount', discNone: 'None', discPercent: '% off', discFixed: 'Sale price',
+        discPercentVal: 'Percent off', discNewPrice: 'New price', discStarts: 'Starts (optional)', discEnds: 'Ends (optional)',
+        discResult: 'Now', discScheduled: 'Scheduled', discEnded: 'Ended', saleBadge: 'Sale',
         delCat: 'A category with items cannot be deleted. Delete the items first.', delItem: 'This item will disappear from the customer menu. Old orders stay saved.',
         deleteCatTitle: 'Delete category', deleteItemTitle: 'Delete item', deleteConfirm: 'Delete now', deleting: 'Deleting…',
         categoryHasItems: 'This category still has items. Delete the items first, then come back to delete the category.',
@@ -105,10 +117,42 @@ const thumb = (it: MenuItemResponse) => it.imageUrl
   ? { backgroundImage: `url('${it.imageUrl}')` }
   : { backgroundImage: `linear-gradient(155deg, hsl(${(it.id * 47) % 360} 42% 34%) -30%, #15171C 70%)` };
 
+/** Discounted price + lifecycle for a menu item from its raw discount fields (client-side clock). */
+type DiscountFields = { price: number; discountType?: string | null; discountValue?: number | null; discountStartsAt?: string | null; discountEndsAt?: string | null };
+function discountState(it: DiscountFields): { sale: number; active: boolean; scheduled: boolean; ended: boolean } | null {
+  if (!it.discountType || it.discountValue == null || it.discountValue <= 0) return null;
+  const sale = it.discountType === 'PERCENT'
+    ? Math.round((it.price * (100 - it.discountValue)) / 100 * 1000) / 1000
+    : it.discountValue;
+  if (sale <= 0 || sale >= it.price) return null;
+  const now = Date.now();
+  const starts = it.discountStartsAt ? Date.parse(it.discountStartsAt) : null;
+  const ends = it.discountEndsAt ? Date.parse(it.discountEndsAt) : null;
+  const scheduled = starts != null && now < starts;
+  const ended = ends != null && now >= ends;
+  return { sale, active: !scheduled && !ended, scheduled, ended };
+}
+
+/** ISO instant → `YYYY-MM-DDTHH:mm` in local time for a <input type="datetime-local">. */
+const isoToLocalInput = (iso?: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+/** Local datetime-local string → ISO instant (UTC), or null when empty/invalid. */
+const localInputToIso = (local: string): string | null => {
+  if (!local) return null;
+  const d = new Date(local);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+};
+
 type CustomColorKey = 'canvas' | 'paper' | 'surface' | 'text' | 'muted' | 'accent' | 'accent2' | 'motifColor' | 'cartBg';
 
 const MENU_COLOR_FIELDS: { key: CustomColorKey; label: string }[] = [
-  { key: 'canvas', label: 'canvas' },
+  // 'canvas' (outer background) intentionally omitted: it's only visible around the phone, so on a
+  // real device it does nothing. It still backs the background gradient and tracks paper on shuffle.
   { key: 'paper', label: 'paper' },
   { key: 'surface', label: 'surface' },
   { key: 'text', label: 'text' },
@@ -219,21 +263,32 @@ export default function MenuManager() {
               </div>
               {items.length === 0 ? <div className="col-empty" style={{ marginTop: 4 }}>{t('noItems')}</div> : (
                 <div className="mitems">
-                  {items.map((it) => (
+                  {items.map((it) => {
+                    const ds = discountState(it);
+                    return (
                     <div className={'mitem' + (it.available ? '' : ' off')} key={it.id}>
                       <div className="c-thumb" style={{ ...thumb(it), width: 54, height: 54, flex: '0 0 54px', borderRadius: 12 }}>
                         {!it.imageUrl && <span className="glyph" style={{ fontSize: 20 }}>{pick(it, 'name', lang).charAt(0)}</span>}
                       </div>
                       <div className="mitem-main">
-                        <div className="mitem-name">{pick(it, 'name', lang)}</div>
+                        <div className="mitem-name">{pick(it, 'name', lang)}
+                          {ds && <span className={'mitem-disc ' + (ds.active ? 'on' : ds.scheduled ? 'sched' : 'ended')}>
+                            {ds.active ? `−${discountPercent(it.price, ds.sale)}%` : ds.scheduled ? t('discScheduled') : t('discEnded')}
+                          </span>}
+                        </div>
                         <div className="mitem-sub">{it.nameEn}{it.preparationTimeMinutes ? ` · ⏱ ${it.preparationTimeMinutes}m` : ''}</div>
                       </div>
-                      <div className="mitem-price num">{omr(it.price)} <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span></div>
+                      <div className="mitem-price num">
+                        {ds && <span className="mitem-was">{omr(it.price)}</span>}
+                        <span className={ds?.active ? 'mitem-sale' : ''}>{omr(ds ? ds.sale : it.price)}</span>
+                        {' '}<span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span>
+                      </div>
                       <button className={'switch' + (it.available ? ' on' : '')} title={t('available')} onClick={() => toggleAvail.mutate(it)}><span /></button>
                       <button className="iconbtn" title={t('editItem')} onClick={() => setItemModal(it)}>✎</button>
                       <button className="iconbtn danger" title={t('del')} onClick={() => setDeleteTarget({ type: 'item', id: it.id, name: pick(it, 'name', lang) })}>🗑</button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -324,7 +379,7 @@ export function MenuLookManager({ branchId }: { branchId?: number }) {
 
   // Premium "Pro look" tier unlocks the advanced studio (structural kits, occasion decor,
   // theme JSON). Granted per café by a platform admin; admins themselves always have it.
-  const premium = !!restaurantQ.data?.premiumLook || canUsePremiumThemes(user?.role);
+  const premium = !!restaurantQ.data?.premiumLook || canUsePremiumThemes(user);
 
   return (
     <div className="tables-wrap look-page">
@@ -588,7 +643,13 @@ function LookPanel({ draft, activeId, saving, premium, previewUrl, restaurant, c
                 <input
                   type="color"
                   value={draft[field.key]}
-                  onChange={(e) => onChange({ ...draft, [field.key]: e.target.value })}
+                  onChange={(e) => {
+                    // Picking text / secondary by hand marks it custom so it renders as chosen
+                    // (not auto-corrected). Quick mix / Reset clear the flag and restore the guard.
+                    const extra = field.key === 'text' ? { textCustom: true }
+                      : field.key === 'muted' ? { mutedCustom: true } : {};
+                    onChange({ ...draft, [field.key]: e.target.value, ...extra });
+                  }}
                 />
                 <span className="look-color-chip" style={{ background: draft[field.key] }} />
                 <span>{t(field.label)}</span>
@@ -621,12 +682,15 @@ function LookPanel({ draft, activeId, saving, premium, previewUrl, restaurant, c
   );
 }
 
-interface PreviewItemData { id: number; name: string; sub: string; desc: string; price: number; imageUrl: string | null }
+interface PreviewItemData { id: number; name: string; sub: string; desc: string; price: number; salePrice?: number | null; imageUrl: string | null }
 interface PreviewSection { id: number; name: string; sub: string; desc: string; items: PreviewItemData[] }
 
 const previewThumb = (it: PreviewItemData) => it.imageUrl
   ? { backgroundImage: `url('${it.imageUrl}')` }
   : { backgroundImage: `linear-gradient(155deg, hsl(${(Math.abs(it.id) * 47) % 360} 42% 34%) -30%, #15171C 70%)` };
+
+/** Effective preview price: the sale price when discounted, else the regular price. */
+const previewUnit = (it: PreviewItemData) => it.salePrice ?? it.price;
 
 /** A few sample dishes so brand-new cafés (empty menu) still get a styled preview.
  *  Title follows the language; the English name is the Arabic-mode sub, like the real menu. */
@@ -686,9 +750,10 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
         name: pick(c, 'name', lang),
         sub: c.nameEn ?? '',
         desc: pick(c, 'description', lang) ?? '',
-        items: (itemsByCat.get(c.id) ?? []).filter((i) => i.available).map((i) => ({
-          id: i.id, name: pick(i, 'name', lang), sub: i.nameEn ?? '', desc: pick(i, 'description', lang) ?? '', price: i.price, imageUrl: i.imageUrl ?? null,
-        })),
+        items: (itemsByCat.get(c.id) ?? []).filter((i) => i.available).map((i) => {
+          const ds = discountState(i);
+          return { id: i.id, name: pick(i, 'name', lang), sub: i.nameEn ?? '', desc: pick(i, 'description', lang) ?? '', price: i.price, salePrice: ds?.active ? ds.sale : null, imageUrl: i.imageUrl ?? null };
+        }),
       }))
       .filter((s) => s.items.length > 0);
     return real.length ? real : sampleSections(t);
@@ -704,7 +769,7 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
     .map(([id, qty]) => ({ it: itemById.get(Number(id)), qty }))
     .filter((l): l is { it: PreviewItemData; qty: number } => !!l.it && l.qty > 0);
   const count = lines.reduce((s, l) => s + l.qty, 0);
-  const subtotal = lines.reduce((s, l) => s + l.it.price * l.qty, 0);
+  const subtotal = lines.reduce((s, l) => s + previewUnit(l.it) * l.qty, 0);
   const vatEnabled = restaurant?.vatEnabled ?? false;
   const vat = estimateVat(subtotal, restaurant?.vatRate ?? 0, vatEnabled);
   const total = subtotal + vat;
@@ -736,7 +801,7 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
   }, [sections]);
   const barLines = lines.length > 0 ? lines : seedLines;
   const barCount = barLines.reduce((s, l) => s + l.qty, 0);
-  const barSubtotal = barLines.reduce((s, l) => s + l.it.price * l.qty, 0);
+  const barSubtotal = barLines.reduce((s, l) => s + previewUnit(l.it) * l.qty, 0);
   const openCart = () => {
     if (lines.length === 0) {
       const seed: Record<number, number> = {};
@@ -806,7 +871,12 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
                               {lang === 'ar' && it.sub && <div className="sub">{it.sub}</div>}
                               {it.desc && <p>{it.desc}</p>}
                               <div className="c-foot">
-                                <div className="c-price"><span className="num">{omr(it.price)}</span><span className="cur">{t('cur')}</span></div>
+                                <div className="c-price">
+                                  {it.salePrice != null && <span className="c-was num">{omr(it.price)}</span>}
+                                  <span className={'num' + (it.salePrice != null ? ' c-sale' : '')}>{omr(previewUnit(it))}</span>
+                                  <span className="cur">{t('cur')}</span>
+                                  {it.salePrice != null && <span className="c-off">−{discountPercent(it.price, it.salePrice)}%</span>}
+                                </div>
                                 {qty > 0
                                   ? <div className="c-qty">
                                       <button onClick={() => bump(it.id, 1)}>+</button>
@@ -842,7 +912,7 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
                       <div className="c-thumb" style={previewThumb(l.it)}>{!l.it.imageUrl && <span className="glyph">{l.it.name.charAt(0)}</span>}</div>
                       <div className="c-line-main">
                         <h4>{l.it.name}</h4>
-                        <div className="lp"><span className="num">{omr(l.it.price)}</span> {t('cur')}</div>
+                        <div className="lp"><span className="num">{omr(previewUnit(l.it))}</span> {t('cur')}</div>
                         <textarea className="c-notein" rows={1} placeholder={t('itemNote')} />
                       </div>
                       <div className="c-line-side">
@@ -851,7 +921,7 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
                           <span className="n num">{l.qty}</span>
                           <button onClick={() => bump(l.it.id, -1)}>−</button>
                         </div>
-                        <div className="lt"><span className="num">{omr(l.it.price * l.qty)}</span></div>
+                        <div className="lt"><span className="num">{omr(previewUnit(l.it) * l.qty)}</span></div>
                       </div>
                     </div>
                   ))}
@@ -898,7 +968,7 @@ function LivePreview({ draft, restaurant, cats, itemsByCat }:
                     {placed.lines.map((l) => (
                       <div className="c-totals" style={{ marginBottom: 0, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} key={l.it.id}>
                         <span><span className="num">{l.qty}×</span> {l.it.name}</span>
-                        <span className="num">{omr(l.it.price * l.qty)} {t('cur')}</span>
+                        <span className="num">{omr(previewUnit(l.it) * l.qty)} {t('cur')}</span>
                       </div>
                     ))}
                   </div>
@@ -1078,49 +1148,125 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
   const t = useT(DICT); const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const MAX_PHOTOS = 6;
+  const initialImages = item ? (item.images?.length ? item.images : item.imageUrl ? [item.imageUrl] : []) : [];
   const [f, setF] = useState({
     categoryId: item?.categoryId ?? defaultCat ?? cats[0]?.id,
     nameAr: item?.nameAr ?? '', nameEn: item?.nameEn ?? '',
     descriptionAr: item?.descriptionAr ?? '', descriptionEn: item?.descriptionEn ?? '',
     price: item ? String(item.price) : '', preparationTimeMinutes: item?.preparationTimeMinutes ?? '',
-    imageUrl: item?.imageUrl ?? '', available: item?.available ?? true,
+    images: initialImages as string[], available: item?.available ?? true,
+    discountType: (item?.discountType ?? '') as '' | 'PERCENT' | 'FIXED',
+    discountValue: item?.discountValue != null ? String(item.discountValue) : '',
+    discountStart: isoToLocalInput(item?.discountStartsAt),
+    discountEnd: isoToLocalInput(item?.discountEndsAt),
   });
   const set = (k: string, v: any) => setF((p) => ({ ...p, [k]: v }));
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file) return;
+    const files = Array.from(e.target.files ?? []); if (!files.length) return;
+    const room = MAX_PHOTOS - f.images.length;
     setUploading(true);
-    try { const { url } = await upload('/api/uploads/menu-items', file); set('imageUrl', url); }
+    try {
+      const urls: string[] = [];
+      for (const file of files.slice(0, room)) {
+        const { url } = await upload('/api/uploads/menu-items', file);
+        urls.push(url);
+      }
+      setF((p) => ({ ...p, images: [...p.images, ...urls].slice(0, MAX_PHOTOS) }));
+    }
     catch (err) { toast(err instanceof ApiError ? err.message : 'Upload failed'); }
-    finally { setUploading(false); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
   }
+
+  const removeImageAt = (idx: number) => setF((p) => ({ ...p, images: p.images.filter((_, i) => i !== idx) }));
+  const makeCover = (idx: number) => setF((p) => (idx === 0 ? p : { ...p, images: [p.images[idx], ...p.images.filter((_, i) => i !== idx)] }));
+
+  // Options the customer picks (e.g. Small/Large, milk type). No group name — they're just
+  // "Options". Backend models them as one group, so we wrap them under an auto-named group on
+  // save. Editing is a full replace; historical orders snapshot their options as JSON, so the
+  // rebuilt option ids don't affect past orders. (Legacy items with several groups show the first.)
+  type OptRow = { nameAr: string; nameEn: string; priceDelta: string };
+  const seedGroup = item?.optionGroups?.[0];
+  const [opts, setOpts] = useState<OptRow[]>(
+    (seedGroup?.options ?? []).map((o) => ({ nameAr: o.nameAr, nameEn: o.nameEn, priceDelta: o.priceDelta ? String(o.priceDelta) : '' })),
+  );
+  const [optType, setOptType] = useState<'SINGLE' | 'MULTI'>(seedGroup?.selectionType === 'MULTI' ? 'MULTI' : 'SINGLE');
+  const [optReq, setOptReq] = useState<boolean>(seedGroup?.required ?? false);
+  const patchOption = (oi: number, patch: Partial<OptRow>) => setOpts((p) => p.map((o, j) => (j === oi ? { ...o, ...patch } : o)));
+  const addOption = () => setOpts((p) => [...p, { nameAr: '', nameEn: '', priceDelta: '' }]);
+  const removeOption = (oi: number) => setOpts((p) => p.filter((_, j) => j !== oi));
 
   const save = useMutation({
     mutationFn: () => {
+      const hadImage = Boolean(item?.imageUrl || item?.images?.length);
       const body: any = {
         categoryId: f.categoryId, nameAr: f.nameAr, nameEn: f.nameEn,
         descriptionAr: f.descriptionAr || null, descriptionEn: f.descriptionEn || null,
-        price: Number(f.price), imageUrl: f.imageUrl || null,
+        price: Number(f.price),
+        // Discount: null type clears it; otherwise send value + optional window (as ISO instants).
+        discountType: f.discountType || null,
+        discountValue: f.discountType ? Number(f.discountValue) : null,
+        discountStartsAt: f.discountType ? localInputToIso(f.discountStart) : null,
+        discountEndsAt: f.discountType ? localInputToIso(f.discountEnd) : null,
+        imageUrl: f.images[0] ?? null,
+        imageUrls: f.images,
         preparationTimeMinutes: f.preparationTimeMinutes ? Number(f.preparationTimeMinutes) : null,
         available: f.available,
+        optionGroups: (() => {
+          const clean = opts.filter((o) => o.nameAr.trim() && o.nameEn.trim());
+          if (!clean.length) return [];
+          return [{
+            nameAr: 'خيارات', nameEn: 'Options', selectionType: optType, required: optReq, displayOrder: 0,
+            options: clean.map((o, oi) => ({
+              nameAr: o.nameAr.trim(), nameEn: o.nameEn.trim(),
+              priceDelta: o.priceDelta ? Number(o.priceDelta) : 0, displayOrder: oi,
+            })),
+          }];
+        })(),
       };
+      if (item) body.removeImage = hadImage && f.images.length === 0;
       return item ? api.patch(`/api/menu/items/${item.id}`, body) : api.post('/api/menu/items', { restaurantId: rid, ...body });
     },
     onSuccess: onDone, onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  const valid = f.nameAr && f.nameEn && Number(f.price) > 0 && f.categoryId;
+  // Live discounted price + validity, mirroring the server's rules (percent < 100, sale < price,
+  // end after start). Drives the inline "Now" preview and gates the Save button.
+  const priceNum = Number(f.price);
+  const discValNum = Number(f.discountValue);
+  const discountSale = f.discountType === 'PERCENT'
+    ? (priceNum > 0 && discValNum > 0 && discValNum < 100 ? Math.round((priceNum * (100 - discValNum)) / 100 * 1000) / 1000 : null)
+    : f.discountType === 'FIXED'
+      ? (discValNum > 0 && discValNum < priceNum ? discValNum : null)
+      : null;
+  const windowValid = !f.discountStart || !f.discountEnd || new Date(f.discountEnd) > new Date(f.discountStart);
+  const discountValid = !f.discountType || (discountSale != null && windowValid);
+  const valid = f.nameAr && f.nameEn && Number(f.price) > 0 && f.categoryId && discountValid;
 
   return (
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-card">
+      <div className="modal-card item-modal">
         <h3>{item ? t('editItem') : t('newItem')}</h3>
         <div className="itemedit">
-          <div className="imgpick" style={f.imageUrl ? { backgroundImage: `url('${f.imageUrl}')` } : {}} onClick={() => fileRef.current?.click()}>
-            {!f.imageUrl && <span>{uploading ? t('uploading') : '＋ ' + t('image')}</span>}
-            {uploading && f.imageUrl && <span className="imgpick-load">{t('uploading')}</span>}
+          <div className="imgedit">
+            <div className="imggrid">
+              {f.images.map((url, i) => (
+                <div className="imgthumb" key={url + i} style={{ backgroundImage: `url('${url}')` }}>
+                  {i === 0 && <span className="imgthumb-cover">{t('cover')}</span>}
+                  <button type="button" className="imgthumb-x" title={t('removeImg')} disabled={uploading} onClick={() => removeImageAt(i)}>✕</button>
+                  {i !== 0 && <button type="button" className="imgthumb-star" title={t('cover')} disabled={uploading} onClick={() => makeCover(i)}>☆</button>}
+                </div>
+              ))}
+              {f.images.length < MAX_PHOTOS && (
+                <button type="button" className="imgpick" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                  <span>{uploading ? t('uploading') : '＋ ' + t('addPhoto')}</span>
+                </button>
+              )}
+            </div>
+            <div className="imghint">{t('photosHint')}</div>
           </div>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+          <input ref={fileRef} type="file" accept="image/*" hidden multiple onChange={onFile} />
           <div style={{ flex: 1 }}>
             <div className="field"><label>{t('category')}</label>
               <select value={f.categoryId} onChange={(e) => set('categoryId', Number(e.target.value))}>
@@ -1137,9 +1283,67 @@ function ItemEditor({ rid, cats, item, defaultCat, onClose, onDone }:
           <div className="field"><label>{t('price')} ({t('cur')})</label><input className="num" type="number" step="0.001" value={f.price} onChange={(e) => set('price', e.target.value)} /></div>
           <div className="field"><label>{t('prep')}</label><input className="num" type="number" value={f.preparationTimeMinutes} onChange={(e) => set('preparationTimeMinutes', e.target.value)} /></div>
         </div>
+
+        <div className="field discedit">
+          <label>{t('discount')}</label>
+          <div className="optseg discseg">
+            <button type="button" className={!f.discountType ? 'on' : ''} onClick={() => set('discountType', '')}>{t('discNone')}</button>
+            <button type="button" className={f.discountType === 'PERCENT' ? 'on' : ''} onClick={() => set('discountType', 'PERCENT')}>{t('discPercent')}</button>
+            <button type="button" className={f.discountType === 'FIXED' ? 'on' : ''} onClick={() => set('discountType', 'FIXED')}>{t('discFixed')}</button>
+          </div>
+          {f.discountType && (
+            <>
+              <div className="row2" style={{ marginTop: 10 }}>
+                <div className="field">
+                  <label>{f.discountType === 'PERCENT' ? t('discPercentVal') : t('discNewPrice')}</label>
+                  <input className="num" type="number" step={f.discountType === 'PERCENT' ? '1' : '0.001'} min="0"
+                    value={f.discountValue} onChange={(e) => set('discountValue', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>{t('discResult')}</label>
+                  <div className="disc-now num">
+                    {discountSale != null
+                      ? <>{omr(discountSale)} {t('cur')}{f.discountType === 'PERCENT' && discountSale < priceNum && <span className="mitem-disc on">−{discountPercent(priceNum, discountSale)}%</span>}</>
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+              <div className="row2">
+                <div className="field"><label>{t('discStarts')}</label><input type="datetime-local" value={f.discountStart} onChange={(e) => set('discountStart', e.target.value)} /></div>
+                <div className="field"><label>{t('discEnds')}</label><input type="datetime-local" value={f.discountEnd} onChange={(e) => set('discountEnd', e.target.value)} /></div>
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="field"><label>{t('descAr')}</label><input value={f.descriptionAr} onChange={(e) => set('descriptionAr', e.target.value)} /></div>
         <div className="field"><label>{t('descEn')}</label><input value={f.descriptionEn} onChange={(e) => set('descriptionEn', e.target.value)} /></div>
         <label className="checkrow"><input type="checkbox" checked={f.available} onChange={(e) => set('available', e.target.checked)} /> {t('available')}</label>
+
+        <div className="optedit">
+          <div className="optedit-hd">
+            <div><b>{t('options')}</b><span className="optedit-hint">{t('optionsHint')}</span></div>
+          </div>
+          {opts.length > 0 && (
+            <div className="optgroup-ctl">
+              <div className="optseg">
+                <button type="button" className={optType === 'SINGLE' ? 'on' : ''} onClick={() => setOptType('SINGLE')}>{t('single')}</button>
+                <button type="button" className={optType === 'MULTI' ? 'on' : ''} onClick={() => setOptType('MULTI')}>{t('multi')}</button>
+              </div>
+              <label className="checkrow sm"><input type="checkbox" checked={optReq} onChange={(e) => setOptReq(e.target.checked)} /> {t('requiredOpt')}</label>
+            </div>
+          )}
+          {opts.map((o, oi) => (
+            <div className="optrow" key={oi}>
+              <input placeholder={t('optNameAr')} value={o.nameAr} onChange={(e) => patchOption(oi, { nameAr: e.target.value })} />
+              <input placeholder={t('optNameEn')} value={o.nameEn} onChange={(e) => patchOption(oi, { nameEn: e.target.value })} />
+              <input className="num optdelta" type="number" step="0.001" placeholder={t('priceDelta')} value={o.priceDelta} onChange={(e) => patchOption(oi, { priceDelta: e.target.value })} />
+              <button type="button" className="optx" title={t('del')} onClick={() => removeOption(oi)}>✕</button>
+            </div>
+          ))}
+          <button type="button" className="btn sm ghost optadd" onClick={addOption}>{t('addOption')}</button>
+        </div>
+
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
           <button className="btn" disabled={!valid || save.isPending || uploading} onClick={() => save.mutate()}>{t('save')}</button>

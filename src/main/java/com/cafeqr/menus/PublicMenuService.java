@@ -19,6 +19,7 @@ import com.cafeqr.tables.domain.RestaurantTable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -82,12 +83,14 @@ public class PublicMenuService {
         Map<Long, List<MenuItem>> itemsByCategory = items.stream()
                 .collect(Collectors.groupingBy(MenuItem::getCategoryId));
 
+        // Evaluate every item's discount window against one timestamp so the whole menu is consistent.
+        Instant now = Instant.now();
         List<PublicCategory> publicCategories = categories.stream()
                 .map(category -> {
                     List<PublicItem> publicItems = itemsByCategory
                             .getOrDefault(category.getId(), List.of())
                             .stream()
-                            .map(PublicItem::from)
+                            .map(item -> PublicItem.from(item, now))
                             .toList();
                     return PublicCategory.of(category, publicItems);
                 })

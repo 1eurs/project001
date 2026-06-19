@@ -7,8 +7,13 @@ import com.cafeqr.branches.BranchService;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
+import com.cafeqr.menus.domain.DiscountType;
 import com.cafeqr.menus.domain.MenuCategory;
 import com.cafeqr.menus.domain.MenuItem;
+import com.cafeqr.menus.domain.MenuItemImage;
+import com.cafeqr.menus.domain.MenuItemOption;
+import com.cafeqr.menus.domain.MenuItemOptionGroup;
+import com.cafeqr.menus.domain.OptionSelectionType;
 import com.cafeqr.menus.dto.CategoryResponse;
 import com.cafeqr.menus.dto.CreateCategoryRequest;
 import com.cafeqr.menus.dto.CreateMenuItemRequest;
@@ -20,6 +25,9 @@ import com.cafeqr.menus.repository.MenuItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Menu management (dashboard) plus the order-time item validation helper. */
@@ -131,10 +139,14 @@ public class MenuService {
         item.setDescriptionEn(request.descriptionEn());
         item.setDescriptionAr(request.descriptionAr());
         item.setPrice(request.price());
+        applyDiscount(item, request.discountType(), request.discountValue(),
+                request.discountStartsAt(), request.discountEndsAt());
         item.setImageUrl(request.imageUrl());
         item.setAvailable(request.available() == null || request.available());
         item.setPreparationTimeMinutes(request.preparationTimeMinutes());
         item.setDisplayOrder(request.displayOrder() != null ? request.displayOrder() : 0);
+        applyImages(item, request.imageUrls(), request.imageUrl());
+        applyOptionGroups(item, request.optionGroups());
         return MenuItemResponse.from(itemRepository.save(item));
     }
 
@@ -188,8 +200,23 @@ public class MenuService {
         if (request.price() != null) {
             item.setPrice(request.price());
         }
-        if (request.imageUrl() != null) {
+        // Discount is always (re)applied on update — the editor always sends the fields, so a
+        // null/"NONE" type clears any existing discount. Runs after price so FIXED is validated
+        // against the final price.
+        applyDiscount(item, request.discountType(), request.discountValue(),
+                request.discountStartsAt(), request.discountEndsAt());
+        if (Boolean.TRUE.equals(request.removeImage())) {
+            item.setImageUrl(null);
+        } else if (request.imageUrl() != null) {
             item.setImageUrl(request.imageUrl());
+        }
+        // Gallery replace: a non-null imageUrls list overrides the set (empty list = clear).
+        // When orchestrating via the gallery, also override imageUrl with the first entry.
+        if (request.imageUrls() != null) {
+            applyImages(item, request.imageUrls(), Boolean.TRUE.equals(request.removeImage()) ? null : request.imageUrl());
+        }
+        if (request.optionGroups() != null) {
+            applyOptionGroups(item, request.optionGroups());
         }
         if (request.available() != null) {
             item.setAvailable(request.available());
@@ -276,5 +303,123 @@ public class MenuService {
             branchService.getEntityInRestaurant(restaurantId, requestedBranchId);
         }
         return requestedBranchId;
+    }
+
+    // ------------------------------------------------------------- gallery + options
+
+    /**
+     * Replaces the item's photo gallery. {@code explicitImageUrl} (from the legacy
+     * single-image field) wins over the gallery's first entry when both are sent, so
+     * existing dashboard flows that only set imageUrl keep working. Otherwise the first
+     * gallery photo becomes the grid thumbnail stored in menu_items.image_url.
+     */
+    private void applyImages(MenuItem item, List<String> imageUrls, String explicitImageUrl) {
+        item.getImages().clear();
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            // No gallery sent: keep the explicit single imageUrl if provided, else leave as-is.
+            if (explicitImageUrl != null) {
+                item.setImageUrl(explicitImageUrl.isBlank() ? null : explicitImageUrl.trim());
+            }
+            return;
+        }
+        int order = 0;
+        for (String url : imageUrls) {
+            if (url == null || url.isBlank()) continue;
+            MenuItemImage img = new MenuItemImage();
+            img.setMenuItem(item);
+            img.setUrl(url.trim());
+            img.setDisplayOrder(order++);
+            item.getImages().add(img);
+        }
+        if (explicitImageUrl != null && !explicitImageUrl.isBlank()) {
+            item.setImageUrl(explicitImageUrl.trim());
+        } else if (!item.getImages().isEmpty()) {
+            item.setImageUrl(item.getImages().get(0).getUrl());
+        }
+    }
+
+    /**
+     * Validates and applies a discount to an item. A null/blank/"NONE" type clears the discount.
+     * PERCENT must be in (0,100); FIXED (a sale price) must be in (0, item price). When both
+     * dates are given, the end must be after the start. Validates against the item's current
+     * price, so callers must set the final price first.
+     */
+    private void applyDiscount(MenuItem item, String type, BigDecimal value, Instant startsAt, Instant endsAt) {
+        if (type == null || type.isBlank() || "NONE".equalsIgnoreCase(type.trim())) {
+            item.setDiscountType(null);
+            item.setDiscountValue(null);
+            item.setDiscountStartsAt(null);
+            item.setDiscountEndsAt(null);
+            return;
+        }
+        DiscountType discountType;
+        try {
+            discountType = DiscountType.valueOf(type.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                    "Discount type must be PERCENT or FIXED.");
+        }
+        if (value == null || value.signum() <= 0) {
+            throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                    "A discount needs a value greater than zero.");
+        }
+        if (discountType == DiscountType.PERCENT) {
+            if (value.compareTo(BigDecimal.valueOf(100)) >= 0) {
+                throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                        "Percent discount must be less than 100.");
+            }
+        } else { // FIXED sale price
+            if (item.getPrice() != null && value.compareTo(item.getPrice()) >= 0) {
+                throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                        "Sale price must be lower than the regular price.");
+            }
+        }
+        if (startsAt != null && endsAt != null && !endsAt.isAfter(startsAt)) {
+            throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                    "Discount end must be after its start.");
+        }
+        item.setDiscountType(discountType);
+        item.setDiscountValue(value);
+        item.setDiscountStartsAt(startsAt);
+        item.setDiscountEndsAt(endsAt);
+    }
+
+    /** Full replace of an item's option groups (cascade + orphanRemoval handle the diff). */
+    private void applyOptionGroups(MenuItem item, List<CreateMenuItemRequest.OptionGroupInput> groups) {
+        item.getOptionGroups().clear();
+        if (groups == null) return;
+        int groupOrder = 0;
+        for (CreateMenuItemRequest.OptionGroupInput g : groups) {
+            OptionSelectionType type = parseSelectionType(g.selectionType());
+            MenuItemOptionGroup group = new MenuItemOptionGroup();
+            group.setMenuItem(item);
+            group.setNameEn(g.nameEn());
+            group.setNameAr(g.nameAr());
+            group.setSelectionType(type);
+            group.setRequired(Boolean.TRUE.equals(g.required()));
+            group.setDisplayOrder(g.displayOrder() != null ? g.displayOrder() : groupOrder);
+            int optOrder = 0;
+            for (CreateMenuItemRequest.OptionInput o : g.options() == null ? List.<CreateMenuItemRequest.OptionInput>of() : g.options()) {
+                MenuItemOption opt = new MenuItemOption();
+                opt.setOptionGroup(group);
+                opt.setNameEn(o.nameEn());
+                opt.setNameAr(o.nameAr());
+                opt.setPriceDelta(o.priceDelta() != null ? o.priceDelta() : BigDecimal.ZERO);
+                opt.setDisplayOrder(o.displayOrder() != null ? o.displayOrder() : optOrder);
+                group.getOptions().add(opt);
+                optOrder++;
+            }
+            item.getOptionGroups().add(group);
+            groupOrder++;
+        }
+    }
+
+    private OptionSelectionType parseSelectionType(String raw) {
+        if (raw == null) throw new BadRequestException("selectionType is required for option groups");
+        try {
+            return OptionSelectionType.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("selectionType must be SINGLE or MULTI, got: " + raw);
+        }
     }
 }

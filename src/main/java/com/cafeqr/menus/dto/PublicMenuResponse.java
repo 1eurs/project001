@@ -3,10 +3,14 @@ package com.cafeqr.menus.dto;
 import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.menus.domain.MenuCategory;
 import com.cafeqr.menus.domain.MenuItem;
+import com.cafeqr.menus.domain.MenuItemImage;
+import com.cafeqr.menus.domain.MenuItemOption;
+import com.cafeqr.menus.domain.MenuItemOptionGroup;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.tables.domain.RestaurantTable;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 /** Bilingual public menu payload served to customers after scanning a QR code. */
@@ -87,15 +91,51 @@ public record PublicMenuResponse(
             String descriptionEn,
             String descriptionAr,
             BigDecimal price,
+            /** Discounted base price when a discount is currently active; null otherwise. */
+            BigDecimal salePrice,
             String imageUrl,
+            List<String> images,
             boolean available,
             Integer preparationTimeMinutes,
+            int displayOrder,
+            List<PublicOptionGroup> optionGroups
+    ) {
+        public static PublicItem from(MenuItem i, Instant now) {
+            BigDecimal salePrice = i.discountActive(now) ? i.effectivePrice(now) : null;
+            return new PublicItem(i.getId(), i.getNameEn(), i.getNameAr(),
+                    i.getDescriptionEn(), i.getDescriptionAr(), i.getPrice(), salePrice, i.getImageUrl(),
+                    i.getImages().stream().map(MenuItemImage::getUrl).toList(),
+                    i.isAvailable(), i.getPreparationTimeMinutes(), i.getDisplayOrder(),
+                    i.getOptionGroups().stream().map(PublicOptionGroup::from).toList());
+        }
+    }
+
+    public record PublicOptionGroup(
+            Long id,
+            String nameEn,
+            String nameAr,
+            String selectionType,
+            boolean required,
+            int displayOrder,
+            List<PublicOption> options
+    ) {
+        public static PublicOptionGroup from(MenuItemOptionGroup g) {
+            return new PublicOptionGroup(g.getId(), g.getNameEn(), g.getNameAr(),
+                    g.getSelectionType().name(), g.isRequired(), g.getDisplayOrder(),
+                    g.getOptions().stream().map(PublicOption::from).toList());
+        }
+    }
+
+    public record PublicOption(
+            Long id,
+            String nameEn,
+            String nameAr,
+            BigDecimal priceDelta,
             int displayOrder
     ) {
-        public static PublicItem from(MenuItem i) {
-            return new PublicItem(i.getId(), i.getNameEn(), i.getNameAr(),
-                    i.getDescriptionEn(), i.getDescriptionAr(), i.getPrice(), i.getImageUrl(),
-                    i.isAvailable(), i.getPreparationTimeMinutes(), i.getDisplayOrder());
+        public static PublicOption from(MenuItemOption o) {
+            return new PublicOption(o.getId(), o.getNameEn(), o.getNameAr(),
+                    o.getPriceDelta(), o.getDisplayOrder());
         }
     }
 }

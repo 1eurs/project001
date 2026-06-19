@@ -27,7 +27,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/menu")
 @Tag(name = "Menu management")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAuthority('MENU')")
 public class MenuController {
 
     private final MenuService menuService;

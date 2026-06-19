@@ -15,7 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/uploads")
 @Tag(name = "Uploads")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAnyAuthority('MENU','PROFILE')")
 public class UploadController {
 
     private final StorageService storageService;

@@ -2,8 +2,10 @@
 
 export type Lang = 'ar' | 'en';
 
-export type Role = 'PLATFORM_ADMIN' | 'RESTAURANT_OWNER' | 'BRANCH_MANAGER' | 'STAFF' | 'KITCHEN_STAFF';
-export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'CAR';
+export type Permission =
+  | 'PLATFORM_ADMIN' | 'ORDERS' | 'PAYMENTS' | 'MENU'
+  | 'QR_TABLES' | 'TEAM' | 'ANALYTICS' | 'PROFILE' | 'BRANCHES' | 'BILLING';
+export type OrderType = 'DINE_IN' | 'CAR';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type PaymentMethod = 'CASH' | 'CARD' | 'ONLINE' | 'OTHER';
@@ -20,11 +22,14 @@ export interface ApiEnvelope<T> {
 export interface UserResponse {
   id: number;
   fullName: string;
-  email: string;
+  username: string;
+  email?: string | null;
   phone?: string | null;
-  role: Role;
+  permissions: Permission[];
+  owner: boolean;
   restaurantId?: number | null;
   branchId?: number | null;
+  active: boolean;
 }
 export interface AuthResponse {
   accessToken: string;
@@ -43,9 +48,18 @@ export interface PublicRestaurant {
 }
 export interface PublicBranch { id: number; name: string; address?: string | null; phone?: string | null; openingHours?: string | null; }
 export interface PublicTable { id: number; tableNumber: string; qrCodeToken: string; }
+export interface PublicOption {
+  id: number; nameEn: string; nameAr: string; priceDelta: number; displayOrder: number;
+}
+export interface PublicOptionGroup {
+  id: number; nameEn: string; nameAr: string; selectionType: 'SINGLE' | 'MULTI';
+  required: boolean; displayOrder: number; options: PublicOption[];
+}
 export interface PublicItem {
   id: number; nameEn: string; nameAr: string; descriptionEn?: string | null; descriptionAr?: string | null;
-  price: number; imageUrl?: string | null; available: boolean; preparationTimeMinutes?: number | null; displayOrder: number;
+  price: number; salePrice?: number | null; // discounted base price when a discount is currently active
+  imageUrl?: string | null; images?: string[] | null; available: boolean;
+  preparationTimeMinutes?: number | null; displayOrder: number; optionGroups?: PublicOptionGroup[];
 }
 export interface PublicCategory {
   id: number; nameEn: string; nameAr: string; descriptionEn?: string | null; descriptionAr?: string | null;
@@ -97,17 +111,38 @@ export interface CategoryResponse {
   id: number; restaurantId: number; branchId?: number | null; nameEn: string; nameAr: string;
   descriptionEn?: string | null; descriptionAr?: string | null; displayOrder: number; active: boolean;
 }
+export interface MenuItemOptionRow { id?: number; nameEn: string; nameAr: string; priceDelta: number; displayOrder: number; }
+export interface MenuItemOptionGroupRow {
+  id?: number; nameEn: string; nameAr: string; selectionType: 'SINGLE' | 'MULTI'; required: boolean;
+  displayOrder: number; options: MenuItemOptionRow[];
+}
+export type DiscountType = 'PERCENT' | 'FIXED';
 export interface MenuItemResponse {
   id: number; restaurantId: number; branchId?: number | null; categoryId: number; nameEn: string; nameAr: string;
   descriptionEn?: string | null; descriptionAr?: string | null; price: number; imageUrl?: string | null;
-  available: boolean; preparationTimeMinutes?: number | null; displayOrder: number;
+  // Optional discount: PERCENT (value = % off) or FIXED (value = sale price); window optional.
+  discountType?: DiscountType | null; discountValue?: number | null;
+  discountStartsAt?: string | null; discountEndsAt?: string | null;
+  images?: string[] | null; available: boolean; preparationTimeMinutes?: number | null; displayOrder: number;
+  optionGroups?: MenuItemOptionGroupRow[] | null;
 }
 
-export interface CreateOrderItem { menuItemId: number; quantity: number; note?: string | null; }
+export interface SelectedOption { optionGroupId: number; optionId: number; }
+export interface CreateOrderItem {
+  menuItemId: number; quantity: number; note?: string | null;
+  selectedOptions?: SelectedOption[] | null;
+}
 export interface CreateOrderPayload {
   restaurantSlug: string; branchId: number; tableToken?: string | null; orderType: OrderType;
   customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
-  deviceToken?: string | null; items: CreateOrderItem[];
+  deviceToken?: string | null; phoneToken?: string | null; items: CreateOrderItem[];
+}
+// Manual order taken by staff from the dashboard order pad — mirrors CreateStaffOrderRequest.java.
+export interface CreateStaffOrderPayload {
+  branchId: number; orderType: OrderType; tableId?: number | null;
+  customerName?: string | null; customerPhone?: string | null;
+  carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
+  items: CreateOrderItem[];
 }
 
 /* ---- returning customer (public) ---- */
@@ -129,9 +164,17 @@ export interface AdminRestaurantStats {
 export interface BlockedPhone { id: number; phone: string; reason?: string | null; blockedBy?: string | null; createdAt: string; }
 
 /* ---- admin ---- */
+export type Plan = 'STANDARD' | 'PRO' | 'ENTERPRISE';
+
+/** Pricing for one café tier (admin Plans page). monthlyPrice null = "custom". */
+export interface PricingPlan {
+  id: number; tier: Plan; name: string; monthlyPrice: number | null; setupFee: number;
+  active: boolean; displayOrder: number; createdAt?: string; updatedAt?: string;
+}
 export interface Restaurant {
   id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null; email?: string | null; instagramUrl?: string | null;
-  currency: string; vatEnabled: boolean; vatRate: number; theme?: string | null; themeCustomJson?: string | null; active: boolean; premiumLook?: boolean; createdAt?: string;
+  currency: string; vatEnabled: boolean; vatRate: number; theme?: string | null; themeCustomJson?: string | null;
+  active: boolean; premiumLook?: boolean; plan?: Plan; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
 export interface Subscription {
@@ -152,15 +195,8 @@ export interface QrActivity {
   todayByKey: Record<string, QrDayStat>;    // keyed by table id (string) / "car"
 }
 
-/* ---- self-serve onboarding ---- */
-// Bank-transfer instructions returned after a public signup (POST /api/public/onboarding).
-export interface OnboardingInstructions {
-  slug: string; reference: string; amount: number; currency: string;
-  bankName: string; accountName: string; accountNumber: string; iban: string;
-}
-// A café awaiting payment confirmation, in the admin queue (GET /api/admin/onboarding).
-export interface PendingOnboarding {
-  restaurantId: number; cafeName: string; slug: string;
-  ownerName?: string | null; ownerEmail?: string | null; phone?: string | null;
-  amount: number; reference: string; createdAt: string;
+/* ---- branch management (admin drawer) ---- */
+export interface BranchResponse {
+  id: number; restaurantId: number; name: string; address?: string | null; phone?: string | null;
+  openingHours?: string | null; active: boolean; createdAt?: string;
 }
