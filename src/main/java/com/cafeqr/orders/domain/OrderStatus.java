@@ -13,9 +13,12 @@ public enum OrderStatus {
     COMPLETED,
     CANCELLED;
 
+    // ACCEPTED is the single "in progress" step (PREPARING merged in); DECLINED is merged into
+    // CANCELLED. Both legacy values are kept for old rows but no longer produced — PREPARING can
+    // still advance so any pre-merge in-progress ticket isn't stranded.
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED = Map.of(
-            PENDING, EnumSet.of(ACCEPTED, DECLINED, CANCELLED),
-            ACCEPTED, EnumSet.of(PREPARING, CANCELLED),
+            PENDING, EnumSet.of(ACCEPTED, CANCELLED),
+            ACCEPTED, EnumSet.of(READY, CANCELLED),
             PREPARING, EnumSet.of(READY, CANCELLED),
             READY, EnumSet.of(COMPLETED),
             DECLINED, EnumSet.noneOf(OrderStatus.class),

@@ -10,6 +10,7 @@ import com.cafeqr.common.util.Phones;
 import com.cafeqr.common.util.Tokens;
 import com.cafeqr.customers.CustomerService;
 import com.cafeqr.menus.MenuService;
+import com.cafeqr.otp.OtpService;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderItem;
@@ -17,17 +18,22 @@ import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.domain.OrderType;
 import com.cafeqr.orders.dto.AcceptOrderRequest;
 import com.cafeqr.orders.dto.CreateOrderRequest;
+import com.cafeqr.orders.dto.CreateStaffOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderSummaryResponse;
 import com.cafeqr.orders.dto.OrderTrackingResponse;
 import com.cafeqr.orders.realtime.OrderEvent;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
+import com.cafeqr.analytics.EventLogService;
+import com.cafeqr.menus.domain.MenuItemOption;
+import com.cafeqr.menus.domain.MenuItemOptionGroup;
 import com.cafeqr.notifications.NotificationPayload;
 import com.cafeqr.notifications.NotificationService;
 import com.cafeqr.notifications.NotificationType;
 import com.cafeqr.presence.event.PresenceChangedEvent;
 import org.springframework.context.ApplicationEventPublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.tables.domain.RestaurantTable;
@@ -63,6 +69,9 @@ public class OrderService {
     private final OrderStreamService streamService;
     private final ApplicationEventPublisher events;
     private final CustomerService customerService;
+    private final OtpService otpService;
+    private final EventLogService eventLogService;
+    private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
                         RestaurantService restaurantService,
@@ -73,7 +82,10 @@ public class OrderService {
                         NotificationService notificationService,
                         OrderStreamService streamService,
                         ApplicationEventPublisher events,
-                        CustomerService customerService) {
+                        CustomerService customerService,
+                        OtpService otpService,
+                        EventLogService eventLogService,
+                        ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
         this.branchService = branchService;
@@ -84,6 +96,9 @@ public class OrderService {
         this.streamService = streamService;
         this.events = events;
         this.customerService = customerService;
+        this.otpService = otpService;
+        this.eventLogService = eventLogService;
+        this.objectMapper = objectMapper;
     }
 
     // ============================================================ customer (public)
@@ -96,10 +111,27 @@ public class OrderService {
 
         Long tableId = resolveTable(restaurant, branch, request);
 
+        if (request.orderType() == OrderType.CAR) {
+            if (request.customerName() == null || request.customerName().isBlank()) {
+                throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                        "Name is required for car orders.");
+            }
+        }
+        if (request.customerPhone() == null || request.customerPhone().isBlank()) {
+            throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                    "Phone is required.");
+        }
+
         String customerPhone = Phones.normalize(request.customerPhone());
         if (customerService.isBlocked(restaurant.getId(), customerPhone)) {
             throw new BadRequestException(ErrorCode.PHONE_BLOCKED,
                     "Ordering from this phone number is not accepted. Please contact the cafe.");
+        }
+        // OTP disabled — validate token only when one is present (re-enable once provider is set up)
+        if (request.phoneToken() != null && !request.phoneToken().isBlank()
+                && !otpService.isPhoneTokenValid(customerPhone, request.phoneToken())) {
+            throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                    "Phone verification required. Please verify your number via WhatsApp.");
         }
 
         Order order = new Order();
@@ -114,25 +146,7 @@ public class OrderService {
         order.setOrderType(request.orderType());
         order.setStatus(OrderStatus.PENDING);
 
-        BigDecimal subtotal = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
-        for (CreateOrderRequest.Item line : request.items()) {
-            MenuItem menuItem = menuService.getOrderableItem(restaurant.getId(), branch.getId(), line.menuItemId());
-            BigDecimal lineTotal = menuItem.getPrice()
-                    .multiply(BigDecimal.valueOf(line.quantity()))
-                    .setScale(MONEY_SCALE, RoundingMode.HALF_UP);
-
-            OrderItem orderItem = new OrderItem();
-            orderItem.setMenuItemId(menuItem.getId());
-            orderItem.setNameEnSnapshot(menuItem.getNameEn());
-            orderItem.setNameArSnapshot(menuItem.getNameAr());
-            orderItem.setPriceSnapshot(menuItem.getPrice());
-            orderItem.setQuantity(line.quantity());
-            orderItem.setNote(line.note());
-            orderItem.setLineTotal(lineTotal);
-            order.addItem(orderItem);
-
-            subtotal = subtotal.add(lineTotal);
-        }
+        BigDecimal subtotal = addItems(order, restaurant, branch, request.items());
 
         BigDecimal vatAmount = computeVat(restaurant, subtotal);
         order.setSubtotal(subtotal);
@@ -146,8 +160,71 @@ public class OrderService {
 
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New order " + saved.getOrderNumber() + " received");
+        eventLogService.recordOrderEvent(saved, OrderStatus.PENDING, null);
         events.publishEvent(new PresenceChangedEvent(saved.getBranchId())); // bump live QR activity
         return OrderTrackingResponse.from(saved);
+    }
+
+    /**
+     * Manual order taken by staff from the dashboard order pad. Skips the customer
+     * verification path entirely — no OTP, no phone requirement, no blocklist — since the
+     * acting staff member is trusted (and recorded on the order event log). The order lands
+     * straight in the kitchen queue as ACCEPTED rather than waiting on a PENDING accept.
+     */
+    @Transactional
+    public OrderResponse createStaffOrder(CreateStaffOrderRequest request) {
+        Long restaurantId = accessGuard.scopedRestaurantId();
+        if (restaurantId == null) {
+            throw new BadRequestException("Only café staff can take manual orders.");
+        }
+        Restaurant restaurant = restaurantService.getEntity(restaurantId);
+        Branch branch = branchService.getEntityInRestaurant(restaurantId, request.branchId());
+        accessGuard.requireBranchAccess(restaurantId, branch.getId());
+        branchService.requireActive(branch);
+
+        Order order = new Order();
+        order.setRestaurantId(restaurantId);
+        order.setBranchId(branch.getId());
+        order.setOrderType(request.orderType());
+
+        if (request.orderType() == OrderType.DINE_IN && request.tableId() != null) {
+            RestaurantTable table = tableService.getEntity(request.tableId());
+            if (!table.getBranchId().equals(branch.getId()) || !table.getRestaurantId().equals(restaurantId)) {
+                throw new BadRequestException(ErrorCode.TABLE_INVALID, "Table does not belong to this branch");
+            }
+            order.setTableId(table.getId());
+        }
+        if (request.orderType() == OrderType.CAR) {
+            if (request.carPlate() == null || request.carPlate().isBlank()) {
+                throw new BadRequestException("Car plate is required for outdoor car orders");
+            }
+            order.setCarPlate(request.carPlate().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT));
+            if (request.carColor() != null && !request.carColor().isBlank()) {
+                order.setCarColor(request.carColor().trim().toLowerCase(Locale.ROOT));
+            }
+        }
+
+        order.setCustomerName(blankToNull(request.customerName()));
+        order.setCustomerPhone(request.customerPhone() == null || request.customerPhone().isBlank()
+                ? null : Phones.normalize(request.customerPhone()));
+        order.setCustomerNote(blankToNull(request.customerNote()));
+        order.setStatus(OrderStatus.ACCEPTED);
+        order.setAcceptedAt(Instant.now());
+
+        BigDecimal subtotal = addItems(order, restaurant, branch, request.items());
+        BigDecimal vatAmount = computeVat(restaurant, subtotal);
+        order.setSubtotal(subtotal);
+        order.setVatAmount(vatAmount);
+        order.setTotal(subtotal.add(vatAmount));
+        order.setOrderNumber(nextOrderNumber());
+        order.setTrackingToken(Tokens.random(18));
+
+        Order saved = orderRepository.save(order);
+        eventLogService.recordOrderEvent(saved, OrderStatus.ACCEPTED, "Manual order (staff)");
+        notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
+                "New manual order " + saved.getOrderNumber());
+        events.publishEvent(new PresenceChangedEvent(saved.getBranchId()));
+        return OrderResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -198,6 +275,7 @@ public class OrderService {
         if (request != null && request.prepTimeMinutes() != null) {
             order.setPrepTimeMinutes(request.prepTimeMinutes());
         }
+        eventLogService.recordOrderEvent(order, OrderStatus.ACCEPTED, null);
         notifyAndStream(order, NotificationType.ORDER_ACCEPTED, "order.accepted",
                 "Order " + order.getOrderNumber() + " accepted");
         return OrderResponse.from(order);
@@ -205,11 +283,14 @@ public class OrderService {
 
     @Transactional
     public OrderResponse decline(Long orderId, String reason) {
+        // "Decline" is the pre-accept reject; it now lands in the merged CANCELLED state (the
+        // reason is still surfaced to the customer), so cafés have one "didn't happen" bucket.
         Order order = loadGuarded(orderId);
-        transition(order, OrderStatus.DECLINED);
-        order.setDeclinedAt(Instant.now());
+        transition(order, OrderStatus.CANCELLED);
+        order.setCancelledAt(Instant.now());
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         order.setDeclineReason(trimmed);
+        eventLogService.recordOrderEvent(order, OrderStatus.CANCELLED, trimmed);
         notifyAndStream(order, NotificationType.ORDER_DECLINED, "order.declined",
                 "Order " + order.getOrderNumber() + " declined" + (trimmed != null ? ": " + trimmed : ""));
         return OrderResponse.from(order);
@@ -220,6 +301,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.PREPARING);
         order.setPreparingAt(Instant.now());
+        eventLogService.recordOrderEvent(order, OrderStatus.PREPARING, null);
         streamOnly(order, "order.preparing");
         return OrderResponse.from(order);
     }
@@ -229,6 +311,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.READY);
         order.setReadyAt(Instant.now());
+        eventLogService.recordOrderEvent(order, OrderStatus.READY, null);
         notifyAndStream(order, NotificationType.ORDER_READY, "order.ready",
                 "Order " + order.getOrderNumber() + " is ready");
         return OrderResponse.from(order);
@@ -239,6 +322,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.COMPLETED);
         order.setCompletedAt(Instant.now());
+        eventLogService.recordOrderEvent(order, OrderStatus.COMPLETED, null);
         notifyAndStream(order, NotificationType.ORDER_COMPLETED, "order.completed",
                 "Order " + order.getOrderNumber() + " completed");
         return OrderResponse.from(order);
@@ -249,9 +333,11 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
-        if (reason != null && !reason.isBlank()) {
-            order.setInternalNote(reason);
+        String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
+        if (trimmed != null) {
+            order.setInternalNote(trimmed);
         }
+        eventLogService.recordOrderEvent(order, OrderStatus.CANCELLED, trimmed);
         streamOnly(order, "order.cancelled");
         return OrderResponse.from(order);
     }
@@ -304,6 +390,42 @@ public class OrderService {
         return request.carColor().trim().toLowerCase(Locale.ROOT);
     }
 
+    /** Builds order lines from the request items (validating availability + options) and returns the subtotal. */
+    private BigDecimal addItems(Order order, Restaurant restaurant, Branch branch, List<CreateOrderRequest.Item> items) {
+        BigDecimal subtotal = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+        Instant pricedAt = Instant.now();
+        for (CreateOrderRequest.Item line : items) {
+            MenuItem menuItem = menuService.getOrderableItem(restaurant.getId(), branch.getId(), line.menuItemId());
+            ResolvedOptions resolved = resolveOptions(menuItem, line.selectedOptions());
+
+            // effectivePrice honours any active discount/window; option deltas stack on top.
+            BigDecimal unitPrice = menuItem.effectivePrice(pricedAt).add(resolved.priceDelta());
+            BigDecimal lineTotal = unitPrice
+                    .multiply(BigDecimal.valueOf(line.quantity()))
+                    .setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+
+            OrderItem orderItem = new OrderItem();
+            orderItem.setMenuItemId(menuItem.getId());
+            orderItem.setNameEnSnapshot(menuItem.getNameEn());
+            orderItem.setNameArSnapshot(menuItem.getNameAr());
+            // price_snapshot records the effective per-unit price (base + chosen options),
+            // so historical orders show what was actually paid per unit.
+            orderItem.setPriceSnapshot(unitPrice);
+            orderItem.setQuantity(line.quantity());
+            orderItem.setNote(line.note());
+            orderItem.setLineTotal(lineTotal);
+            orderItem.setSelectedOptionsJson(resolved.snapshotJson());
+            order.addItem(orderItem);
+
+            subtotal = subtotal.add(lineTotal);
+        }
+        return subtotal;
+    }
+
+    private static String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
+    }
+
     private BigDecimal computeVat(Restaurant restaurant, BigDecimal subtotal) {
         if (!restaurant.isVatEnabled() || restaurant.getVatRate() == null
                 || restaurant.getVatRate().signum() == 0) {
@@ -312,6 +434,83 @@ public class OrderService {
         return subtotal.multiply(restaurant.getVatRate())
                 .divide(BigDecimal.valueOf(100), MONEY_SCALE, RoundingMode.HALF_UP);
     }
+
+    // ------------------------------------------------------ menu options at order time
+
+    /**
+     * Validates the customer's option selections against the menu item's option groups,
+     * enforces single/multi and required rules, and returns the total price delta plus
+     * a JSON snapshot for the order line. Selections may be null/empty for items with no
+     * options (or where the customer chose none) — unless a SINGLE group is required.
+     */
+    private ResolvedOptions resolveOptions(MenuItem menuItem,
+                                           List<CreateOrderRequest.SelectedOption> selections) {
+        var groupsById = new java.util.HashMap<Long, MenuItemOptionGroup>();
+        var optionsByGroupId = new java.util.HashMap<Long, java.util.Map<Long, MenuItemOption>>();
+        for (MenuItemOptionGroup g : menuItem.getOptionGroups()) {
+            groupsById.put(g.getId(), g);
+            java.util.Map<Long, MenuItemOption> opts = new java.util.HashMap<>();
+            for (MenuItemOption o : g.getOptions()) opts.put(o.getId(), o);
+            optionsByGroupId.put(g.getId(), opts);
+        }
+
+        selections = selections == null ? List.of() : selections;
+        java.util.Map<Long, Integer> countPerGroup = new java.util.HashMap<>();
+        java.util.List<SelectedOptionSnapshot> snapshots = new java.util.ArrayList<>(selections.size());
+        BigDecimal delta = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+
+        for (CreateOrderRequest.SelectedOption s : selections) {
+            MenuItemOptionGroup group = groupsById.get(s.optionGroupId());
+            if (group == null) {
+                throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                        "Unknown option group for item \"" + menuItem.getNameEn() + "\": " + s.optionGroupId());
+            }
+            MenuItemOption option = optionsByGroupId.get(s.optionGroupId()).get(s.optionId());
+            if (option == null) {
+                throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                        "Unknown option in group \"" + group.getNameEn() + "\": " + s.optionId());
+            }
+            countPerGroup.merge(group.getId(), 1, Integer::sum);
+            delta = delta.add(option.getPriceDelta() == null ? BigDecimal.ZERO : option.getPriceDelta());
+            snapshots.add(new SelectedOptionSnapshot(group.getId(), group.getNameEn(), group.getNameAr(),
+                    option.getId(), option.getNameEn(), option.getNameAr(), option.getPriceDelta()));
+        }
+
+        // Enforce per-group rules.
+        for (MenuItemOptionGroup g : menuItem.getOptionGroups()) {
+            int count = countPerGroup.getOrDefault(g.getId(), 0);
+            if (g.getSelectionType() == com.cafeqr.menus.domain.OptionSelectionType.SINGLE) {
+                if (count > 1) {
+                    throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                            "Group \"" + g.getNameEn() + "\" allows only one choice.");
+                }
+                if (g.isRequired() && count == 0) {
+                    throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
+                            "Please choose a " + g.getNameEn() + ".");
+                }
+            }
+            // MULTI groups are always optional (zero allowed).
+        }
+
+        String json = snapshots.isEmpty() ? null : serializeOptions(snapshots);
+        return new ResolvedOptions(delta, json);
+    }
+
+    private String serializeOptions(java.util.List<SelectedOptionSnapshot> snapshots) {
+        try {
+            return objectMapper.writeValueAsString(snapshots);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize selected options", e);
+        }
+    }
+
+    /** Effective price delta and JSON snapshot for one order line. */
+    private record ResolvedOptions(BigDecimal priceDelta, String snapshotJson) {}
+
+    /** Denormalized snapshot of one chosen option, persisted in order_items.selected_options_json. */
+    private record SelectedOptionSnapshot(Long groupId, String groupNameEn, String groupNameAr,
+                                          Long optionId, String optionNameEn, String optionNameAr,
+                                          BigDecimal priceDelta) {}
 
     private String nextOrderNumber() {
         return "ORD-" + String.format("%06d", orderRepository.nextOrderNumber());

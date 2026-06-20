@@ -1,5 +1,6 @@
 package com.cafeqr.orders;
 
+import com.cafeqr.analytics.EventLogService;
 import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
@@ -9,6 +10,7 @@ import com.cafeqr.customers.CustomerService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.notifications.NotificationService;
+import com.cafeqr.otp.OtpService;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.domain.OrderType;
@@ -22,6 +24,7 @@ import com.cafeqr.restaurants.RestaurantService;
 import com.cafeqr.restaurants.domain.Restaurant;
 import com.cafeqr.tables.TableService;
 import com.cafeqr.tables.domain.RestaurantTable;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,13 +57,17 @@ class OrderServiceTest {
     @Mock private OrderStreamService streamService;
     @Mock private org.springframework.context.ApplicationEventPublisher events;
     @Mock private CustomerService customerService;
+    @Mock private OtpService otpService;
+    @Mock private EventLogService eventLogService;
 
     private OrderService orderService;
 
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
-                menuService, accessGuard, notificationService, streamService, events, customerService);
+                menuService, accessGuard, notificationService, streamService, events, customerService,
+                otpService, eventLogService, new ObjectMapper());
+        lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
 
     private Restaurant restaurant() {
@@ -127,8 +135,8 @@ class OrderServiceTest {
         });
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, "no sugar", null,
-                List.of(new CreateOrderRequest.Item(100L, 2, null)));
+                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, "no sugar", null, "ptok",
+                List.of(new CreateOrderRequest.Item(100L, 2, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -153,8 +161,8 @@ class OrderServiceTest {
                 .thenThrow(new BadRequestException(ErrorCode.MENU_ITEM_UNAVAILABLE, "unavailable"));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.TAKEAWAY, null, null, null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+                "demo", 5L, null, OrderType.CAR, "Ali", "9999", "ABC1234", null, null, null, "ptok",
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -163,13 +171,32 @@ class OrderServiceTest {
     }
 
     @Test
+    void dineInRequiresPhone() {
+        when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
+        RestaurantTable table = new RestaurantTable();
+        table.setId(9L);
+        table.setBranchId(5L);
+        table.setRestaurantId(1L);
+        when(tableService.getActiveByToken("tok")).thenReturn(table);
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "demo", 5L, "tok", OrderType.DINE_IN, "Sara", null, null, null, null, null, null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+
+        assertThatThrownBy(() -> orderService.createOrder(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Phone is required");
+    }
+
+    @Test
     void dineInRequiresTableToken() {
         when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.DINE_IN, null, null, null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+                "demo", 5L, null, OrderType.DINE_IN, null, null, null, null, null, null, null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -190,8 +217,8 @@ class OrderServiceTest {
         });
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.CAR, "Sara", "9999", "  a 1234  ", "  White ", null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+                "demo", 5L, null, OrderType.CAR, "Sara", "9999", "  a 1234  ", "  White ", null, null, "ptok",
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -201,13 +228,27 @@ class OrderServiceTest {
     }
 
     @Test
+    void carOrderRequiresPhone() {
+        when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "demo", 5L, null, OrderType.CAR, "Sara", null, "A 1234", null, null, null, null,
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+
+        assertThatThrownBy(() -> orderService.createOrder(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Phone is required");
+    }
+
+    @Test
     void carOrderRequiresPlate() {
         when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.CAR, null, null, " ", null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+                "demo", 5L, null, OrderType.CAR, "Sara", "9999", " ", null, null, null, "ptok",
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -221,8 +262,8 @@ class OrderServiceTest {
         when(customerService.isBlocked(1L, "99990000")).thenReturn(true);
 
         CreateOrderRequest request = new CreateOrderRequest(
-                "demo", 5L, null, OrderType.TAKEAWAY, null, "9999-0000", null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null)));
+                "demo", 5L, null, OrderType.CAR, "Ali", "9999-0000", "ABC1234", null, null, null, "ptok",
+                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)

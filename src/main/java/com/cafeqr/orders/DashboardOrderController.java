@@ -5,6 +5,7 @@ import com.cafeqr.common.api.PageResponse;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.dto.AcceptOrderRequest;
 import com.cafeqr.orders.dto.CancelOrderRequest;
+import com.cafeqr.orders.dto.CreateStaffOrderRequest;
 import com.cafeqr.orders.dto.DeclineOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderSummaryResponse;
@@ -19,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -30,13 +32,20 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dashboard/orders")
 @Tag(name = "Dashboard orders")
-@PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF','KITCHEN_STAFF')")
+@PreAuthorize("hasAuthority('ORDERS')")
 public class DashboardOrderController {
 
     private final OrderService orderService;
 
     public DashboardOrderController(OrderService orderService) {
         this.orderService = orderService;
+    }
+
+    @Operation(summary = "Take a manual order (staff) — lands in the kitchen as ACCEPTED")
+    @PreAuthorize("hasAuthority('ORDERS')")
+    @PostMapping
+    public ApiResponse<OrderResponse> create(@Valid @RequestBody CreateStaffOrderRequest request) {
+        return ApiResponse.ok("Order created", orderService.createStaffOrder(request));
     }
 
     @Operation(summary = "List orders (paged, filterable by status and branch)")
@@ -61,7 +70,7 @@ public class DashboardOrderController {
     }
 
     @Operation(summary = "Accept a pending order (optionally set prep time)")
-    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @PreAuthorize("hasAuthority('ORDERS')")
     @PatchMapping("/{orderId}/accept")
     public ApiResponse<OrderResponse> accept(@PathVariable Long orderId,
                                              @Valid @RequestBody(required = false) AcceptOrderRequest request) {
@@ -69,7 +78,7 @@ public class DashboardOrderController {
     }
 
     @Operation(summary = "Decline a pending order (reason optional)")
-    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @PreAuthorize("hasAuthority('ORDERS')")
     @PatchMapping("/{orderId}/decline")
     public ApiResponse<OrderResponse> decline(@PathVariable Long orderId,
                                               @Valid @RequestBody(required = false) DeclineOrderRequest request) {
@@ -90,14 +99,14 @@ public class DashboardOrderController {
     }
 
     @Operation(summary = "Complete a ready order")
-    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @PreAuthorize("hasAuthority('ORDERS')")
     @PatchMapping("/{orderId}/complete")
     public ApiResponse<OrderResponse> complete(@PathVariable Long orderId) {
         return ApiResponse.ok("Order completed", orderService.complete(orderId));
     }
 
     @Operation(summary = "Cancel an order")
-    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF')")
+    @PreAuthorize("hasAuthority('ORDERS')")
     @PatchMapping("/{orderId}/cancel")
     public ApiResponse<OrderResponse> cancel(@PathVariable Long orderId,
                                              @Valid @RequestBody(required = false) CancelOrderRequest request) {

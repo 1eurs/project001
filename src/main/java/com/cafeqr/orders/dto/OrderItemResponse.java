@@ -12,11 +12,13 @@ public record OrderItemResponse(
         BigDecimal price,
         int quantity,
         String note,
-        BigDecimal lineTotal
+        BigDecimal lineTotal,
+        String selectedOptionsJson
 ) {
     public static OrderItemResponse from(OrderItem item) {
         return new OrderItemResponse(
                 item.getId(), item.getMenuItemId(), item.getNameEnSnapshot(), item.getNameArSnapshot(),
-                item.getPriceSnapshot(), item.getQuantity(), item.getNote(), item.getLineTotal());
+                item.getPriceSnapshot(), item.getQuantity(), item.getNote(), item.getLineTotal(),
+                item.getSelectedOptionsJson());
     }
 }

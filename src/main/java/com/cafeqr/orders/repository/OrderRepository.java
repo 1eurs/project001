@@ -88,7 +88,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                           @Param("to") Instant to);
 
     @Query(value = """
-            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC') AS hour, COUNT(*) AS cnt
+            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Muscat') AS hour, COUNT(*) AS cnt
             FROM orders
             WHERE (:restaurantId IS NULL OR restaurant_id = :restaurantId)
               AND (:branchId IS NULL OR branch_id = :branchId)
@@ -100,6 +100,58 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                 @Param("branchId") Long branchId,
                                 @Param("from") Instant from,
                                 @Param("to") Instant to);
+
+    /**
+     * Per-day order count (non-cancelled/declined) and completed revenue, bucketed by
+     * the cafés' timezone. Rows: {@code [day(LocalDate), orders, revenue(BigDecimal)]}.
+     * The service fills missing days with zeros so the trend series is continuous.
+     */
+    @Query(value = """
+            SELECT (created_at AT TIME ZONE 'Asia/Muscat')::date                     AS day,
+                   COUNT(*) FILTER (WHERE status NOT IN ('DECLINED','CANCELLED'))    AS orders,
+                   COALESCE(SUM(total) FILTER (WHERE status = 'COMPLETED'), 0)       AS revenue
+            FROM orders
+            WHERE (:restaurantId IS NULL OR restaurant_id = :restaurantId)
+              AND (:branchId IS NULL OR branch_id = :branchId)
+              AND created_at >= :from AND created_at < :to
+            GROUP BY day
+            ORDER BY day
+            """, nativeQuery = true)
+    List<Object[]> dailyBreakdown(@Param("restaurantId") Long restaurantId,
+                                  @Param("branchId") Long branchId,
+                                  @Param("from") Instant from,
+                                  @Param("to") Instant to);
+
+    /**
+     * Orders + completed revenue bucketed by part of the day (café timezone). Rows:
+     * {@code [daypart(String), orders, revenue(BigDecimal)]} — one per non-empty bucket; the
+     * service fills the rest. Same semantics as {@link #dailyBreakdown}: orders exclude
+     * declined/cancelled, revenue counts completed only.
+     */
+    @Query(value = """
+            SELECT CASE
+                       WHEN h >= 6  AND h < 11 THEN 'MORNING'
+                       WHEN h >= 11 AND h < 14 THEN 'MIDDAY'
+                       WHEN h >= 14 AND h < 17 THEN 'AFTERNOON'
+                       WHEN h >= 17 AND h < 22 THEN 'EVENING'
+                       ELSE 'LATE'
+                   END                                                            AS daypart,
+                   COUNT(*) FILTER (WHERE status NOT IN ('DECLINED','CANCELLED'))  AS orders,
+                   COALESCE(SUM(total) FILTER (WHERE status = 'COMPLETED'), 0)     AS revenue
+            FROM (
+                SELECT status, total,
+                       EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Muscat') AS h
+                FROM orders
+                WHERE (:restaurantId IS NULL OR restaurant_id = :restaurantId)
+                  AND (:branchId IS NULL OR branch_id = :branchId)
+                  AND created_at >= :from AND created_at < :to
+            ) hours
+            GROUP BY daypart
+            """, nativeQuery = true)
+    List<Object[]> daypartBreakdown(@Param("restaurantId") Long restaurantId,
+                                    @Param("branchId") Long branchId,
+                                    @Param("from") Instant from,
+                                    @Param("to") Instant to);
 
     /**
      * Platform-wide per-restaurant order stats for the admin console, one grouped scan:
@@ -135,4 +187,44 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                    @Param("excluded") List<OrderStatus> excluded,
                                    @Param("from") Instant from,
                                    @Param("to") Instant to);
+
+    // -------- Pro analytics --------
+
+    /**
+     * Demand forecast: total orders per (ISO weekday, hour) in the window. The service
+     * divides by the number of weeks in the window to get the average expected orders per
+     * slot. Rows: {@code [dayOfWeek(1=Mon..7=Sun), hour(0..23), count]}.
+     */
+    @Query(value = """
+            SELECT EXTRACT(ISODOW FROM created_at AT TIME ZONE 'Asia/Muscat') AS dow,
+                   EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Muscat')    AS hour,
+                   COUNT(*)                                                    AS cnt
+            FROM orders
+            WHERE restaurant_id = :restaurantId
+              AND (:branchId IS NULL OR branch_id = :branchId)
+              AND status NOT IN ('DECLINED', 'CANCELLED')
+              AND created_at >= :from AND created_at < :to
+            GROUP BY dow, hour
+            ORDER BY dow, hour
+            """, nativeQuery = true)
+    List<Object[]> demandByWeekdayHour(@Param("restaurantId") Long restaurantId,
+                                       @Param("branchId") Long branchId,
+                                       @Param("from") Instant from,
+                                       @Param("to") Instant to);
+
+    /**
+     * Per-restaurant average order value (completed orders) for anonymous cross-café
+     * benchmarking. Rows: {@code [restaurantId, aov, completedOrders]}.
+     */
+    @Query(value = """
+            SELECT restaurant_id,
+                   AVG(total) FILTER (WHERE status = 'COMPLETED')           AS aov,
+                   COUNT(*) FILTER (WHERE status = 'COMPLETED')            AS completed_orders,
+                   COUNT(*) FILTER (WHERE status NOT IN ('DECLINED','CANCELLED')) AS all_orders
+            FROM orders
+            WHERE created_at >= :from AND created_at < :to
+              AND status NOT IN ('DECLINED', 'CANCELLED')
+            GROUP BY restaurant_id
+            """, nativeQuery = true)
+    List<Object[]> aovPerRestaurant(@Param("from") Instant from, @Param("to") Instant to);
 }

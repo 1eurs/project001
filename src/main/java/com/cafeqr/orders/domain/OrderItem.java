@@ -49,6 +49,14 @@ public class OrderItem {
     @Column(name = "line_total", nullable = false)
     private BigDecimal lineTotal;
 
+    /**
+     * JSON snapshot of the option choices the customer made for this line, so the order
+     * stays readable after the cafe edits or deletes an option group. Null for items
+     * that had no options selected.
+     */
+    @Column(name = "selected_options_json", columnDefinition = "text")
+    private String selectedOptionsJson;
+
     public Long getId() {
         return id;
     }
@@ -119,5 +127,13 @@ public class OrderItem {
 
     public void setLineTotal(BigDecimal lineTotal) {
         this.lineTotal = lineTotal;
+    }
+
+    public String getSelectedOptionsJson() {
+        return selectedOptionsJson;
+    }
+
+    public void setSelectedOptionsJson(String selectedOptionsJson) {
+        this.selectedOptionsJson = selectedOptionsJson;
     }
 }

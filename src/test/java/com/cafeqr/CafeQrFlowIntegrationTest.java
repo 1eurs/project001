@@ -1,5 +1,6 @@
 package com.cafeqr;
 
+import com.cafeqr.otp.OtpService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class CafeQrFlowIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private OtpService otpService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -105,10 +109,17 @@ class CafeQrFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.categories[0].items[0].nameEn").value("Latte"));
 
-        // 10. Customer places a dine-in order.
+        // 10. Customer verifies phone, then places a dine-in order.
+        String customerPhone = "96890000001";
+        otpService.send(customerPhone);
+        String otpCode = otpService.pendingCode(customerPhone);
+        assertThat(otpCode).isNotBlank();
+        String phoneToken = otpService.verifyAndIssueToken(customerPhone, otpCode);
+
         MvcResult orderResult = perform(post("/api/public/orders", Map.of(
                 "restaurantSlug", slug, "branchId", branchId, "tableToken", tableToken,
-                "orderType", "DINE_IN", "customerName", "Sara",
+                "orderType", "DINE_IN", "customerName", "Sara", "customerPhone", customerPhone,
+                "phoneToken", phoneToken,
                 "items", new Object[]{Map.of("menuItemId", itemId, "quantity", 1)})))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING"))

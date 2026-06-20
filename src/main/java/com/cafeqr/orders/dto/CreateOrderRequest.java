@@ -17,7 +17,7 @@ public record CreateOrderRequest(
         String tableToken,
         @NotNull OrderType orderType,
         @Size(max = 150) String customerName,
-        @Size(max = 40) String customerPhone,
+        @NotBlank @Size(max = 40) String customerPhone,
         /** Required for CAR orders; shown to staff for outdoor car delivery. */
         @Size(max = 40) String carPlate,
         /** Optional for CAR orders; helps staff spot the car (palette key, e.g. "white"). */
@@ -25,12 +25,21 @@ public record CreateOrderRequest(
         @Size(max = 500) String customerNote,
         /** Browser-generated random token; lets the customer's device read back its own profile. */
         @Size(max = 64) String deviceToken,
+        /** 30-day token issued by POST /api/public/otp/verify. Nullable while OTP is disabled. */
+        String phoneToken,
         @NotEmpty @Valid List<Item> items
 ) {
 
     public record Item(
             @NotNull Long menuItemId,
             @Positive int quantity,
-            @Size(max = 300) String note
+            @Size(max = 300) String note,
+            /** Option choices for this line; null/empty for items without options. */
+            List<SelectedOption> selectedOptions
+    ) {}
+
+    public record SelectedOption(
+            @NotNull Long optionGroupId,
+            @NotNull Long optionId
     ) {}
 }
