@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { create as createQrMatrix } from 'qrcode/lib/core/qrcode.js';
 import { api, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken, onAuthChange } from '../../lib/api';
-import { useAuth, isManager, canAcceptOrders } from '../../lib/auth';
+import { useAuth, isManager, canAcceptOrders, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useOrderStream, type StreamStatus } from '../../lib/sse';
@@ -19,15 +19,21 @@ import Login from '../auth/Login';
 import MenuManager, { MenuLookManager } from './MenuManager';
 import OrdersPage from './OrdersPage';
 import RestaurantProfile from './RestaurantProfile';
+import TeamPage from './TeamPage';
+// Analytics pulls in recharts + motion (~150KB gzipped), so code-split it — staff on the
+// live board never download those bytes unless they open the analytics tab.
+const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
+import OrderPad from './OrderPad';
 import InvoicePrint from './InvoicePrint';
 import './dashboard.css';
 
 const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
-        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_profile: 'ملف المطعم',
-        col_PENDING: 'جديد', col_ACCEPTED: 'مقبول', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
+        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم',
+        col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة',
         accept: 'قبول', decline: 'رفض', startPrep: 'بدء التحضير', ready: 'جاهز', complete: 'اكتمل', cancel: 'إلغاء',
+        collect: 'حصّل', done: 'تم', doneUnpaid: 'تم دون دفع', undo: 'تراجع', finishing: 'يُنهى…',
         unpaid: 'تحديد كمدفوع', paid: 'مدفوع', confirm: 'تأكيد', back: 'رجوع',
         acceptT: 'قبول الطلب', acceptP: 'كم دقيقة للتحضير؟', declineT: 'رفض الطلب', declineP: 'سبب الرفض (اختياري، يظهر للعميل)',
         cancelT: 'إلغاء الطلب', cancelP: 'سبب الإلغاء (اختياري)', reason: 'السبب',
@@ -39,19 +45,19 @@ const DICT: Dict = {
         orderingNow: 'يطلبون الآن', qaNow: 'الآن', qaToday: 'اليوم', qaOrders: 'طلب',
         qaLive: 'سلات نشطة', qaViewing: 'يتصفح', qaOrdering: 'في السلة الآن', qaCart: 'الأصناف',
         qaCartHint: 'محتوى السلة الآن — قد يتغير قبل إرسال الطلب',
-        account: 'الحساب', email: 'البريد', language: 'اللغة', arabic: 'العربية', english: 'English', changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
+        account: 'الحساب', email: 'البريد', language: 'اللغة', branch: 'الفرع', arabic: 'العربية', english: 'English', changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
         changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', currentPw: 'كلمة المرور الحالية',
         changeEmailSub: 'أدخل كلمة المرور الحالية والبريد الجديد.', newEmail: 'البريد الجديد',
         newPw: 'كلمة المرور الجديدة', confirmPw: 'تأكيد كلمة المرور', save: 'حفظ',
         pwChanged: 'تم تغيير كلمة المرور', pwTooShort: 'كلمة المرور 8 أحرف على الأقل', pwMismatch: 'كلمتا المرور غير متطابقتين',
         emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
-        role_PLATFORM_ADMIN: 'مشرف المنصة', role_RESTAURANT_OWNER: 'مالك المطعم', role_BRANCH_MANAGER: 'مدير الفرع',
-        role_STAFF: 'موظف', role_KITCHEN_STAFF: 'مطبخ' },
+        role_owner: 'مالك المطعم', role_staff: 'موظف' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
-        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_profile: 'Restaurant profile',
-        col_PENDING: 'New', col_ACCEPTED: 'Accepted', col_PREPARING: 'Preparing', col_READY: 'Ready',
+        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile',
+        col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', car: 'Outdoor car', note: 'Note',
         accept: 'Accept', decline: 'Decline', startPrep: 'Start preparing', ready: 'Ready', complete: 'Complete', cancel: 'Cancel',
+        collect: 'Collect', done: 'Done', doneUnpaid: 'Done, unpaid', undo: 'Undo', finishing: 'Finishing…',
         unpaid: 'Mark paid', paid: 'Paid', confirm: 'Confirm', back: 'Back',
         acceptT: 'Accept order', acceptP: 'How many minutes to prepare?', declineT: 'Decline order', declineP: 'Reason (optional, shown to customer)',
         cancelT: 'Cancel order', cancelP: 'Cancel reason (optional)', reason: 'Reason',
@@ -63,24 +69,22 @@ const DICT: Dict = {
         orderingNow: 'ordering now', qaNow: 'now', qaToday: 'Today', qaOrders: 'orders',
         qaLive: 'Active carts', qaViewing: 'Viewing', qaOrdering: 'in cart now', qaCart: 'Items',
         qaCartHint: 'In their cart right now — may change before the order is placed',
-        account: 'Account', email: 'Email', language: 'Language', arabic: 'Arabic', english: 'English', changePassword: 'Change password', changeEmail: 'Change email',
+        account: 'Account', email: 'Email', language: 'Language', branch: 'Branch', arabic: 'Arabic', english: 'English', changePassword: 'Change password', changeEmail: 'Change email',
         changePwSub: 'Enter your current password, then a new one.', currentPw: 'Current password',
         changeEmailSub: 'Enter your current password and new email.', newEmail: 'New email',
         newPw: 'New password', confirmPw: 'Confirm new password', save: 'Save',
         pwChanged: 'Password changed', pwTooShort: 'Use at least 8 characters', pwMismatch: 'Passwords don’t match',
         emailChanged: 'Email changed', emailInvalid: 'Enter a valid email',
-        role_PLATFORM_ADMIN: 'Platform admin', role_RESTAURANT_OWNER: 'Owner', role_BRANCH_MANAGER: 'Branch manager',
-        role_STAFF: 'Staff', role_KITCHEN_STAFF: 'Kitchen' },
+        role_owner: 'Owner', role_staff: 'Staff' },
 };
 
 const COLS: { st: OrderStatus; color: string }[] = [
   { st: 'PENDING', color: 'var(--pending)' },
   { st: 'ACCEPTED', color: 'var(--accepted)' },
-  { st: 'PREPARING', color: 'var(--preparing)' },
   { st: 'READY', color: 'var(--ready)' },
 ];
-// statuses that belong on the live board; anything else has left it (completed/declined/cancelled)
-const LIVE_SET = new Set<OrderStatus>(['PENDING', 'ACCEPTED', 'PREPARING', 'READY']);
+// statuses that belong on the live board; anything else has left it (completed/cancelled)
+const LIVE_SET = new Set<OrderStatus>(['PENDING', 'ACCEPTED', 'READY']);
 
 export default function DashboardApp() {
   const { user, authed } = useAuth();
@@ -89,13 +93,13 @@ export default function DashboardApp() {
   if (!authed || !user) {
     return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} />;
   }
-  if (user.role === 'PLATFORM_ADMIN') {
+  if (can(user, 'PLATFORM_ADMIN')) {
     return <Navigate to="/admin" replace />;
   }
   return <Shell />;
 }
 
-type Page = 'board' | 'orders' | 'menu' | 'look' | 'profile' | 'tables';
+type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'look' | 'team' | 'analytics' | 'profile' | 'tables';
 
 function LivePill({ stream, t }: { stream: StreamStatus; t: (k: string) => string }) {
   if (stream === 'open') {
@@ -122,37 +126,53 @@ function useCalmStream(stream: StreamStatus, delayMs = 5_000): StreamStatus {
 function Shell() {
   const { user } = useAuth();
   const t = useT(DICT);
-  const role = user!.role;
   const [page, setPage] = useState<Page>('board');
   const sound = useOrderSound();
   const [stream, setStream] = useState<StreamStatus>('connecting');
   const calmStream = useCalmStream(stream);
-  const titles: Record<string, string> = { board: t('title'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), profile: t('nav_profile'), tables: t('tablesTitle') };
+  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), team: t('nav_team'), analytics: t('nav_analytics'), profile: t('nav_profile'), tables: t('tablesTitle') };
 
   const navItems = ([
-    { key: 'board', icon: '🍳', label: t('nav_board'), show: true },
-    { key: 'orders', icon: '🧾', label: t('nav_orders'), show: true },
-    { key: 'menu', icon: '📋', label: t('nav_menu'), show: isManager(role) },
-    { key: 'look', icon: '🎨', label: t('nav_look'), show: isManager(role) },
-    { key: 'tables', icon: '🔳', label: t('nav_tables'), show: isManager(role) },
+    { key: 'board', icon: '🍳', label: t('nav_board'), show: can(user, 'ORDERS') },
+    { key: 'orders', icon: '🧾', label: t('nav_orders'), show: can(user, 'ORDERS') },
+    { key: 'neworder', icon: '➕', label: t('nav_neworder'), show: can(user, 'ORDERS') },
+    { key: 'menu', icon: '📋', label: t('nav_menu'), show: can(user, 'MENU') },
+    { key: 'look', icon: '🎨', label: t('nav_look'), show: can(user, 'MENU') },
+    { key: 'team', icon: '👥', label: t('nav_team'), show: can(user, 'TEAM') },
+    { key: 'analytics', icon: '📊', label: t('nav_analytics'), show: can(user, 'ANALYTICS') },
+    { key: 'tables', icon: '🔳', label: t('nav_tables'), show: can(user, 'QR_TABLES') },
   ] as { key: Page; icon: string; label: string; show: boolean }[]).filter((i) => i.show);
+
+  // Land on the first screen the user can actually open (e.g. a kitchen-only or menu-only member).
+  const navKeys = navItems.map((i) => i.key).join(',');
+  useEffect(() => {
+    if (navItems.length && !navItems.some((i) => i.key === page)) setPage(navItems[0].key);
+  }, [navKeys]); // eslint-disable-line
 
   const qc = useQueryClient();
   const branchesQ = useQuery({
     queryKey: ['branches', user!.restaurantId],
     queryFn: () => api.get<any>(`/api/restaurants/${user!.restaurantId}/branches`),
-    enabled: isManager(role) && !!user!.restaurantId,
+    enabled: isManager(user) && !!user!.restaurantId,
   });
   const branchesRaw = branchesQ.data;
   const branches: BranchResponse[] = Array.isArray(branchesRaw) ? branchesRaw : branchesRaw?.content ?? [];
+  // A branch an admin has deactivated must vanish from the owner's switcher and never be the
+  // working branch — customers can't reach it, so the owner shouldn't be parked on it either.
+  const activeBranches = useMemo(() => branches.filter((b) => b.active), [branches]);
 
   const [branchId, setBranchId] = useState<number | undefined>(user!.branchId ?? undefined);
-  useEffect(() => { if (branchId == null && branches.length) setBranchId(branches[0].id); }, [branches]); // eslint-disable-line
+  // Keep the working branch on an active one: pick the first active branch when we have none yet
+  // or when the branch we were on just got deactivated.
+  useEffect(() => {
+    if (!activeBranches.length) return;
+    if (branchId == null || !activeBranches.some((b) => b.id === branchId)) setBranchId(activeBranches[0].id);
+  }, [activeBranches]); // eslint-disable-line
 
   // Self-heal: a café onboarded before branches were auto-created has none — and without one
   // the Tables & QR page is dead. When an owner lands here with zero branches, provision a
   // default branch (named after the café) so QR codes work immediately.
-  const canMakeBranch = role === 'RESTAURANT_OWNER' || role === 'PLATFORM_ADMIN';
+  const canMakeBranch = can(user, 'BRANCHES');
   const needsBranch = canMakeBranch && branchesQ.isSuccess && branches.length === 0;
   const restaurantQ = useQuery({
     queryKey: ['restaurant', user!.restaurantId],
@@ -192,24 +212,28 @@ function Shell() {
           <h2>{titles[page]}</h2>
           {page === 'board' && <LivePill stream={calmStream} t={t} />}
           <div className="spacer" />
-          {isManager(role) && branches.length > 0 && (
-            <select className="select" value={branchId ?? ''} onChange={(e) => setBranchId(Number(e.target.value))}>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+          {page === 'board' && can(user, 'ORDERS') && (
+            <button className="dnew" onClick={() => setPage('neworder')}>＋ {t('nav_neworder')}</button>
           )}
           <SoundToggle soundOn={sound.soundOn} onToggle={sound.toggle} />
           <AccountMenu
             t={t}
-            showProfile={isManager(role)}
+            showProfile={can(user, 'PROFILE')}
             profileActive={page === 'profile'}
             onProfile={() => setPage('profile')}
+            branches={isManager(user) ? activeBranches : []}
+            branchId={branchId}
+            onBranch={setBranchId}
           />
         </div>
 
         {page === 'board' && <KdsBoard branchId={branchId} ping={sound.ping} onStatus={setStream} />}
+        {page === 'neworder' && <OrderPad branchId={branchId} onPlaced={() => setPage('board')} />}
         {page === 'orders' && <OrdersPage branchId={branchId} />}
         {page === 'menu' && <MenuManager />}
         {page === 'look' && <MenuLookManager branchId={branchId} />}
+        {page === 'team' && <TeamPage branches={branches} branchId={branchId} />}
+        {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) ? activeBranches : []} /></Suspense>}
         {page === 'profile' && <RestaurantProfile branchId={branchId} />}
         {page === 'tables' && <TablesPage branchId={branchId} />}
       </div>
@@ -231,11 +255,17 @@ function AccountMenu({
   showProfile,
   profileActive,
   onProfile,
+  branches,
+  branchId,
+  onBranch,
 }: {
   t: (k: string) => string;
   showProfile: boolean;
   profileActive: boolean;
   onProfile: () => void;
+  branches: BranchResponse[];
+  branchId?: number;
+  onBranch: (id: number) => void;
 }) {
   const { user } = useAuth();
   const { lang, setLang } = useI18n();
@@ -244,7 +274,7 @@ function AccountMenu({
   const [emailOpen, setEmailOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const initials = user!.fullName.split(' ').map((s) => s[0]).slice(0, 2).join('');
-  const roleLabel = t('role_' + user!.role);
+  const roleLabel = user!.owner ? t('role_owner') : t('role_staff');
 
   useEffect(() => {
     if (!open) return;
@@ -268,7 +298,7 @@ function AccountMenu({
             <div className="av lg">{initials}</div>
             <div className="acct-id">
               <div className="acct-name">{user!.fullName}</div>
-              <div className="acct-mail" title={user!.email}>{user!.email}</div>
+              <div className="acct-mail" title={user!.email ?? user!.username}>{user!.email ?? user!.username}</div>
               <span className="acct-role">{roleLabel}</span>
             </div>
           </div>
@@ -285,6 +315,14 @@ function AccountMenu({
             <span className="ai-ic">@</span>{t('changeEmail')}
           </button>
           <div className="acct-sep" />
+          {branches.length > 1 && (
+            <div className="acct-row" role="group" aria-label={t('branch')}>
+              <span>{t('branch')}</span>
+              <select className="select" value={branchId ?? ''} onChange={(e) => onBranch(Number(e.target.value))}>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="acct-lang" role="group" aria-label={t('language')}>
             <span>{t('language')}</span>
             <div className="acct-lang-btns">
@@ -348,7 +386,7 @@ function ChangeEmailModal({ t, onClose }: { t: (k: string) => string; onClose: (
   const { user } = useAuth();
   const toast = useToast();
   const [cur, setCur] = useState('');
-  const [next, setNext] = useState(user!.email);
+  const [next, setNext] = useState(user!.email ?? '');
   const email = next.trim();
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -359,7 +397,7 @@ function ChangeEmailModal({ t, onClose }: { t: (k: string) => string; onClose: (
   });
 
   const invalid = email.length > 0 && !validEmail;
-  const unchanged = email.toLowerCase() === user!.email.toLowerCase();
+  const unchanged = email.toLowerCase() === (user!.email ?? '').toLowerCase();
   const canSave = !!cur && validEmail && !unchanged && !change.isPending;
 
   return (
@@ -441,7 +479,7 @@ function LiveActivityStrip({ activity, tokenToTable, t, lang }: {
     .filter((v) => v.ordering > 0 || v.cart.length > 0)
     .sort((a, b) => (b.cart.length - a.cart.length) || (b.ordering - a.ordering));
   const placeOf = (key: string) => {
-    if (key === 'car' || key === 'takeaway') return { code: 'CAR', label: t('car') };
+    if (key === 'car') return { code: 'CAR', label: t('car') };
     const table = tokenToTable.get(key) ?? '';
     return { code: table ? `T${table}` : 'TBL', label: `${t('table')} ${table}`.trim() };
   };
@@ -473,7 +511,6 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
   const t = useT(DICT);
   const toast = useToast();
   const qc = useQueryClient();
-  const role = user!.role;
 
   // keep the screen awake while the live board is open (counter phone / tablet)
   useWakeLock(true);
@@ -596,6 +633,22 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
+  // Finishing an order (Done / Collect & done) is the one un-confirmed, irreversible tap, so we
+  // hold the API call for a few seconds and dim the card with an Undo — instant-feeling but forgiving.
+  const [finishing, setFinishing] = useState<number | null>(null);
+  const finishTimer = useRef<number>();
+  const finishRun = useRef<(() => void) | null>(null);
+  const deferFinish = (o: OrderResponse, collect: boolean) => {
+    if (finishRun.current) { clearTimeout(finishTimer.current); finishRun.current(); }   // flush any prior so it's never lost
+    const run = () => { if (collect) pay.mutate(o.id); act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` }); };
+    finishRun.current = run;
+    setFinishing(o.id);
+    clearTimeout(finishTimer.current);
+    finishTimer.current = window.setTimeout(() => { finishRun.current = null; setFinishing(null); run(); }, 5000);
+  };
+  const undoFinish = () => { clearTimeout(finishTimer.current); finishRun.current = null; setFinishing(null); };
+  useEffect(() => () => { clearTimeout(finishTimer.current); finishRun.current?.(); }, []);
+
   const openModal = (type: NonNullable<Modal>['type'], order: OrderResponse) => { setField(type === 'accept' ? '6' : ''); setModal({ type, order }); };
   const confirmModal = () => {
     if (!modal) return;
@@ -606,7 +659,8 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
     setModal(null);
   };
 
-  const canAccept = canAcceptOrders(role);
+  const canAccept = canAcceptOrders(user);
+  const canPay = can(user, 'PAYMENTS');
 
   return (
     <>
@@ -638,11 +692,10 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
               <div className="col-head"><span className="dot" style={{ background: c.color }} /><h3>{t('col_' + c.st)}</h3><span className="cnt" style={{ background: c.color }}>{list.length}</span></div>
               <div className="col-body">
                 {list.length === 0 ? <div className="col-empty">{t('empty')}</div> : list.map((o) => (
-                  <OrderCard key={o.id} o={o} tableNo={tableNo} t={t} lang={lang} canAccept={canAccept}
+                  <OrderCard key={o.id} o={o} tableNo={tableNo} t={t} lang={lang} canAccept={canAccept} canPay={canPay} finishing={finishing === o.id}
                     onAccept={() => openModal('accept', o)} onDecline={() => openModal('decline', o)} onCancel={() => openModal('cancel', o)}
-                    onPreparing={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/preparing` })}
                     onReady={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/ready` })}
-                    onComplete={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` })}
+                    onComplete={() => deferFinish(o, false)} onCollect={() => deferFinish(o, true)} onUndo={undoFinish}
                     onPay={() => pay.mutate(o.id)} onPrint={() => setInvoice(o)} />
                 ))}
               </div>
@@ -679,14 +732,14 @@ function CarColorTag({ color, lang }: { color?: string | null; lang: string }) {
   return <span className="carcol"><span className="cc-dot" style={{ background: cc.hex }} />{lang === 'ar' ? cc.ar : cc.en}</span>;
 }
 
-function OrderCard({ o, tableNo, t, lang, canAccept, onAccept, onDecline, onCancel, onPreparing, onReady, onComplete, onPay, onPrint }: any) {
+function OrderCard({ o, tableNo, t, lang, canAccept, canPay, finishing, onAccept, onDecline, onCancel, onReady, onComplete, onCollect, onUndo, onPay, onPrint }: any) {
   const el = fmtElapsed(o.createdAt);
   const mins = (Date.now() - new Date(o.createdAt).getTime()) / 60000;
   const where = o.orderType === 'DINE_IN'
     ? <span className="where">🪑 <span className="tg">{t('table')} {o.tableId ? (tableNo.get(o.tableId) ?? o.tableId) : ''}</span></span>
     : <span className="where">🚗 <span className="tg">{t('car')}{o.carPlate ? ` · ${o.carPlate}` : ''}</span><CarColorTag color={o.carColor} lang={lang} /></span>;
   return (
-    <div className="ocard">
+    <div className={'ocard' + (finishing ? ' finishing' : '')}>
       <div className="ocard-top"><span className="ordno">{o.orderNumber}</span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
         <button className="oprint" title={t('printInv')} aria-label={t('printInv')} onClick={onPrint}>🖨</button></div>
       {where}
@@ -700,13 +753,31 @@ function OrderCard({ o, tableNo, t, lang, canAccept, onAccept, onDecline, onCanc
       {o.customerNote && <div className="onote"><b>{t('note')}:</b> {o.customerNote}{o.customerName ? ` — ${o.customerName}` : ''}</div>}
       <div className="ocard-foot">
         <span className="ototal num">{omr(o.total)} <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span></span>
-        {o.paymentStatus === 'PAID' ? <span className="pay paid">✓ {t('paid')}</span> : <span className="pay unpaid" onClick={onPay}>{t('unpaid')}</span>}
+        {o.paymentStatus === 'PAID' ? <span className="pay paid">✓ {t('paid')}</span>
+          : canPay ? <span className="pay unpaid" onClick={onPay}>{t('unpaid')}</span>
+          : <span className="pay unpaid static">{t('unpaid')}</span>}
       </div>
-      <div className="oactions">
-        {o.status === 'PENDING' && canAccept && <><button className="btn sm" onClick={onAccept}>{t('accept')}</button><button className="btn sm ghost" onClick={onDecline}>{t('decline')}</button></>}
-        {o.status === 'ACCEPTED' && <><button className="btn sm" onClick={onPreparing}>{t('startPrep')}</button><button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button></>}
-        {o.status === 'PREPARING' && <><button className="btn sm" onClick={onReady}>{t('ready')}</button><button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button></>}
-        {o.status === 'READY' && <button className="btn sm" onClick={onComplete}>{t('complete')}</button>}
+      {/* Kitchen-only staff (no ORDERS) advance tickets (Start preparing / Ready) but can't accept,
+          cancel or complete — those stay gated to ORDERS so the buttons never 403. */}
+      <div className={'oactions' + (finishing ? ' is-finishing' : '')}>
+        {finishing
+          ? <><span className="finishing-lbl">{t('finishing')}</span><button className="btn sm undo-btn" onClick={onUndo}>↩ {t('undo')}</button></>
+          : <>
+              {o.status === 'PENDING' && canAccept && <><button className="btn sm" onClick={onAccept}>{t('accept')}</button><button className="btn sm ghost" onClick={onDecline}>{t('decline')}</button></>}
+              {(o.status === 'ACCEPTED' || o.status === 'PREPARING') && <><button className="btn sm" onClick={onReady}>{t('ready')}</button>{canAccept && <button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button>}</>}
+              {o.status === 'READY' && canAccept && (
+                o.paymentStatus !== 'PAID' && canPay
+                  ? <>
+                      <button className="btn collect-btn" onClick={onCollect}>✓ {t('collect')} <span className="num">{omr(o.total)}</span> · {t('done')}</button>
+                      <button className="btn sm ghost" onClick={onComplete}>{t('doneUnpaid')}</button>
+                      <button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button>
+                    </>
+                  : <>
+                      <button className="btn sm" onClick={onComplete}>✓ {t('done')}</button>
+                      <button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button>
+                    </>
+              )}
+            </>}
       </div>
     </div>
   );

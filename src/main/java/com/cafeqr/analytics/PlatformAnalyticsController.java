@@ -14,7 +14,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/restaurants/stats")
 @Tag(name = "Platform analytics")
-@PreAuthorize("hasRole('PLATFORM_ADMIN')")
+@PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
 public class PlatformAnalyticsController {
 
     private final AnalyticsService analyticsService;
