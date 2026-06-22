@@ -15,7 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @Tag(name = "QR activity")
-@PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER','STAFF','KITCHEN_STAFF')")
+@PreAuthorize("hasAuthority('ORDERS')")
 public class QrActivityController {
 
     private final QrActivityService qrActivityService;

@@ -10,17 +10,18 @@ import { useAudioArm, playChime, vibrate } from '../../lib/alerts';
 import { menuPathOf, useVenue } from './venue';
 import { CustomerFrame } from './CustomerFrame';
 
-const FLOW: OrderStatus[] = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'];
+// Accepted = "being prepared" now (Preparing merged in); the stepper is 3 stops.
+const FLOW: OrderStatus[] = ['PENDING', 'ACCEPTED', 'READY'];
 const DICT: Dict = {
-  ar: { title: 'تتبّع الطلب', orderNo: 'رقم الطلب', cur: 'ر.ع', min: 'د', total: 'الإجمالي', back: 'العودة للقائمة', estPrep: 'الوقت المقدّر', thanks: 'شكراً لك',
-        head_PENDING: 'تم الإرسال — بانتظار المقهى', head_ACCEPTED: 'تم القبول', head_PREPARING: 'قيد التحضير', head_READY: 'جاهز للتقديم', head_COMPLETED: 'اكتمل الطلب', head_DECLINED: 'اعتُذر عن الطلب', head_CANCELLED: 'أُلغي الطلب',
-        st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'قبِله المقهى', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!',
+  ar: { title: 'تتبّع الطلب', orderNo: 'رقم الطلب', cur: 'ر.ع', min: 'د', subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي', back: 'العودة للقائمة', estPrep: 'الوقت المقدّر', thanks: 'شكراً لك',
+        head_PENDING: 'تم الإرسال — بانتظار المقهى', head_ACCEPTED: 'قيد التحضير', head_PREPARING: 'قيد التحضير', head_READY: 'جاهز للتقديم', head_COMPLETED: 'اكتمل الطلب', head_DECLINED: 'اعتُذر عن الطلب', head_CANCELLED: 'أُلغي الطلب',
+        st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'يُحضَّر الآن', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!',
         sorry_DECLINED: 'نعتذر منك، لم يتمكن المقهى من استلام هذا الطلب', sorry_CANCELLED: 'نعتذر منك، أُلغي هذا الطلب من المقهى',
         maybeWhy: 'يحدث هذا عادةً عند ضغط الطلبات أو إغلاق المقهى مؤقتاً.',
         sorrySub: 'لم يُحتسب عليك أي مبلغ، ويسعدنا خدمتك في طلب جديد ☕', reasonLbl: 'سبب الاعتذار', orderAgain: 'اطلب من جديد' },
-  en: { title: 'Track order', orderNo: 'Order', cur: 'OMR', min: 'min', total: 'Total', back: 'Back to menu', estPrep: 'Estimated', thanks: 'Thank you',
-        head_PENDING: 'Sent — waiting for the cafe', head_ACCEPTED: 'Accepted', head_PREPARING: 'Preparing', head_READY: 'Ready to serve', head_COMPLETED: 'Completed', head_DECLINED: 'Order declined', head_CANCELLED: 'Order cancelled',
-        st_PENDING: 'Order sent', st_ACCEPTED: 'Cafe accepted', st_PREPARING: 'Being prepared', st_READY: 'Ready!',
+  en: { title: 'Track order', orderNo: 'Order', cur: 'OMR', min: 'min', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', back: 'Back to menu', estPrep: 'Estimated', thanks: 'Thank you',
+        head_PENDING: 'Sent — waiting for the cafe', head_ACCEPTED: 'Being prepared', head_PREPARING: 'Being prepared', head_READY: 'Ready to serve', head_COMPLETED: 'Completed', head_DECLINED: 'Order declined', head_CANCELLED: 'Order cancelled',
+        st_PENDING: 'Order sent', st_ACCEPTED: 'Being prepared', st_PREPARING: 'Being prepared', st_READY: 'Ready!',
         sorry_DECLINED: "We're sorry — the cafe couldn't take this order", sorry_CANCELLED: "We're sorry — this order was cancelled by the cafe",
         maybeWhy: 'This usually happens when the cafe is very busy or temporarily closed.',
         sorrySub: "You haven't been charged — we'd love to serve you on a fresh order ☕", reasonLbl: 'Reason', orderAgain: 'Order again' },
@@ -125,12 +126,16 @@ export default function TrackPage() {
         </div>
 
         <div className="c-totals" style={{ marginTop: 14 }}>
+          <div className="row"><span>{t('subtotal')}</span><span className="num">{omr(o.subtotal)} {t('cur')}</span></div>
+          {o.vatAmount > 0 && <div className="row"><span>{t('vat')}</span><span className="num">{omr(o.vatAmount)} {t('cur')}</span></div>}
           <div className="row grand"><span>{t('total')}</span><span className="num">{omr(o.total)} {t('cur')}</span></div>
         </div>
 
-        <button className={'btn full' + (bad ? '' : ' ghost')} style={{ marginTop: 18 }} onClick={() => nav(menuPath)}>
-          {bad ? t('orderAgain') : t('back')}
-        </button>
+        {bad && (
+          <button className="btn full" style={{ marginTop: 18 }} onClick={() => nav(menuPath)}>
+            {t('orderAgain')}
+          </button>
+        )}
       </div>
     </CustomerFrame>
   );

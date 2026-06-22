@@ -20,7 +20,7 @@ import java.util.List;
 
 @RestController
 @Tag(name = "Tables / QR")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAuthority('QR_TABLES')")
 public class TableController {
 
     private final TableService tableService;

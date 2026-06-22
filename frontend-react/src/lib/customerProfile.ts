@@ -56,3 +56,19 @@ export function deviceToken(create = false): string | null {
   }
   return t;
 }
+
+const SESSION_KEY = 'cafeqr_session';
+
+/**
+ * A per-browsing-session id (one ordering visit), kept in sessionStorage so it
+ * resets when the tab closes. Used to stitch funnel events (menu view → cart →
+ * checkout → order) into one journey without identifying the customer.
+ */
+export function sessionToken(): string {
+  let t = sessionStorage.getItem(SESSION_KEY);
+  if (!t) {
+    t = crypto.randomUUID();
+    sessionStorage.setItem(SESSION_KEY, t);
+  }
+  return t;
+}

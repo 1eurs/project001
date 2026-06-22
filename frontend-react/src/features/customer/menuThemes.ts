@@ -28,6 +28,14 @@ export interface MenuThemeCustom {
   surface: string;
   text: string;
   muted: string;
+  /**
+   * When set, the owner hand-picked text / secondary-text in the editor, so those colours
+   * render exactly as chosen instead of passing through the auto-readability guard. Auto
+   * themes (Quick mix, presets, reset) leave these unset and keep the contrast guard, which
+   * is why a hand-picked hue used to collapse toward black/white. Absent/false = guarded.
+   */
+  textCustom?: boolean;
+  mutedCustom?: boolean;
   accent: string;
   accent2: string;
   cartBg: string;
@@ -327,6 +335,10 @@ export function parseCustomTheme(json?: string | null): MenuThemeCustom {
         next.motifOpacity = clamp(value, 0.04, 0.3);
         return;
       }
+      if ((key === 'textCustom' || key === 'mutedCustom') && typeof value === 'boolean') {
+        (next as unknown as Record<string, boolean>)[key] = value;
+        return;
+      }
       if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) && key in next) {
         (next as unknown as Record<string, string>)[key] = value;
       }
@@ -393,8 +405,13 @@ export function customThemeVars(custom: MenuThemeCustom): Record<string, string>
   const visualSurface = alphaBlend(custom.surface, custom.paper, 0.72);
   const visualSurface2 = alphaBlend(custom.surface, custom.paper, 0.92);
   const visualGlass = alphaBlend(custom.paper, custom.canvas, 0.78);
-  const safeText = readableText(custom.text, 4.5, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
-  const safeMuted = readableText(custom.muted, 3, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
+  // Hand-picked text/muted are honoured verbatim; auto themes keep the WCAG guard.
+  const safeText = custom.textCustom
+    ? custom.text
+    : readableText(custom.text, 4.5, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
+  const safeMuted = custom.mutedCustom
+    ? custom.muted
+    : readableText(custom.muted, 3, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
   const cartInk = readableOn(custom.cartBg);
   const safeAccentText = readableText(custom.accent, 4.5, custom.paper, visualSurface, visualSurface2, visualGlass, bg2);
   const cartBarText = readableText(custom.accent, 4.5, custom.cartBg);

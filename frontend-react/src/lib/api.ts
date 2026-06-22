@@ -177,8 +177,8 @@ export async function upload<T = { url: string }>(path: string, file: File, retr
   return env.data as T;
 }
 
-export async function login(email: string, password: string): Promise<UserResponse> {
-  const auth = await raw<AuthResponse>('/api/auth/login', { method: 'POST', auth: false, body: { email, password } });
+export async function login(username: string, password: string): Promise<UserResponse> {
+  const auth = await raw<AuthResponse>('/api/auth/login', { method: 'POST', auth: false, body: { username, password } });
   setSession(auth);
   return auth.user;
 }

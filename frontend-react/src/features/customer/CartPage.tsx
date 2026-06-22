@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
@@ -6,9 +6,10 @@ import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderTy
 import { omr, estimateVat } from '../../lib/format';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import { useCartStore, useCart } from '../../lib/cart';
+import { useCartStore, useCart, lineUnitPrice } from '../../lib/cart';
 import { CAR_COLORS, carColorOf } from '../../lib/carColors';
 import { getStoredProfile, saveStoredProfile, deviceToken } from '../../lib/customerProfile';
+import { track } from '../../lib/analytics';
 import { useVenue, cartKeyOf, menuPathOf, menuUrlOf } from './venue';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
@@ -17,14 +18,18 @@ const DICT: Dict = {
   ar: { title: 'سلّتك', cur: 'ر.ع', empty: 'سلّتك فارغة', emptySub: 'أضف ما يطيب لك من القائمة.', back: 'العودة للقائمة',
         carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب', carPlateRequired: 'أدخل رقم لوحة السيارة',
         carPlateHint: 'اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
-        name: 'الاسم (اختياري)', phone: 'الجوال (اختياري)', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
+        name: 'الاسم (اختياري)', nameReq: 'الاسم', nameRequired: 'الاسم مطلوب لطلبات السيارة',
+        phoneRequired: 'الجوال مطلوب',
+        phone: 'الجوال', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
         finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
         carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB', carPlateRequired: 'Enter the car plate',
         carPlateHint: 'Numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
-        name: 'Name (optional)', phone: 'Phone (optional)', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
+        name: 'Name (optional)', nameReq: 'Name', nameRequired: 'Name is required for car orders',
+        phoneRequired: 'Phone is required',
+        phone: 'Phone', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
         finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…' },
@@ -39,8 +44,8 @@ export default function CartPage() {
   const t = useT(DICT);
   const nav = useNavigate();
   const toast = useToast();
-  const { slug, branchId, tableToken, restaurant } = useVenue();
-  const orderType: OrderType = tableToken ? 'DINE_IN' : 'CAR';
+  const { slug, branchId, tableToken, restaurant, orderType: venueOrderType } = useVenue();
+  const orderType: OrderType = venueOrderType ?? (tableToken ? 'DINE_IN' : 'CAR');
 
   const menuPath = menuPathOf(slug, branchId, tableToken, orderType);
   const cartKey = cartKeyOf(slug, branchId, tableToken, orderType);
@@ -50,6 +55,14 @@ export default function CartPage() {
   // At checkout they're firmly "ordering"; share the cart so staff can see it coming.
   usePresence(branchId, tableToken ?? 'car', true,
     cart.map((l) => ({ menuItemId: l.id, quantity: l.qty })));
+
+  // Reaching the cart with items = checkout started (funnel stage).
+  const sentCheckout = useRef(false);
+  useEffect(() => {
+    if (sentCheckout.current || cart.length === 0 || !slug) return;
+    sentCheckout.current = true;
+    track('CHECKOUT_STARTED', { restaurantSlug: slug, branchId: branchId ?? null, qrTableToken: tableToken ?? null });
+  }, [cart.length, slug, branchId, tableToken]);
 
   const { data } = useQuery({
     queryKey: ['menu', slug ? menuUrlOf(slug, branchId, tableToken) : 'none'],
@@ -74,7 +87,11 @@ export default function CartPage() {
   const savedPhones = saved?.phones ?? [];
   const savedCars = saved?.cars ?? [];
 
-  const subtotal = cart.reduce((s, l) => s + (itemsById.get(l.id)?.price ?? 0) * l.qty, 0);
+
+  const subtotal = cart.reduce((s, l) => {
+      const it = itemsById.get(l.id);
+      return s + (it ? lineUnitPrice(it, l.selectedOptions) : 0) * l.qty;
+    }, 0);
   const vatEnabled = restaurant?.vatEnabled ?? false;
   const vat = estimateVat(subtotal, restaurant?.vatRate ?? 0, vatEnabled);
   const total = subtotal + vat;
@@ -88,11 +105,16 @@ export default function CartPage() {
         carPlate: orderType === 'CAR' ? normalizedPlate : null,
         carColor: orderType === 'CAR' ? (carColor || null) : null, customerNote: note || null,
         deviceToken: deviceToken(true),
-        items: cart.map((l) => ({ menuItemId: l.id, quantity: l.qty, note: l.note || null })),
+        phoneToken: null,
+        items: cart.map((l) => ({
+          menuItemId: l.id, quantity: l.qty, note: l.note || null,
+          selectedOptions: l.selectedOptions?.length ? l.selectedOptions : null,
+        })),
       };
       return api.post<OrderTracking>('/api/public/orders', payload, { auth: false });
     },
     onSuccess: (order) => {
+      track('ORDER_PLACED', { restaurantSlug: slug!, branchId: branchId ?? null, qrTableToken: tableToken ?? null });
       clear(cartKey);
       saveStoredProfile({ name, phone, plateNum, plateCode, carColor });
       localStorage.setItem('cafeqr_lastOrder', order.trackingToken);
@@ -102,10 +124,9 @@ export default function CartPage() {
   });
   const missingCarPlate = orderType === 'CAR' && !plateNum.trim();
   const submit = () => {
-    if (missingCarPlate) {
-      toast(t('carPlateRequired'));
-      return;
-    }
+    if (missingCarPlate) { toast(t('carPlateRequired')); return; }
+    if (orderType === 'CAR' && !name.trim()) { toast(t('nameRequired')); return; }
+    if (!phone.trim()) { toast(t('phoneRequired')); return; }
     place.mutate();
   };
 
@@ -128,21 +149,31 @@ export default function CartPage() {
               const it = itemsById.get(l.id);
               if (!it) return null;
               return (
-                <div className="c-line" key={l.id}>
+                <div className="c-line" key={l.key}>
                   <div className="c-thumb" style={thumb(it)}>{!it.imageUrl && <span className="glyph">{pick(it, 'name', lang).charAt(0)}</span>}</div>
                   <div className="c-line-main">
                     <h4>{pick(it, 'name', lang)}</h4>
-                    <div className="lp"><span className="num">{omr(it.price)}</span> {t('cur')}</div>
+                    {l.selectedOptions?.length > 0 && (
+                      <div className="c-line-opts">
+                        {l.selectedOptions.map((sel) => {
+                          const g = it.optionGroups?.find((x) => x.id === sel.optionGroupId);
+                          const o = g?.options.find((x) => x.id === sel.optionId);
+                          if (!g || !o) return null;
+                          return <span className="c-opt-chip" key={sel.optionId}>{pick(o, 'name', lang)}</span>;
+                        })}
+                      </div>
+                    )}
+                    <div className="lp"><span className="num">{omr(lineUnitPrice(it, l.selectedOptions))}</span> {t('cur')}</div>
                     <textarea className="c-notein" rows={1} placeholder={t('itemNote')} value={l.note}
-                      onChange={(e) => setNote(cartKey, l.id, e.target.value)} />
+                      onChange={(e) => setNote(cartKey, l.key, e.target.value)} />
                   </div>
                   <div className="c-line-side">
                     <div className="c-qty">
-                      <button onClick={() => useCartStore.getState().add(cartKey, l.id)}>+</button>
+                      <button onClick={() => useCartStore.getState().add(cartKey, l.id, l.selectedOptions)}>+</button>
                       <span className="n num">{l.qty}</span>
-                      <button onClick={() => bump(cartKey, l.id, -1)}>−</button>
+                      <button onClick={() => bump(cartKey, l.key, -1)}>−</button>
                     </div>
-                    <div className="lt"><span className="num">{omr(it.price * l.qty)}</span></div>
+                    <div className="lt"><span className="num">{omr(lineUnitPrice(it, l.selectedOptions) * l.qty)}</span></div>
                   </div>
                 </div>
               );
@@ -205,8 +236,14 @@ export default function CartPage() {
                 </div>
               </>
             )}
-            <div className="field"><label>{t('name')}</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="…" /></div>
-            <div className="field"><label>{t('phone')}</label><input className="num" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9XXXXXXX" />
+            <div className="field">
+              <label>{orderType === 'CAR' ? t('nameReq') : t('name')}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="…" />
+            </div>
+            <div className="field">
+              <label>{t('phone')}</label>
+              <input className="num" inputMode="tel" value={phone} placeholder="9XXXXXXX"
+                onChange={(e) => setPhone(e.target.value)} />
               {savedPhones.length > 1 && (
                 <div className="saved-chips">
                   {savedPhones.map((p) => (

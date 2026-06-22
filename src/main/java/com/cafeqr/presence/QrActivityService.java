@@ -3,6 +3,7 @@ package com.cafeqr.presence;
 import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.BranchService;
 import com.cafeqr.branches.domain.Branch;
+import com.cafeqr.common.util.TimeZones;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.domain.OrderType;
 import com.cafeqr.menus.domain.MenuItem;
@@ -21,7 +22,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -86,7 +86,7 @@ public class QrActivityService {
         int totalPresent = live.values().stream().mapToInt(LiveCount::present).sum();
         int totalOrdering = live.values().stream().mapToInt(LiveCount::ordering).sum();
 
-        Instant from = LocalDate.now(ZoneOffset.UTC).atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant from = LocalDate.now(TimeZones.CAFES).atStartOfDay(TimeZones.CAFES).toInstant();
         Instant to = Instant.now();
         Map<String, DayStat> today = new HashMap<>();
         for (Object[] row : orderRepository.qrActivityToday(branch.getRestaurantId(), branchId, EXCLUDED, from, to)) {

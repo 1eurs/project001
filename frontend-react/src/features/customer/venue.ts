@@ -23,6 +23,20 @@ export const useVenue = create<VenueState>()(
   ),
 );
 
+/**
+ * Derive order type from the customer route: a scanned table is DINE_IN, the car bay is CAR.
+ * A bare branch/restaurant menu (no table, not the car route) is browse-only — there's no
+ * takeaway type, so it returns null and the menu renders without ordering controls.
+ */
+export const orderTypeFromPath = (
+  tableToken: string | null,
+  pathname: string,
+): OrderType | null => {
+  if (tableToken) return 'DINE_IN';
+  if (/\/car(?:\/|$)/.test(pathname)) return 'CAR';
+  return null;
+};
+
 /** Cart key: the table token when dining in, else a synthetic per-venue key. */
 export const cartKeyOf = (
   slug: string | null,

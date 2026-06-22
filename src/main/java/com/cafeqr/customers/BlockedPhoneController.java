@@ -21,7 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dashboard/blocked-phones")
 @Tag(name = "Blocked phones")
-@PreAuthorize("hasAnyRole('RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAuthority('ORDERS')")
 public class BlockedPhoneController {
 
     private final CustomerService customerService;
