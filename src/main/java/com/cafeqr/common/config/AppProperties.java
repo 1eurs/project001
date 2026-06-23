@@ -13,7 +13,7 @@ public record AppProperties(
         String publicBaseUrl,
         Cors cors,
         Bootstrap bootstrap,
-        Onboarding onboarding,
+        Billing billing,
         Subscription subscription,
         Notifications notifications,
         RateLimit rateLimit
@@ -62,11 +62,12 @@ public record AppProperties(
     ) {}
 
     /**
-     * Self-serve onboarding: the one-time fee a café pays the platform and the bank
-     * details shown to them for the transfer. The single source of truth for both the
-     * amount charged and the payment instructions returned by {@code /api/public/onboarding}.
+     * Billing details for café subscriptions: the plan name shown on invoices/reminders,
+     * the recurring price, the currency, and the bank transfer details that renewal
+     * reminder emails include. (Self-serve public signup was removed; this stays because
+     * the renewal/expiry lifecycle job still emails these bank instructions to existing cafés.)
      */
-    public record Onboarding(
+    public record Billing(
             String planName,
             BigDecimal price,
             String currency,
@@ -108,8 +109,20 @@ public record AppProperties(
     public record Notifications(
             Email email,
             Sms sms,
-            Infobip infobip
+            Infobip infobip,
+            Whatsapp whatsapp
     ) {
+
+        /** Meta WhatsApp Cloud API credentials for OTP delivery. */
+        public record Whatsapp(
+                String accessToken,    // permanent system-user token from Meta Business Manager
+                String phoneNumberId   // WhatsApp Phone Number ID from Meta Developer Console
+        ) {
+            public boolean configured() {
+                return accessToken != null && !accessToken.isBlank()
+                        && phoneNumberId != null && !phoneNumberId.isBlank();
+            }
+        }
         /** Infobip account credentials (used by the SMS channel). */
         public record Infobip(
                 String baseUrl,         // e.g. "xxxxx.api.infobip.com" (no scheme needed)

@@ -82,16 +82,16 @@ app:
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8080}
   cors:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
-  # Annual subscription fee + the bank details shown to cafés (used for signup AND renewals).
+  # Annual subscription fee + the bank details shown to cafés on renewals.
   # >>> CHANGE_ME: replace the placeholders below with your real bank details + price. <<<
-  onboarding:
-    plan-name: ${APP_ONBOARDING_PLAN:Annual}
-    price: ${APP_ONBOARDING_PRICE:29.000}             # per-year fee
-    currency: ${APP_ONBOARDING_CURRENCY:OMR}
-    bank-name: ${APP_ONBOARDING_BANK_NAME:CHANGE_ME - Bank Muscat}
-    account-name: ${APP_ONBOARDING_ACCOUNT_NAME:CHANGE_ME - Serva LLC}
-    account-number: ${APP_ONBOARDING_ACCOUNT_NUMBER:CHANGE_ME - 0000000000}
-    iban: ${APP_ONBOARDING_IBAN:CHANGE_ME - OM00 0000 0000 0000 0000 0000}
+  billing:
+    plan-name: ${APP_BILLING_PLAN:Annual}
+    price: ${APP_BILLING_PRICE:29.000}             # per-year fee
+    currency: ${APP_BILLING_CURRENCY:OMR}
+    bank-name: ${APP_BILLING_BANK_NAME:CHANGE_ME - Bank Muscat}
+    account-name: ${APP_BILLING_ACCOUNT_NAME:CHANGE_ME - Serva LLC}
+    account-number: ${APP_BILLING_ACCOUNT_NUMBER:CHANGE_ME - 0000000000}
+    iban: ${APP_BILLING_IBAN:CHANGE_ME - OM00 0000 0000 0000 0000 0000}
   # Subscription lifecycle (annual model): term length, grace after lapse, renewal reminders.
   subscription:
     term-months: ${APP_SUB_TERM_MONTHS:12}
@@ -115,3 +115,6 @@ app:
     infobip:                                       # SMS credentials
       base-url: ${INFOBIP_BASE_URL:}               # your personalised host, e.g. xxxxx.api.infobip.com
       api-key: ${INFOBIP_API_KEY:}
+    whatsapp:                                      # Meta WhatsApp Cloud API for customer OTP
+      access-token: ${WHATSAPP_ACCESS_TOKEN:}      # permanent system-user token from Meta Business Manager
+      phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:} # Phone Number ID from Meta Developer Console

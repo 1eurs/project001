@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: cafeqr-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: cafeqr
       POSTGRES_USER: cafeqr
@@ -15,10 +16,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - cafeqr-net
 
   backend:
     build: .
     container_name: cafeqr-backend
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -35,6 +39,12 @@ services:
       - "8080:8080"
     volumes:
       - cafeqr-uploads:/app/uploads
+    networks:
+      - cafeqr-net
+
+networks:
+  cafeqr-net:
+    name: cafeqr-net
 
 volumes:
   cafeqr-db-data:

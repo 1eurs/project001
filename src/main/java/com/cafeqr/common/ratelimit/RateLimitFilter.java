@@ -19,7 +19,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final Set<String> AUTH_PATHS = Set.of(
             "/api/auth/login", "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/refresh");
     private static final Set<String> PUBLIC_PATHS = Set.of(
-            "/api/public/onboarding", "/api/public/leads");
+            "/api/public/onboarding", "/api/public/leads",
+            "/api/public/otp/send", "/api/public/otp/verify");
     private static final int WINDOW_SECONDS = 60;
 
     private final RateLimiter limiter;
