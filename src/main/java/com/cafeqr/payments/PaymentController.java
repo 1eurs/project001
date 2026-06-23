@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER')")
+@PreAuthorize("hasAuthority('PAYMENTS')")
 public class PaymentController {
 
     private final PaymentService paymentService;

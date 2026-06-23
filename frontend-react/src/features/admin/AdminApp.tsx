@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, changeEmail, logout, updateProfile } from '../../lib/api';
@@ -6,7 +6,8 @@ import { useAuth } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { omr } from '../../lib/format';
-import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle, PendingOnboarding, AdminRestaurantStats } from '../../lib/types';
+import type { Restaurant, Subscription, SubscriptionStatus, BillingCycle, BranchResponse, AdminRestaurantStats, Plan, PricingPlan, CategoryResponse, MenuItemResponse } from '../../lib/types';
+import { IMPORT_SAMPLE, parseImport, normalizeGroups, type ImpCat } from '../../lib/menuImport';
 import { BRAND } from '../../lib/brand';
 import Login from '../auth/Login';
 import './admin.css';
@@ -27,13 +28,13 @@ const DICT: Dict = {
         endDate: 'ينتهي', renew: 'تجديد', renewed: 'تم التجديد الاشتراك', expired: 'منتهٍ', expiringSoon: 'قريب الانتهاء',
         activate: 'تفعيل', deactivate: 'إيقاف', save: 'حفظ', cancel: 'إلغاء', create: 'إنشاء',
         premiumLook: 'الثيم المتقدّم', premiumOn: 'مُفعّل', premiumOff: 'عادي', premiumEnable: '✦ تفعيل الثيم المتقدّم', premiumDisable: 'إيقاف الثيم المتقدّم',
-        createT: 'إنشاء مطعم', createP: 'يُنشأ المطعم وحساب المالك (اختياري) معاً.',
-        rName: 'اسم المطعم', rSlug: 'المعرّف (slug)', oName: 'اسم المالك', oEmail: 'بريد المالك', oPass: 'كلمة المرور',
+        createT: 'إنشاء مطعم', createP: 'يُنشأ المطعم مع فرع وحساب المالك (اختياري) والاشتراك.',
+        rName: 'اسم المطعم', rSlug: 'المعرّف (slug)', rPlan: 'الخطة', rBranch: 'اسم الفرع الأول', rPlanStd: 'قياسي', rPlanPro: 'Pro', rPlanEnt: 'Enterprise',
+        oName: 'اسم المالك', oEmail: 'بريد المالك', oPass: 'كلمة المرور',
         loginTitle: 'منصّة Serva.', loginSub: 'دخول مدير المنصّة', createdOk: 'تم الإنشاء', saved: 'تم الحفظ', enabled: 'مفعّل', disabled: 'متوقف',
-        navRestaurants: 'المطاعم', navOnboarding: 'طلبات الاشتراك', onboarding: 'طلبات الاشتراك',
-        kPending: 'بانتظار الدفع', thCafe: 'المقهى', thOwner: 'المالك', thAmount: 'المبلغ', thRef: 'المرجع', thActions: 'إجراءات',
-        confirmPay: 'تأكيد الدفع', reject: 'رفض', confirmed: 'تم تأكيد الدفع', rejected: 'تم رفض الطلب', noPending: 'لا توجد طلبات بانتظار الدفع',
-        rejectConfirm: 'رفض هذا الطلب؟ سيبقى المقهى غير مُفعّل.',
+        planLabel: 'الخطة',
+        branches: 'الفروع', branchesAdd: '＋ فرع', branchName: 'اسم الفرع', branchAddr: 'العنوان', branchPhone: 'الهاتف',
+        branchAddOk: 'تم إنشاء الفرع', branchAdding: 'جارٍ…', noBranches: 'لا فروع بعد', deactivateBranch: 'إيقاف', activateBranch: 'تفعيل',
         profile: 'الملف الشخصي', editProfile: 'تعديل الملف الشخصي', editProfileSub: 'غيّر اسمك ورقم هاتفك على حساب المنصّة.',
         fullName: 'الاسم الكامل', profileSaved: 'تم حفظ الملف الشخصي',
         language: 'اللغة', arabic: 'العربية', english: 'English',
@@ -41,7 +42,19 @@ const DICT: Dict = {
         changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', changeEmailSub: 'أدخل كلمة المرور الحالية والبريد الجديد.',
         currentPw: 'كلمة المرور الحالية', newPw: 'كلمة المرور الجديدة', confirmPw: 'تأكيد كلمة المرور', newEmail: 'البريد الجديد',
         pwChanged: 'تم تغيير كلمة المرور', pwTooShort: 'كلمة المرور 8 أحرف على الأقل', pwMismatch: 'كلمتا المرور غير متطابقتين',
-        emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا', role_PLATFORM_ADMIN: 'مشرف المنصة' },
+        emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا', role_PLATFORM_ADMIN: 'مشرف المنصة',
+        navRestaurants: 'المطاعم', navPlans: 'الخطط',
+        plansTitle: 'خطط الأسعار', plansSub: 'عدّل سعر كل فئة. الفئة هي ما يحدّد ميزات المطعم. الأسعار بالريال العماني.',
+        colTier: 'الفئة', colName: 'الاسم', colMonthly: 'شهري', colSetup: 'رسوم التأسيس', colStatus: 'الحالة', colUnlocks: 'يتضمّن',
+        edit: 'تعديل', planNamePh: 'الاسم المعروض', planSaved: 'تم حفظ الخطة',
+        perMo: '/شهر', planOn: 'مفعّلة', planOff: 'مخفية', custom: 'مخصّص', choosePlan: 'اختر الفئة', setupShort: 'تأسيس',
+        tierStdDesc: 'لوحة التحكم الأساسية', tierProDesc: '+ التحليلات المتقدّمة', tierEntDesc: '+ محجوزة / اتفاقية خدمة',
+        menuSect: 'القائمة', importMenu: '⇪ استيراد قائمة (JSON)', importTitle: 'استيراد القائمة (JSON)',
+        importHint: 'الصق القائمة كاملةً بصيغة JSON (أقسام وأصناف). الصور تُضاف يدوياً لاحقاً. سيستبدل هذا قائمة المطعم الحالية بالكامل.',
+        importPlace: 'الصق JSON هنا…', importSample: 'إدراج نموذج', importReview: 'مراجعة', importBad: 'JSON غير صالح',
+        importWarn: 'سيُحذف كل ما في قائمة هذا المطعم الآن ثم يُستبدل بما في الـ JSON. لا يمكن التراجع.',
+        willDelete: 'سيُحذف', willAdd: 'سيُضاف', importConfirm: 'استبدال القائمة', importing: 'جارٍ الاستيراد…',
+        importDoneT: 'تم الاستيراد', importErrorsT: 'أخطاء', closeBtn: 'إغلاق', catsWord: 'أقسام', itemsWord: 'أصناف' },
   en: { restaurants: 'Restaurants', cur: 'OMR', logoutT: 'Logout',
         kTotal: 'Total restaurants', kActive: 'Active', kInactive: 'Inactive', kNew: 'New this month',
         kOrders30: 'Orders · 30 days', kRevenue30: 'Revenue · 30 days',
@@ -57,13 +70,13 @@ const DICT: Dict = {
         endDate: 'Ends', renew: 'Renew', renewed: 'Subscription renewed', expired: 'Expired', expiringSoon: 'Expiring soon',
         activate: 'Activate', deactivate: 'Deactivate', save: 'Save', cancel: 'Cancel', create: 'Create',
         premiumLook: 'Premium look', premiumOn: 'On', premiumOff: 'Standard', premiumEnable: '✦ Enable premium look', premiumDisable: 'Disable premium look',
-        createT: 'Create restaurant', createP: 'Creates the restaurant and (optionally) the owner account.',
-        rName: 'Restaurant name', rSlug: 'Slug', oName: 'Owner name', oEmail: 'Owner email', oPass: 'Password',
+        createT: 'Create restaurant', createP: 'Creates the restaurant, a first branch, an optional owner account, and a trial subscription in one go.',
+        rName: 'Restaurant name', rSlug: 'Slug', rPlan: 'Plan', rBranch: 'First branch name', rPlanStd: 'Standard', rPlanPro: 'Pro', rPlanEnt: 'Enterprise',
+        oName: 'Owner name', oEmail: 'Owner email', oPass: 'Password',
         loginTitle: 'Serva. platform', loginSub: 'Platform admin sign-in', createdOk: 'Created', saved: 'Saved', enabled: 'On', disabled: 'Off',
-        navRestaurants: 'Restaurants', navOnboarding: 'Onboarding', onboarding: 'Onboarding',
-        kPending: 'Awaiting payment', thCafe: 'Café', thOwner: 'Owner', thAmount: 'Amount', thRef: 'Reference', thActions: 'Actions',
-        confirmPay: 'Confirm payment', reject: 'Reject', confirmed: 'Payment confirmed', rejected: 'Onboarding rejected', noPending: 'No cafés awaiting payment',
-        rejectConfirm: 'Reject this signup? The café stays inactive.',
+        planLabel: 'Plan',
+        branches: 'Branches', branchesAdd: '＋ Branch', branchName: 'Name', branchAddr: 'Address', branchPhone: 'Phone',
+        branchAddOk: 'Branch created', branchAdding: '…', noBranches: 'No branches yet', deactivateBranch: 'Deactivate', activateBranch: 'Activate',
         profile: 'Profile', editProfile: 'Edit profile', editProfileSub: 'Update your name and phone on the platform account.',
         fullName: 'Full name', profileSaved: 'Profile saved',
         language: 'Language', arabic: 'Arabic', english: 'English',
@@ -71,7 +84,19 @@ const DICT: Dict = {
         changePwSub: 'Enter your current password, then a new one.', changeEmailSub: 'Enter your current password and new email.',
         currentPw: 'Current password', newPw: 'New password', confirmPw: 'Confirm new password', newEmail: 'New email',
         pwChanged: 'Password changed', pwTooShort: 'Use at least 8 characters', pwMismatch: 'Passwords don’t match',
-        emailChanged: 'Email changed', emailInvalid: 'Enter a valid email', role_PLATFORM_ADMIN: 'Platform admin' },
+        emailChanged: 'Email changed', emailInvalid: 'Enter a valid email', role_PLATFORM_ADMIN: 'Platform admin',
+        navRestaurants: 'Restaurants', navPlans: 'Plans',
+        plansTitle: 'Pricing plans', plansSub: 'Edit each tier’s pricing. The tier is what decides a café’s features. Prices are in OMR.',
+        colTier: 'Tier', colName: 'Name', colMonthly: 'Monthly', colSetup: 'Setup fee', colStatus: 'Status', colUnlocks: 'Unlocks',
+        edit: 'Edit', planNamePh: 'Display name', planSaved: 'Plan saved',
+        perMo: '/mo', planOn: 'Active', planOff: 'Hidden', custom: 'Custom', choosePlan: 'Choose tier', setupShort: 'setup',
+        tierStdDesc: 'Core dashboard', tierProDesc: '+ Full analytics', tierEntDesc: '+ Reserved / SLA',
+        menuSect: 'Menu', importMenu: '⇪ Import menu (JSON)', importTitle: 'Import menu (JSON)',
+        importHint: 'Paste a full menu as JSON (categories & items). Photos are added manually later. This replaces this café’s whole current menu.',
+        importPlace: 'Paste JSON here…', importSample: 'Insert sample', importReview: 'Review', importBad: 'Invalid JSON',
+        importWarn: 'Everything in this café’s menu is deleted, then replaced with the JSON. This cannot be undone.',
+        willDelete: 'Will delete', willAdd: 'Will add', importConfirm: 'Replace menu', importing: 'Importing…',
+        importDoneT: 'Import complete', importErrorsT: 'Errors', closeBtn: 'Close', catsWord: 'categories', itemsWord: 'items' },
 };
 
 const SUB_STATUSES: SubscriptionStatus[] = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'EXPIRED'];
@@ -99,7 +124,7 @@ export default function AdminApp() {
   const { authed, user } = useAuth();
   const t = useT(DICT);
   if (!authed) return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} />;
-  if (user?.role !== 'PLATFORM_ADMIN') return <Navigate to="/dashboard" replace />;
+  if (!user?.permissions?.includes('PLATFORM_ADMIN')) return <Navigate to="/dashboard" replace />;
   return <AdminInner />;
 }
 
@@ -108,20 +133,11 @@ function AdminInner() {
   const toast = useToast();
   const qc = useQueryClient();
 
-  const [view, setView] = useState<'restaurants' | 'onboarding'>('restaurants');
-
   const { data: raw } = useQuery({
     queryKey: ['admin-restaurants'],
     queryFn: () => api.get<any>('/api/admin/restaurants'),
   });
   const restaurants: Restaurant[] = Array.isArray(raw) ? raw : raw?.content ?? [];
-
-  // Loaded always so the rail badge shows the pending count regardless of the active view.
-  const { data: pending } = useQuery({
-    queryKey: ['admin-onboarding'],
-    queryFn: () => api.get<PendingOnboarding[]>('/api/admin/onboarding'),
-  });
-  const pendingCount = pending?.length ?? 0;
 
   // Per-cafe activity (orders, revenue, last order…), one cheap grouped query server-side.
   const { data: statsRaw } = useQuery({
@@ -131,6 +147,7 @@ function AdminInner() {
   });
   const stats = useMemo(() => new Map((statsRaw ?? []).map((s) => [s.restaurantId, s])), [statsRaw]);
 
+  const [view, setView] = useState<'restaurants' | 'plans'>('restaurants');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Restaurant | null>(null);
@@ -156,37 +173,26 @@ function AdminInner() {
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  const togglePremium = useMutation({
-    mutationFn: (r: Restaurant) => api.patch<Restaurant>(`/api/admin/restaurants/${r.id}/premium-look?enabled=${!r.premiumLook}`),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['admin-restaurants'] }); setSelected(r); toast(r.premiumLook ? t('premiumOn') : t('premiumOff')); },
-    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
-  });
-
   return (
     <div className="adm">
       <aside className="arail">
         <div className="logo">S.</div>
         <nav className="nav">
           <button className={view === 'restaurants' ? 'on' : ''} title={t('navRestaurants')} onClick={() => setView('restaurants')}>🏪</button>
-          <button className={view === 'onboarding' ? 'on' : ''} title={t('navOnboarding')} onClick={() => setView('onboarding')}>
-            ⏳{pendingCount > 0 && <span className="nbadge">{pendingCount}</span>}
-          </button>
+          <button className={view === 'plans' ? 'on' : ''} title={t('navPlans')} onClick={() => setView('plans')}>💳</button>
         </nav>
         <button className="out" title={t('logoutT')} onClick={() => logout()}>⏻</button>
       </aside>
 
       <div className="amain">
         <div className="atop">
-          <div><h2>{view === 'onboarding' ? t('onboarding') : t('restaurants')}</h2><div className="crumb">/admin/{view}</div></div>
+          <div><h2>{view === 'plans' ? t('plansTitle') : t('restaurants')}</h2><div className="crumb">/admin{view === 'plans' ? '/plans' : ''}</div></div>
           <div className="spacer" />
           <AdminAccountMenu t={t} />
         </div>
 
+        {view === 'plans' ? <PlansView t={t} /> : (
         <div className="acontent">
-          {view === 'onboarding' ? (
-            <OnboardingView t={t} />
-          ) : (
-          <>
           <div className="kpis">
             <Kpi color="var(--accent)" label={t('kTotal')} val={kpis.total} />
             <Kpi color="var(--green)" label={t('kActive')} val={kpis.active} />
@@ -231,14 +237,13 @@ function AdminInner() {
               })}
             </tbody>
           </table>
-          </>
-          )}
         </div>
+        )}
       </div>
 
       <div className={'drawer-bg' + (selected ? ' open' : '')} onClick={() => setSelected(null)} />
       <aside className={'drawer' + (selected ? ' open' : '')}>
-        {selected && <DrawerBody r={selected} stats={stats.get(selected.id)} onToggle={() => toggleActive.mutate(selected)} onTogglePremium={() => togglePremium.mutate(selected)} onEditSub={() => setModal('sub')} onClose={() => setSelected(null)} />}
+        {selected && <DrawerBody r={selected} stats={stats.get(selected.id)} onToggle={() => toggleActive.mutate(selected)} onEditSub={() => setModal('sub')} onClose={() => setSelected(null)} />}
       </aside>
 
       {modal === 'create' && <CreateModal onClose={() => setModal(null)} onDone={() => { qc.invalidateQueries({ queryKey: ['admin-restaurants'] }); setModal(null); toast(t('createdOk')); }} />}
@@ -283,7 +288,7 @@ function AdminAccountMenu({ t }: { t: (k: string) => string }) {
             <div className="av lg">{initials}</div>
             <div className="acct-id">
               <div className="acct-name">{user?.fullName}</div>
-              <div className="acct-mail" title={user?.email}>{user?.email}</div>
+              <div className="acct-mail" title={user?.email ?? user?.username}>{user?.email ?? user?.username}</div>
               <span className="acct-role">{roleLabel}</span>
             </div>
           </div>
@@ -400,7 +405,7 @@ function ChangeEmailModal({ t, onClose }: { t: (k: string) => string; onClose: (
   const { user } = useAuth();
   const toast = useToast();
   const [cur, setCur] = useState('');
-  const [next, setNext] = useState(user!.email);
+  const [next, setNext] = useState(user!.email ?? '');
   const email = next.trim();
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -411,7 +416,7 @@ function ChangeEmailModal({ t, onClose }: { t: (k: string) => string; onClose: (
   });
 
   const invalid = email.length > 0 && !validEmail;
-  const unchanged = email.toLowerCase() === user!.email.toLowerCase();
+  const unchanged = email.toLowerCase() === (user!.email ?? '').toLowerCase();
   const canSave = !!cur && validEmail && !unchanged && !change.isPending;
 
   return (
@@ -440,73 +445,8 @@ const Kpi = ({ color, label, val }: { color: string; label: string; val: number 
   <div className="kpi"><div className="lab"><span className="ic" style={{ background: color }} />{label}</div><div className="val">{val}</div></div>
 );
 
-function OnboardingView({ t }: { t: (k: string) => string }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [busy, setBusy] = useState<number | null>(null);
 
-  const { data } = useQuery({
-    queryKey: ['admin-onboarding'],
-    queryFn: () => api.get<PendingOnboarding[]>('/api/admin/onboarding'),
-  });
-  const rows = data ?? [];
-
-  const act = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: 'confirm' | 'reject' }) =>
-      api.post(`/api/admin/onboarding/${id}/${action}`),
-    onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: ['admin-onboarding'] });
-      qc.invalidateQueries({ queryKey: ['admin-restaurants'] });
-      toast(v.action === 'confirm' ? t('confirmed') : t('rejected'));
-    },
-    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
-    onSettled: () => setBusy(null),
-  });
-
-  return (
-    <>
-      <div className="kpis">
-        <Kpi color="var(--amber)" label={t('kPending')} val={rows.length} />
-      </div>
-      {rows.length === 0 ? (
-        <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--faint)' }}>{t('noPending')}</div>
-      ) : (
-        <table className="tbl">
-          <thead><tr>
-            <th>{t('thCafe')}</th><th className="hide-sm">{t('thOwner')}</th><th className="hide-sm">{t('thRef')}</th>
-            <th>{t('thAmount')}</th><th className="hide-sm">{t('thCreated')}</th><th>{t('thActions')}</th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.restaurantId}>
-                <td><div className="rcell"><div className="rlogo" style={{ background: hue(r.restaurantId) }}>{r.cafeName.charAt(0)}</div>
-                  <div><div className="rname">{r.cafeName}</div><div className="rslug">{r.slug}</div></div></div></td>
-                <td className="hide-sm"><div>{r.ownerName || '—'}</div><div className="rslug">{r.ownerEmail || ''}</div></td>
-                <td className="hide-sm"><span className="num">{r.reference}</span></td>
-                <td><span className="num">{omr(r.amount)} {t('cur')}</span></td>
-                <td className="hide-sm"><span className="num" style={{ color: 'var(--muted)' }}>{r.createdAt?.slice(0, 10)}</span></td>
-                <td>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn sm" disabled={act.isPending}
-                            onClick={() => { setBusy(r.restaurantId); act.mutate({ id: r.restaurantId, action: 'confirm' }); }}>
-                      {busy === r.restaurantId && act.isPending ? '…' : t('confirmPay')}
-                    </button>
-                    <button className="btn sm danger" disabled={act.isPending}
-                            onClick={() => { if (window.confirm(t('rejectConfirm'))) { setBusy(r.restaurantId); act.mutate({ id: r.restaurantId, action: 'reject' }); } }}>
-                      {t('reject')}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </>
-  );
-}
-
-function DrawerBody({ r, stats, onToggle, onTogglePremium, onEditSub, onClose }: { r: Restaurant; stats?: AdminRestaurantStats; onToggle: () => void; onTogglePremium: () => void; onEditSub: () => void; onClose: () => void }) {
+function DrawerBody({ r, stats, onToggle, onEditSub, onClose }: { r: Restaurant; stats?: AdminRestaurantStats; onToggle: () => void; onEditSub: () => void; onClose: () => void }) {
   const t = useT(DICT);
   const qc = useQueryClient();
   const toast = useToast();
@@ -518,9 +458,17 @@ function DrawerBody({ r, stats, onToggle, onTogglePremium, onEditSub, onClose }:
     },
     retry: false,
   });
+  const { data: branchesRaw, refetch: refetchBranches } = useQuery({
+    queryKey: ['admin-branches', r.id],
+    queryFn: () => api.get<any>(`/api/restaurants/${r.id}/branches`),
+    retry: false,
+  });
+  const branches: BranchResponse[] = (branchesRaw ?? []) as BranchResponse[];
+  const [bName, setBName] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const renew = useMutation({
-    mutationFn: () => api.post(`/api/admin/onboarding/${r.id}/renew`),
+    mutationFn: () => api.post(`/api/admin/restaurants/${r.id}/renew`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sub', r.id] });
       qc.invalidateQueries({ queryKey: ['admin-restaurants'] });
@@ -528,6 +476,34 @@ function DrawerBody({ r, stats, onToggle, onTogglePremium, onEditSub, onClose }:
     },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
+
+  // Plan toggle: cycle STANDARD → PRO → ENTERPRISE on each click, persisted to the backend.
+  const setPlan = useMutation({
+    mutationFn: (plan: Plan) => api.patch<Restaurant>(`/api/admin/restaurants/${r.id}/plan?plan=${plan}`),
+    onSuccess: (updated) => { qc.invalidateQueries({ queryKey: ['admin-restaurants'] }); toast(updated.plan ?? '…'); setSelectedHelper(updated); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+  // setPlan's onSuccess can't reach the parent's `setSelected` directly — instead invalidate and read latest.
+  const setSelectedHelper = (_updated: Restaurant) => { qc.invalidateQueries({ queryKey: ['admin-restaurants'] }); };
+
+  const addBranch = useMutation({
+    mutationFn: () => api.post<BranchResponse>(`/api/restaurants/${r.id}/branches`, { name: bName || r.name }),
+    onSuccess: () => { setBName(''); qc.invalidateQueries({ queryKey: ['admin-branches', r.id] }); qc.invalidateQueries({ queryKey: ['admin-restaurant-stats'] }); toast(t('branchAddOk')); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+  const toggleBranch = useMutation({
+    mutationFn: (b: BranchResponse) => api.patch<BranchResponse>(`/api/branches/${b.id}/${b.active ? 'deactivate' : 'activate'}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-branches', r.id] }); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const cyclePlan = () => {
+    const order: Plan[] = ['STANDARD', 'PRO', 'ENTERPRISE'];
+    const next = order[(order.indexOf((r.plan ?? 'PRO') as Plan) + 1) % order.length];
+    setPlan.mutate(next);
+  };
+  const planLabel = (p?: Plan | null) => p === 'STANDARD' ? t('rPlanStd')
+    : p === 'PRO' ? t('rPlanPro') : p === 'ENTERPRISE' ? t('rPlanEnt') : t('rPlanPro');
 
   const isOneTime = sub?.billingCycle === 'ONE_TIME';
   // Days until the term ends (recurring subs only; lifetime/ONE_TIME should have no end date).
@@ -550,7 +526,12 @@ function DrawerBody({ r, stats, onToggle, onTogglePremium, onEditSub, onClose }:
           <div className="kv"><span className="k">{t('email')}</span><span className="v">{r.email || '—'}</span></div>
           <div className="kv"><span className="k">{t('currency')}</span><span className="v num">{r.currency}</span></div>
           <div className="kv"><span className="k">{t('vat')}</span><span className="v num">{r.vatEnabled ? `${r.vatRate}%` : '—'}</span></div>
-          <div className="kv"><span className="k">{t('premiumLook')}</span><span className="v"><span className={'chip ' + (r.premiumLook ? 'ok' : '')}><span className="d" />{r.premiumLook ? t('premiumOn') : t('premiumOff')}</span></span></div>
+          <div className="kv"><span className="k">{t('planLabel')}</span><span className="v">
+            <button className={'chip plan ' + (r.plan === 'PRO' ? 'ok' : r.plan === 'ENTERPRISE' ? 'ent' : '')}
+                    onClick={cyclePlan} disabled={setPlan.isPending} title={t('rPlan')}>
+              <span className="d" />{planLabel(r.plan)}
+            </button>
+          </span></div>
           <div className="kv"><span className="k">{t('created')}</span><span className="v num">{r.createdAt?.slice(0, 10)}</span></div>
         </div>
         <div className="sect"><h4>{t('activity')}</h4>
@@ -585,13 +566,42 @@ function DrawerBody({ r, stats, onToggle, onTogglePremium, onEditSub, onClose }:
             </div>
           ) : <div className="subbox" style={{ color: 'var(--faint)', fontSize: 13 }}>{t('noSub')}</div>}
         </div>
+        <div className="sect">
+          <h4>{t('branches')}<span className="sect-count">{branches.length}</span></h4>
+          <div className="branch-list">
+            {branches.length === 0 && <div className="subbox" style={{ color: 'var(--faint)', fontSize: 13 }}>{t('noBranches')}</div>}
+            {branches.map((b) => (
+              <div className="branch-row" key={b.id}>
+                <div className="b-info"><div className="b-name">{b.name}</div>
+                  {b.address && <div className="rslug">{b.address}{b.phone ? ' · ' + b.phone : ''}</div>}</div>
+                <button className={'chip btn-chip ' + (b.active ? 'ok' : '')} onClick={() => toggleBranch.mutate(b)} title={b.active ? t('deactivateBranch') : t('activateBranch')}>
+                  <span className="d" />{b.active ? t('active') : t('inactive')}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="branch-add">
+            <input placeholder={t('branchName')} value={bName}
+              onChange={(e) => setBName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !addBranch.isPending) addBranch.mutate(); }} />
+            <button className="btn sm" disabled={addBranch.isPending} onClick={() => addBranch.mutate()}>
+              {addBranch.isPending ? t('branchAdding') : t('branchesAdd')}
+            </button>
+          </div>
+        </div>
+        <div className="sect"><h4>{t('menuSect')}</h4>
+          <div className="subbox" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ color: 'var(--muted)', fontSize: 13 }}>{stats ? `${stats.menuItems} ${t('itemsWord')}` : ''}</span>
+            <button className="btn sm" onClick={() => setImportOpen(true)}>{t('importMenu')}</button>
+          </div>
+        </div>
       </div>
       <div className="drawer-ft">
         {r.active ? <button className="btn danger" onClick={onToggle}>{t('deactivate')}</button> : <button className="btn" onClick={onToggle}>{t('activate')}</button>}
-        <button className="btn ghost" onClick={onTogglePremium}>{r.premiumLook ? t('premiumDisable') : t('premiumEnable')}</button>
         {sub && !isOneTime && sub.endDate && <button className="btn" disabled={renew.isPending} onClick={() => renew.mutate()}>{renew.isPending ? '…' : t('renew')}</button>}
         <button className="btn ghost" onClick={onEditSub}>{sub ? t('editSub') : t('addSub')}</button>
       </div>
+      {importOpen && <MenuImportModal restaurantId={r.id} restaurantName={r.name} onClose={() => setImportOpen(false)} />}
     </>
   );
 }
@@ -599,19 +609,18 @@ function DrawerBody({ r, stats, onToggle, onTogglePremium, onEditSub, onClose }:
 function CreateModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const t = useT(DICT);
   const toast = useToast();
-  const [f, setF] = useState({ name: '', slug: '', oName: '', oEmail: '', oPass: '' });
+  const [f, setF] = useState({ name: '', slug: '', plan: 'PRO' as Plan, branch: '', oName: '', oEmail: '', oPass: '' });
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const create = useMutation({
     mutationFn: async () => {
       const r = await api.post<Restaurant>('/api/admin/restaurants', {
         name: f.name, slug: f.slug || undefined, currency: 'OMR', vatEnabled: true, vatRate: 5,
+        plan: f.plan, defaultBranchName: f.branch || undefined,
+        owner: f.oEmail && f.oPass
+          ? { fullName: f.oName || f.name, email: f.oEmail, password: f.oPass }
+          : undefined,
       });
-      if (f.oEmail && f.oPass) {
-        await api.post('/api/users', {
-          fullName: f.oName || f.name, email: f.oEmail, password: f.oPass, role: 'RESTAURANT_OWNER', restaurantId: r.id,
-        });
-      }
       return r;
     },
     onSuccess: onDone,
@@ -625,6 +634,20 @@ function CreateModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         <div className="row2">
           <div className="field"><label>{t('rName')}</label><input value={f.name} onChange={(e) => set('name', e.target.value)} /></div>
           <div className="field"><label>{t('rSlug')}</label><input className="num" value={f.slug} onChange={(e) => set('slug', e.target.value)} placeholder="my-cafe" /></div>
+        </div>
+        <div className="row2">
+          <div className="field"><label>{t('rPlan')}</label>
+            <div className="seg">
+              {(['STANDARD', 'PRO', 'ENTERPRISE'] as Plan[]).map((p) => (
+                <button key={p} type="button" className={f.plan === p ? 'on' : ''}
+                  onClick={() => setF((s) => ({ ...s, plan: p }))}>
+                  {p === 'STANDARD' ? t('rPlanStd') : p === 'PRO' ? t('rPlanPro') : t('rPlanEnt')}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field"><label>{t('rBranch')}</label>
+            <input value={f.branch} onChange={(e) => set('branch', e.target.value)} placeholder={f.name || '—'} /></div>
         </div>
         <div className="row2">
           <div className="field"><label>{t('oName')}</label><input value={f.oName} onChange={(e) => set('oName', e.target.value)} /></div>
@@ -651,9 +674,15 @@ function SubModal({ restaurant, onClose, onDone }: { restaurant: Restaurant; onC
     },
     retry: false,
   });
+  const { data: catalogue } = useQuery({
+    queryKey: ['admin-plans'],
+    queryFn: () => api.get<PricingPlan[]>('/api/admin/plans'),
+  });
   const [f, setF] = useState({ planName: 'Pro', billingCycle: 'MONTHLY' as BillingCycle, price: '25', status: 'ACTIVE' as SubscriptionStatus });
   // hydrate from existing once loaded
   useEffect(() => { if (existing) setF({ planName: existing.planName, billingCycle: existing.billingCycle, price: String(existing.price), status: existing.status }); }, [existing]);
+  // Pick a tier → fills the name + monthly price (admin can still tweak below). Custom-price tiers leave the price as-is.
+  const pickPlan = (p: PricingPlan) => setF((s) => ({ ...s, planName: p.name, price: p.monthlyPrice == null ? s.price : String(p.monthlyPrice), billingCycle: 'MONTHLY' }));
   const setCycle = (billingCycle: BillingCycle) => {
     setF((p) => ({
       ...p,
@@ -679,6 +708,22 @@ function SubModal({ restaurant, onClose, onDone }: { restaurant: Restaurant; onC
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-card">
         <h3>{existing ? t('editSub') : t('addSub')}</h3><div className="ph">{restaurant.name}</div>
+        {(catalogue ?? []).filter((p) => p.active).length > 0 && (
+          <div className="plan-pick">
+            <span className="plan-pick-lbl">{t('choosePlan')}</span>
+            <div className="plan-pick-row">
+              {(catalogue ?? []).filter((p) => p.active).map((p) => (
+                <button key={p.id} type="button"
+                  className={'plan-pick-card' + (f.planName === p.name ? ' on' : '')}
+                  onClick={() => pickPlan(p)}>
+                  <span className="pp-name">{p.name}</span>
+                  <span className="pp-price">{p.monthlyPrice == null ? <b>{t('custom')}</b> : <><b>{omr(p.monthlyPrice)}</b> {t('cur')}{t('perMo')}</>}</span>
+                  <span className="pp-setup">+{omr(p.setupFee)} {t('setupShort')}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="row2">
           <div className="field"><label>{t('plan')}</label><input value={f.planName} onChange={(e) => setF({ ...f, planName: e.target.value })} /></div>
           <div className="field"><label>{t('price')} ({t('cur')})</label><input className="num" type="number" step="0.001" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></div>
@@ -691,6 +736,241 @@ function SubModal({ restaurant, onClose, onDone }: { restaurant: Restaurant; onC
           <button className="btn ghost" onClick={onClose}>{t('cancel')}</button>
           <button className="btn" disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? '…' : t('save')}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** What each tier unlocks — keeps the gating visible right next to the price. */
+const tierDesc = (tier: Plan, t: (k: string) => string) =>
+  tier === 'STANDARD' ? t('tierStdDesc') : tier === 'ENTERPRISE' ? t('tierEntDesc') : t('tierProDesc');
+
+/**
+ * Pricing for the three fixed café tiers (STANDARD / PRO / ENTERPRISE). The tiers
+ * are always present and drive feature-gating; here a platform admin edits each
+ * tier's display name, monthly price (blank = "custom"), setup fee, and visibility.
+ */
+function PlansView({ t }: { t: (k: string) => string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { data: plans } = useQuery({
+    queryKey: ['admin-plans'],
+    queryFn: () => api.get<PricingPlan[]>('/api/admin/plans'),
+  });
+
+  type Draft = { name: string; monthlyPrice: string; setupFee: string; active: boolean };
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState<Draft>({ name: '', monthlyPrice: '', setupFee: '', active: true });
+
+  const startEdit = (p: PricingPlan) => {
+    setEditing(p.id);
+    setDraft({ name: p.name, monthlyPrice: p.monthlyPrice == null ? '' : String(p.monthlyPrice), setupFee: String(p.setupFee), active: p.active });
+  };
+
+  const save = useMutation({
+    mutationFn: (id: number) => {
+      const priceBlank = draft.monthlyPrice.trim() === '';
+      return api.patch(`/api/admin/plans/${id}`, {
+        name: draft.name.trim(),
+        monthlyPrice: priceBlank ? null : Number(draft.monthlyPrice),
+        clearMonthlyPrice: priceBlank,
+        setupFee: Number(draft.setupFee || 0),
+        active: draft.active,
+      });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-plans'] }); toast(t('planSaved')); setEditing(null); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  const canSave = draft.name.trim().length > 0 && !save.isPending;
+  const price = (v: number | null) => v == null ? <span className="p-custom">{t('custom')}</span> : <><span className="num">{omr(v)}</span> <span className="rslug">{t('perMo')}</span></>;
+
+  return (
+    <div className="acontent">
+      <div className="plans-head">
+        <div className="ph">{t('plansSub')}</div>
+      </div>
+      <table className="tbl plans-tbl">
+        <thead><tr>
+          <th>{t('colTier')}</th><th>{t('colName')}</th><th>{t('colMonthly')}</th><th>{t('colSetup')}</th>
+          <th className="hide-sm">{t('colUnlocks')}</th><th>{t('colStatus')}</th><th aria-label="actions" />
+        </tr></thead>
+        <tbody>
+          {(plans ?? []).map((p) => editing === p.id ? (
+            <tr className="edit-row" key={p.id}>
+              <td><span className="tier-tag">{p.tier}</span></td>
+              <td><input className="pin" placeholder={t('planNamePh')} value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoFocus /></td>
+              <td><input className="pin num" type="number" step="0.001" min="0" placeholder={t('custom')} value={draft.monthlyPrice}
+                onChange={(e) => setDraft({ ...draft, monthlyPrice: e.target.value })} /></td>
+              <td><input className="pin num" type="number" step="0.001" min="0" value={draft.setupFee}
+                onChange={(e) => setDraft({ ...draft, setupFee: e.target.value })} /></td>
+              <td className="hide-sm rslug">{tierDesc(p.tier, t)}</td>
+              <td><button type="button" className={'chip btn-chip ' + (draft.active ? 'ok' : '')}
+                onClick={() => setDraft({ ...draft, active: !draft.active })}><span className="d" />{draft.active ? t('planOn') : t('planOff')}</button></td>
+              <td className="p-actions">
+                <button className="btn sm" disabled={!canSave} onClick={() => save.mutate(p.id)}>{save.isPending ? '…' : t('save')}</button>
+                <button className="btn sm ghost" onClick={() => setEditing(null)}>{t('cancel')}</button>
+              </td>
+            </tr>
+          ) : (
+            <tr key={p.id}>
+              <td><span className="tier-tag">{p.tier}</span></td>
+              <td><span className="p-name">{p.name}</span></td>
+              <td>{price(p.monthlyPrice)}</td>
+              <td><span className="num">{omr(p.setupFee)}</span></td>
+              <td className="hide-sm rslug">{tierDesc(p.tier, t)}</td>
+              <td><span className={'chip ' + (p.active ? 'ok' : '')}><span className="d" />{p.active ? t('planOn') : t('planOff')}</span></td>
+              <td className="p-actions">
+                <button className="icon-btn" title={t('edit')} onClick={() => startEdit(p)}>✎</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Platform-admin menu import: paste a whole menu as JSON and REPLACE this café's
+ * current one. Deletes every existing item (then category — the API blocks deleting
+ * a non-empty category), then recreates from the JSON via the normal menu endpoints,
+ * passing restaurantId (allowed for PLATFORM_ADMIN). Photos are out of scope.
+ */
+function MenuImportModal({ restaurantId, restaurantName, onClose }:
+  { restaurantId: number; restaurantName: string; onClose: () => void }) {
+  const t = useT(DICT);
+  const qc = useQueryClient();
+  const [text, setText] = useState('');
+  const [phase, setPhase] = useState<'edit' | 'confirm' | 'running' | 'done'>('edit');
+  const [parsed, setParsed] = useState<ImpCat[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [progress, setProgress] = useState('');
+  const [result, setResult] = useState<{ cats: number; items: number } | null>(null);
+
+  const existingCatsQ = useQuery({ queryKey: ['admin-menu-cats', restaurantId], queryFn: () => api.get<CategoryResponse[]>(`/api/menu/categories?restaurantId=${restaurantId}`) });
+  const existingItemsQ = useQuery({ queryKey: ['admin-menu-items', restaurantId], queryFn: () => api.get<MenuItemResponse[]>(`/api/menu/items?restaurantId=${restaurantId}`) });
+  const existingCats = existingCatsQ.data ?? [];
+  const existingItems = existingItemsQ.data ?? [];
+  const loading = existingCatsQ.isLoading || existingItemsQ.isLoading;
+
+  const itemCount = parsed.reduce((n, c) => n + (c.items?.length ?? 0), 0);
+
+  const review = () => {
+    const out = parseImport(text);
+    if ('errors' in out) { setErrors(out.errors); setParsed([]); setPhase('edit'); return; }
+    setErrors([]); setParsed(out.cats); setPhase('confirm');
+  };
+
+  const run = async () => {
+    setPhase('running');
+    const errs: string[] = [];
+    let madeCats = 0, madeItems = 0;
+    // 1) wipe — items first (a non-empty category can't be deleted), then categories
+    for (let i = 0; i < existingItems.length; i++) {
+      setProgress(`🗑 ${i + 1}/${existingItems.length}`);
+      try { await api.del(`/api/menu/items/${existingItems[i].id}`); }
+      catch (e) { errs.push(`delete item #${existingItems[i].id}: ${e instanceof ApiError ? e.message : 'failed'}`); }
+    }
+    for (const c of existingCats) {
+      try { await api.del(`/api/menu/categories/${c.id}`); }
+      catch (e) { errs.push(`delete category "${c.nameEn}": ${e instanceof ApiError ? e.message : 'failed'}`); }
+    }
+    // 2) recreate from JSON
+    for (let ci = 0; ci < parsed.length; ci++) {
+      const cat = parsed[ci];
+      let catId: number;
+      try {
+        const created = await api.post<CategoryResponse>('/api/menu/categories', {
+          restaurantId, nameEn: cat.nameEn, nameAr: cat.nameAr,
+          descriptionEn: cat.descriptionEn ?? null, descriptionAr: cat.descriptionAr ?? null, displayOrder: ci,
+        });
+        catId = created.id; madeCats++;
+      } catch (e) { errs.push(`category "${cat.nameEn}": ${e instanceof ApiError ? e.message : 'failed'}`); continue; }
+      const items = cat.items ?? [];
+      for (let ii = 0; ii < items.length; ii++) {
+        const it = items[ii];
+        setProgress(`＋ ${cat.nameEn} › ${it.nameEn}`);
+        try {
+          await api.post('/api/menu/items', {
+            restaurantId, categoryId: catId, nameEn: it.nameEn, nameAr: it.nameAr,
+            descriptionEn: it.descriptionEn ?? null, descriptionAr: it.descriptionAr ?? null,
+            price: it.price, preparationTimeMinutes: it.preparationTimeMinutes ?? null,
+            available: it.available ?? true, displayOrder: ii, optionGroups: normalizeGroups(it.options),
+          });
+          madeItems++;
+        } catch (e) { errs.push(`item "${cat.nameEn} › ${it.nameEn}": ${e instanceof ApiError ? e.message : 'failed'}`); }
+      }
+    }
+    setErrors(errs);
+    setResult({ cats: madeCats, items: madeItems });
+    setProgress('');
+    setPhase('done');
+    qc.invalidateQueries({ queryKey: ['admin-menu-cats', restaurantId] });
+    qc.invalidateQueries({ queryKey: ['admin-menu-items', restaurantId] });
+    qc.invalidateQueries({ queryKey: ['admin-restaurant-stats'] });
+  };
+
+  const boxStyle: CSSProperties = {
+    width: '100%', minHeight: 240, resize: 'vertical', direction: 'ltr',
+    border: '1px solid var(--line-2)', background: 'var(--bg-2)', color: 'var(--text)',
+    borderRadius: 10, padding: '11px 12px', fontFamily: 'var(--font-mono)', fontSize: 11.5, lineHeight: 1.5,
+  };
+  const errStyle: CSSProperties = { color: 'var(--bad)', fontSize: 12, fontWeight: 700, margin: '8px 0 0', whiteSpace: 'pre-wrap' };
+
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget && phase !== 'running') onClose(); }}>
+      <div className="modal-card" style={{ maxWidth: 620 }}>
+        <h3>{t('importTitle')}</h3>
+        <div className="ph">{restaurantName}</div>
+
+        {phase === 'edit' && (<>
+          <p className="ph">{t('importHint')}</p>
+          <textarea style={boxStyle} spellCheck={false} placeholder={t('importPlace')} value={text}
+            onChange={(e) => { setText(e.target.value); setErrors([]); }} />
+          {errors.length > 0 && (
+            <div style={errStyle}>{t('importBad')}{'\n'}{errors.slice(0, 8).join('\n')}{errors.length > 8 ? `\n…+${errors.length - 8}` : ''}</div>
+          )}
+          <div className="modal-actions">
+            <button className="btn ghost" onClick={() => setText(IMPORT_SAMPLE)}>{t('importSample')}</button>
+            <button className="btn" disabled={!text.trim()} onClick={review}>{t('importReview')}</button>
+          </div>
+        </>)}
+
+        {phase === 'confirm' && (<>
+          <div className="ph" style={{ color: 'var(--bad)' }}>{t('importWarn')}</div>
+          {loading ? <div className="center" style={{ minHeight: 80 }}><div className="spinner" /></div> : (
+            <div className="ph">
+              <div><b>{t('willDelete')}:</b> {existingCats.length} {t('catsWord')} · {existingItems.length} {t('itemsWord')}</div>
+              <div><b>{t('willAdd')}:</b> {parsed.length} {t('catsWord')} · {itemCount} {t('itemsWord')}</div>
+            </div>
+          )}
+          <div className="modal-actions">
+            <button className="btn ghost" onClick={() => setPhase('edit')}>{t('cancel')}</button>
+            <button className="btn danger" disabled={loading} onClick={run}>{t('importConfirm')}</button>
+          </div>
+        </>)}
+
+        {phase === 'running' && (
+          <div className="center" style={{ minHeight: 160, flexDirection: 'column', gap: 12 }}>
+            <div className="spinner" />
+            <div className="num" style={{ color: 'var(--muted)', fontSize: 13 }}>{t('importing')} {progress}</div>
+          </div>
+        )}
+
+        {phase === 'done' && (<>
+          <div className="ph">
+            <b style={{ color: 'var(--text)' }}>{t('importDoneT')}</b>
+            <div style={{ marginTop: 6 }}>{result?.cats ?? 0} {t('catsWord')} · {result?.items ?? 0} {t('itemsWord')}</div>
+          </div>
+          {errors.length > 0 && (
+            <div style={errStyle}>{t('importErrorsT')} ({errors.length}){'\n'}{errors.slice(0, 8).join('\n')}{errors.length > 8 ? `\n…+${errors.length - 8}` : ''}</div>
+          )}
+          <div className="modal-actions">
+            <button className="btn" onClick={onClose}>{t('closeBtn')}</button>
+          </div>
+        </>)}
       </div>
     </div>
   );

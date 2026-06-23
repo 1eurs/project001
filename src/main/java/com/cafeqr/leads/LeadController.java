@@ -31,7 +31,7 @@ public class LeadController {
     }
 
     @Operation(summary = "List café access requests (platform admin)")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
     @GetMapping("/api/admin/leads")
     public ApiResponse<List<LeadResponse>> list() {
         return ApiResponse.ok(leadService.list());

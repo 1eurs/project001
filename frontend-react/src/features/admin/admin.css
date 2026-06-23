@@ -60,9 +60,7 @@
 .search{flex:1;max-width:320px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:9px 13px}
 .search input{flex:1;border:0;background:transparent;color:var(--text);font-family:var(--font-ar);font-size:14px;outline:none}
 .search input::placeholder{color:var(--faint)}
-.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line-2);border-radius:11px;padding:3px;gap:2px}
-.seg button{border:0;background:transparent;color:var(--muted);font-family:var(--font-ar);font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer}
-.seg button.on{background:var(--surface-2);color:var(--text)}
+/* .seg (segmented control) is now shared in theme.css */
 
 .tbl{width:100%;border-collapse:separate;border-spacing:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
 .tbl th{text-align:start;font-size:11.5px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;padding:13px 16px;border-bottom:1px solid var(--line)}
@@ -75,21 +73,129 @@
 .rname{font-weight:600}.rslug{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
 @media(max-width:760px){.tbl .hide-sm{display:none}}
 
-/* drawer (bulletproof: invisible + off-screen when closed; docks right in RTL) */
-.drawer-bg{position:fixed;inset:0;z-index:200;background:rgba(5,6,8,.55);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .3s}
-.drawer-bg.open{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:0;bottom:0;width:420px;max-width:92vw;z-index:201;background:var(--bg-2);display:flex;flex-direction:column;visibility:hidden;
-  transition:transform .35s cubic-bezier(.2,.8,.2,1),visibility .35s}
-html[dir="ltr"] .drawer{left:0;border-right:1px solid var(--line-2);box-shadow:40px 0 80px -40px rgba(0,0,0,.9);transform:translateX(-100%)}
-html[dir="rtl"] .drawer{right:0;border-left:1px solid var(--line-2);box-shadow:-40px 0 80px -40px rgba(0,0,0,.9);transform:translateX(100%)}
-html[dir] .drawer.open{transform:none;visibility:visible}
-.drawer-hd{display:flex;align-items:center;gap:12px;padding:20px;border-bottom:1px solid var(--line)}
-.drawer-hd .x{margin-inline-start:auto;width:34px;height:34px;border-radius:10px;border:1px solid var(--line-2);background:transparent;color:var(--text);font-size:18px;cursor:pointer}
-.drawer-bd{flex:1;overflow-y:auto;padding:20px}
-.sect{margin-bottom:22px}.sect h4{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:10px;font-weight:600}
-.kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
-.kv:last-child{border-bottom:0}.kv .k{color:var(--muted)}.kv .v{font-weight:500}
-.subbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px}
-.drawer-ft{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px}.drawer-ft .btn{flex:1}
+/* drawer + .sect/.kv/.subbox are now shared in theme.css */
 
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* =====================================================================
+   BOLD skin — the same neo-brutalist green identity as the dashboard &
+   landing. Palette comes from the shared block in theme.css; this adds the
+   structure (ink borders, hard shadows, blocky corners, green sidebar),
+   scoped to .adm so customer/menu surfaces are untouched.
+   ===================================================================== */
+.adm{
+  --r-lg:9px; --r-md:7px; --r-sm:6px;
+  --bold:'Bricolage Grotesque','IBM Plex Sans Arabic',system-ui,sans-serif;
+  background:
+    linear-gradient(90deg,rgba(16,185,129,.06) 1px,transparent 1px) 0 0/34px 34px,
+    linear-gradient(180deg,rgba(16,185,129,.05) 1px,transparent 1px) 0 0/34px 34px,
+    var(--paper);
+}
+.adm .atop h2,.adm .kpi .val,.adm .acct-name{font-family:var(--bold);font-weight:800;letter-spacing:-.01em}
+
+/* green sidebar — brand colour as the dominant chrome element */
+.adm .arail{background:var(--accent);border-inline-start:2px solid var(--ink);backdrop-filter:none}
+.adm .arail .logo{border-radius:8px;border:2px solid var(--ink);background:var(--ink);color:var(--lime);box-shadow:var(--hard-sm)}
+.adm .arail .nav button{border-radius:8px;color:var(--ink)}
+.adm .arail .nav button:hover{background:rgba(0,0,0,.12)}
+.adm .arail .nav button.on{background:var(--bg-2);color:var(--ink);box-shadow:var(--hard-sm)}
+.adm .arail .nav button .nbadge{border:1.5px solid var(--ink)}
+.adm .arail .out{color:var(--ink);border-radius:8px}
+.adm .arail .out:hover{background:rgba(0,0,0,.12)}
+
+/* top bar (flat, ink-edged) */
+.adm .atop{border-bottom:2px solid var(--ink);backdrop-filter:none}
+
+/* bold buttons (lime fill, ink border, hard shadow, press-in) */
+.adm .btn{background:var(--lime);color:var(--ink);border:2px solid var(--ink);border-radius:6px;
+  font-family:var(--bold);font-weight:800;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
+.adm .btn:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
+.adm .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.adm .btn.ghost{background:var(--paper);color:var(--ink)}
+.adm .btn.danger{background:var(--paper);color:var(--bad);border-color:var(--bad)}
+.adm .btn:disabled{filter:none;opacity:.5;box-shadow:none;transform:none}
+
+/* cards, tables & boxes — ink edges + hard shadow */
+.adm .kpi,.adm .subbox{border:2px solid var(--ink);border-radius:7px;box-shadow:var(--hard-sm)}
+.adm .tbl{border:2px solid var(--ink);border-radius:8px;box-shadow:var(--hard-sm);overflow:hidden}
+.adm .tbl th{color:var(--ink);border-bottom:2px solid var(--ink);font-family:var(--bold);font-weight:900}
+.adm .tbl td{border-bottom:1.5px solid var(--line-2)}
+.adm .rlogo{border:2px solid var(--ink);border-radius:6px}
+
+/* search, segmented control & inputs */
+.adm .search{border:2px solid var(--ink);border-radius:6px;background:var(--bg-2)}
+.adm .seg{border:2px solid var(--ink);border-radius:6px;background:var(--bg-2)}
+.adm .seg button.on{background:var(--lime);color:var(--ink);border-radius:4px}
+.adm .input,.adm .field input,.adm .field textarea,.adm .field select{background:var(--paper);border:2px solid var(--ink);border-radius:6px}
+.adm .input:focus,.adm .field input:focus,.adm .field select:focus{border-color:var(--ink);box-shadow:3px 3px 0 var(--lime)}
+
+/* account menu, avatar, drawer, modal */
+.adm .who .av{border:2px solid var(--ink);border-radius:8px;background:var(--lime);color:var(--ink);font-family:var(--bold)}
+.adm .acct-menu{border:2px solid var(--ink);border-radius:9px;box-shadow:5px 5px 0 var(--ink)}
+.adm .acct-lang-btns button.on{background:var(--lime);color:var(--ink)}
+.adm .drawer-hd .x{border:2px solid var(--ink);border-radius:6px}
+.adm .modal-card{border:2.5px solid var(--ink);border-radius:10px;box-shadow:6px 6px 0 var(--ink)}
+
+/* =====================================================================
+   Branches (drawer) — was unstyled; now a tidy framed list + add row.
+   ===================================================================== */
+.sect h4{display:flex;align-items:center;gap:8px}
+.sect-count{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--ink);background:var(--surface-2);
+  border:1.5px solid var(--ink);border-radius:999px;min-width:20px;height:18px;padding:0 6px;display:inline-grid;place-items:center;letter-spacing:0}
+.branch-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.branch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;
+  background:var(--bg-2);border:2px solid var(--ink);border-radius:7px;box-shadow:var(--hard-sm)}
+.branch-row .b-info{min-width:0}
+.branch-row .b-name{font-weight:700;font-size:13.5px;font-family:var(--bold)}
+.branch-row .rslug{margin-top:2px}
+.btn-chip{cursor:pointer;background:var(--paper);border:1.5px solid var(--ink);transition:transform .1s}
+.btn-chip:hover{transform:translateY(-1px)}
+.btn-chip.ok{background:rgba(16,185,129,.12)}
+.branch-add{display:flex;gap:8px;align-items:stretch}
+.branch-add input{flex:1;min-width:0;background:var(--paper);border:2px solid var(--ink);border-radius:6px;
+  padding:10px 12px;font-family:var(--font-ar);font-size:13.5px;color:var(--text);outline:none}
+.branch-add input:focus{box-shadow:3px 3px 0 var(--lime)}
+.branch-add input::placeholder{color:var(--faint)}
+.branch-add .btn.sm{flex:0 0 auto;white-space:nowrap}
+
+/* =====================================================================
+   Plans page — inline-editable pricing-plan catalogue.
+   ===================================================================== */
+.plans-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.plans-head .ph{color:var(--muted);font-size:13.5px;max-width:560px}
+.plans-tbl{table-layout:auto}
+.plans-tbl td{vertical-align:middle}
+.plans-tbl .p-name{font-weight:700;font-family:var(--bold);font-size:14px}
+.plans-tbl .tier-tag{display:inline-block;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.04em;
+  color:var(--ink);background:var(--lime);border:1.5px solid var(--ink);border-radius:5px;padding:3px 8px}
+.plans-tbl .p-custom{font-weight:700;color:var(--muted);font-style:italic}
+.plans-tbl .num{font-family:var(--font-mono)}
+.plans-tbl .p-empty{text-align:center;color:var(--faint);padding:26px 16px;font-size:13.5px}
+.plans-tbl .edit-row td{background:rgba(16,185,129,.05)}
+.plans-tbl .pin{width:100%;max-width:160px;background:var(--paper);border:2px solid var(--ink);border-radius:6px;
+  padding:8px 10px;font-family:var(--font-ar);font-size:13.5px;color:var(--text);outline:none}
+.plans-tbl .pin.num{font-family:var(--font-mono);max-width:110px}
+.plans-tbl .pin:focus{box-shadow:3px 3px 0 var(--lime)}
+.plans-tbl .p-actions{display:flex;gap:7px;align-items:center;white-space:nowrap}
+.adm .icon-btn{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;cursor:pointer;font-size:15px;
+  background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:6px;box-shadow:var(--hard-sm);transition:transform .1s,box-shadow .1s}
+.adm .icon-btn:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
+.adm .icon-btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.adm .icon-btn.danger{color:var(--bad);border-color:var(--bad)}
+.adm .icon-btn:disabled{opacity:.5;box-shadow:none;transform:none;cursor:not-allowed}
+
+/* =====================================================================
+   Plan quick-pick inside the subscription modal.
+   ===================================================================== */
+.plan-pick{margin:4px 0 16px}
+.plan-pick-lbl{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px}
+.plan-pick-row{display:flex;gap:10px;flex-wrap:wrap}
+.plan-pick-card{flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;text-align:start;cursor:pointer;
+  background:var(--paper);border:2px solid var(--ink);border-radius:7px;padding:11px 13px;box-shadow:var(--hard-sm);
+  transition:transform .1s,box-shadow .1s;font-family:var(--font-ar);color:var(--text)}
+.plan-pick-card:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
+.plan-pick-card.on{background:var(--lime);color:var(--ink)}
+.plan-pick-card .pp-name{font-family:var(--bold);font-weight:800;font-size:14px}
+.plan-pick-card .pp-price{font-size:13px}
+.plan-pick-card .pp-price b{font-family:var(--font-mono);font-size:15px}
+.plan-pick-card .pp-setup{font-size:11px;opacity:.75;font-family:var(--font-mono)}
