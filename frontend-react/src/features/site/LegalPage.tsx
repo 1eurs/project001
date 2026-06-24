@@ -1,127 +1,113 @@
-// Template legal copy for launch. HAVE THIS REVIEWED BY COUNSEL and replace the contact details
-// + add your registered company legal name / CR number before relying on it in production.
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { useI18n } from '../../lib/i18n';
-import { ensureGoogleFonts, BOLD_FONTS } from '../../lib/fonts';
-import '../landing-designs/designs/l4.css';
+import { ensureGoogleFonts } from '../../lib/fonts';
+import { SiteFooter } from './SiteFooter';
+import {
+  COMPANY, LEGAL, LEGAL_LABELS, LEGAL_ORDER, LEGAL_UI, LEGAL_UPDATED,
+  type LegalSlug,
+} from './legal';
+import './site.css';
 
-type Doc = 'terms' | 'privacy' | 'refund';
-type Section = { h: string; p: string };
-type Content = { kicker: string; title: string; updated: string; sections: Section[]; contact: string };
+function isSlug(s: string | undefined): s is LegalSlug {
+  return !!s && (LEGAL_ORDER as string[]).includes(s);
+}
 
-const CONTACT_EMAIL = 'hello@serva.app';
+export default function LegalPage() {
+  const { slug } = useParams();
+  const { lang, dir } = useI18n();
 
-const DOCS: Record<Doc, Record<'ar' | 'en', Content>> = {
-  terms: {
-    en: {
-      kicker: 'Legal', title: 'Terms of Service', updated: 'Last updated: June 2026',
-      sections: [
-        { h: '1. The service', p: 'Serva provides a QR-code ordering platform that lets cafés and food businesses in Oman publish a digital menu and receive orders. By creating an account you agree to these terms.' },
-        { h: '2. Your account', p: 'You are responsible for keeping your login secure and for the accuracy of your menu, prices and the orders you accept. You must not use the service for unlawful purposes.' },
-        { h: '3. Subscription & payment', p: 'Access is sold as an annual subscription paid by bank transfer. Your account is activated once we confirm payment and stays active until the end of the paid term. If you do not renew, your public menu goes offline after a short grace period. Prices may change with notice for future terms.' },
-        { h: '4. Availability', p: 'We work to keep the service available, but provide it “as is” without warranty of uninterrupted or error-free operation.' },
-        { h: '5. Limitation of liability', p: 'To the extent permitted by law, Serva is not liable for indirect or consequential losses, or for amounts exceeding the fees you paid in the prior twelve months.' },
-        { h: '6. Termination', p: 'You may stop using the service at any time. We may suspend accounts that breach these terms or remain unpaid.' },
-        { h: '7. Governing law', p: 'These terms are governed by the laws of the Sultanate of Oman.' },
-      ],
-      contact: `Questions? Contact us at ${CONTACT_EMAIL}.`,
-    },
-    ar: {
-      kicker: 'قانوني', title: 'شروط الخدمة', updated: 'آخر تحديث: يونيو 2026',
-      sections: [
-        { h: '١. الخدمة', p: 'تقدّم Serva منصّة طلب عبر رمز QR تتيح للمقاهي والأنشطة الغذائية في عُمان نشر قائمة رقمية واستقبال الطلبات. بإنشائك حساباً فأنت توافق على هذه الشروط.' },
-        { h: '٢. حسابك', p: 'أنت مسؤول عن الحفاظ على بيانات دخولك وعن دقّة قائمتك وأسعارك والطلبات التي تقبلها، ولا يجوز استخدام الخدمة لأغراض غير قانونية.' },
-        { h: '٣. الاشتراك والدفع', p: 'يُباع الوصول كاشتراك سنوي يُدفع عبر التحويل البنكي. يُفعّل حسابك فور تأكيد الدفع ويبقى نشطاً حتى نهاية المدة المدفوعة. وإن لم تُجدّد تتوقّف قائمتك العامة بعد مهلة قصيرة. وقد تتغيّر الأسعار للمدد القادمة بإشعار مسبق.' },
-        { h: '٤. التوفّر', p: 'نسعى لإبقاء الخدمة متاحة، لكنها تُقدَّم «كما هي» دون ضمان تشغيل متواصل أو خالٍ من الأخطاء.' },
-        { h: '٥. حدود المسؤولية', p: 'بالقدر الذي يسمح به القانون، لا تتحمّل Serva المسؤولية عن الأضرار غير المباشرة أو التبعية، أو عن مبالغ تتجاوز ما دفعته خلال الاثني عشر شهراً السابقة.' },
-        { h: '٦. الإنهاء', p: 'يمكنك التوقّف عن استخدام الخدمة في أي وقت، ويجوز لنا تعليق الحسابات المخالفة لهذه الشروط أو غير المدفوعة.' },
-        { h: '٧. القانون الحاكم', p: 'تخضع هذه الشروط لقوانين سلطنة عُمان.' },
-      ],
-      contact: `لأي استفسار تواصل معنا على ${CONTACT_EMAIL}.`,
-    },
-  },
-  privacy: {
-    en: {
-      kicker: 'Legal', title: 'Privacy Policy', updated: 'Last updated: June 2026',
-      sections: [
-        { h: 'What we collect', p: 'Café account details (name, email, phone), your menu and order data, and information customers enter when ordering (such as a name or phone number, only if they provide it). We also keep basic technical logs.' },
-        { h: 'How we use it', p: 'To run the platform, process and track orders, and send service emails — signup instructions, activation, password reset and renewal reminders.' },
-        { h: 'Sharing', p: 'We use trusted providers to deliver email (and, where enabled, SMS) on our behalf. We do not sell your data.' },
-        { h: 'Retention', p: 'We keep data while your account is active and as needed for legal and accounting purposes, then delete or anonymise it.' },
-        { h: 'Security', p: 'We use industry-standard measures to protect your data, though no system can be perfectly secure.' },
-        { h: 'Your choices', p: 'Contact us to access, correct or delete your data.' },
-      ],
-      contact: `Privacy questions? Email ${CONTACT_EMAIL}.`,
-    },
-    ar: {
-      kicker: 'قانوني', title: 'سياسة الخصوصية', updated: 'آخر تحديث: يونيو 2026',
-      sections: [
-        { h: 'ما الذي نجمعه', p: 'بيانات حساب المقهى (الاسم، البريد، الهاتف)، وقائمتك وبيانات الطلبات، والمعلومات التي يُدخلها الزبائن عند الطلب (كالاسم أو رقم الهاتف، إن قدّموها فقط). كما نحتفظ بسجلات تقنية أساسية.' },
-        { h: 'كيف نستخدمها', p: 'لتشغيل المنصّة ومعالجة الطلبات وتتبّعها، وإرسال رسائل الخدمة — تعليمات التسجيل والتفعيل وإعادة تعيين كلمة المرور وتذكير التجديد.' },
-        { h: 'المشاركة', p: 'نستعين بمزوّدين موثوقين لإرسال البريد (والرسائل النصية عند التفعيل) نيابةً عنّا، ولا نبيع بياناتك.' },
-        { h: 'الاحتفاظ', p: 'نحتفظ بالبيانات طالما كان حسابك نشطاً وبما يلزم للأغراض القانونية والمحاسبية، ثم نحذفها أو نجعلها مجهولة الهوية.' },
-        { h: 'الأمان', p: 'نستخدم تدابير وفق معايير الصناعة لحماية بياناتك، مع أنه لا يوجد نظام آمن تماماً.' },
-        { h: 'خياراتك', p: 'تواصل معنا للوصول إلى بياناتك أو تصحيحها أو حذفها.' },
-      ],
-      contact: `لاستفسارات الخصوصية راسلنا على ${CONTACT_EMAIL}.`,
-    },
-  },
-  refund: {
-    en: {
-      kicker: 'Legal', title: 'Refund & Cancellation', updated: 'Last updated: June 2026',
-      sections: [
-        { h: 'Annual subscription', p: 'Fees are paid yearly by bank transfer and are non-refundable once your account is activated.' },
-        { h: 'Cancellation', p: 'You can cancel anytime. There is no automatic charge — renewal only happens when you choose to pay again, so if you don’t renew, your café simply goes offline at the end of the paid term.' },
-        { h: 'Before activation', p: 'If you sign up but do not complete payment, you are not charged and nothing goes live.' },
-        { h: 'Billing issues', p: 'If something went wrong with a transfer, contact us and we’ll help sort it out.' },
-      ],
-      contact: `Billing questions? Email ${CONTACT_EMAIL}.`,
-    },
-    ar: {
-      kicker: 'قانوني', title: 'سياسة الاسترداد والإلغاء', updated: 'آخر تحديث: يونيو 2026',
-      sections: [
-        { h: 'الاشتراك السنوي', p: 'تُدفع الرسوم سنوياً عبر التحويل البنكي وغير قابلة للاسترداد بعد تفعيل الحساب.' },
-        { h: 'الإلغاء', p: 'يمكنك الإلغاء في أي وقت. لا يوجد خصم تلقائي — لا يتم التجديد إلا باختيارك الدفع مجدداً، فإن لم تُجدّد يتوقّف مقهاك ببساطة في نهاية المدة المدفوعة.' },
-        { h: 'قبل التفعيل', p: 'إن سجّلت ولم تُكمل الدفع، فلن يتم تحصيل أي مبلغ ولن يُنشر شيء.' },
-        { h: 'مشاكل الدفع', p: 'إن حدث خطأ في التحويل، تواصل معنا وسنساعدك في حلّه.' },
-      ],
-      contact: `لاستفسارات الفوترة راسلنا على ${CONTACT_EMAIL}.`,
-    },
-  },
-};
+  useEffect(() => {
+    ensureGoogleFonts(['Space+Grotesk:wght@400;500;700', 'Tajawal:wght@400;500;700;900']);
+    window.scrollTo(0, 0);
+  }, [slug]);
 
-export default function LegalPage({ doc }: { doc: Doc }) {
-  const { lang } = useI18n();
-  useEffect(() => { ensureGoogleFonts(BOLD_FONTS); }, []);
-  const d = DOCS[doc][lang];
+  if (!isSlug(slug)) return <Navigate to="/legal/privacy" replace />;
+
+  const ui = LEGAL_UI[lang];
+  const doc = LEGAL[lang][slug];
+  const updated = new Date(LEGAL_UPDATED).toLocaleDateString(lang === 'ar' ? 'ar-OM' : 'en-GB', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  });
 
   return (
-    <div className="lz-screen b4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      <nav className="b4-nav b4-simple-nav">
-        <Link className="b4-brand" to="/">SERVA<span>.</span></Link>
-        <div className="b4-tools">
-          <Link className="b4-signin" to="/">{lang === 'ar' ? '← الرئيسية' : '← Home'}</Link>
+    <div id="neo" dir={dir} className={lang === 'ar' ? 'lang-ar' : ''}>
+      {/* top bar */}
+      <header className="sticky top-0 z-50 border-b-4 border-black bg-neo-bg">
+        <div className="mx-auto flex h-20 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
+          <Link to="/" className="flex items-center text-2xl font-black tracking-tighter">
+            <span className="flex h-11 items-center border-4 border-black bg-neo-accent px-3 text-black shadow-neo-sm">SERVA</span>
+          </Link>
+          <Link to="/"
+            className="inline-flex h-11 items-center gap-2 border-4 border-black bg-white px-4 text-sm font-bold uppercase tracking-wide shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:shadow-neo active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
+            <span aria-hidden="true">{lang === 'ar' ? '→' : '←'}</span> {ui.back}
+          </Link>
         </div>
-      </nav>
+      </header>
 
-      <section className="b4-sec b4-page-main">
-        <div className="b4-pagecard b4-legal">
-          <div className="b4-seclbl">{d.kicker}</div>
-          <h1 className="b4-h2">{d.title}</h1>
-          <p className="b4-legal-meta">{d.updated}</p>
+      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        {/* doc tabs */}
+        <nav aria-label={ui.legal} className="flex flex-wrap gap-2">
+          {LEGAL_ORDER.map((s) => {
+            const active = s === slug;
+            return (
+              <Link key={s} to={`/legal/${s}`}
+                className={`border-4 border-black px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all duration-100 hover:-translate-y-0.5 ${active ? 'bg-neo-accent text-black shadow-neo-sm' : 'bg-white text-black hover:shadow-neo-sm'}`}>
+                {LEGAL_LABELS[lang][s]}
+              </Link>
+            );
+          })}
+        </nav>
 
-          {d.sections.map((s) => (
-            <div className="b4-legal-section" key={s.h}>
-              <h3>{s.h}</h3>
-              <p>{s.p}</p>
-            </div>
-          ))}
-
-          <p className="b4-legal-contact">{d.contact}</p>
-          <Link className="b4-btn" to="/">{lang === 'ar' ? '← الرئيسية' : '← Home'}</Link>
+        {/* heading */}
+        <div className="mt-8">
+          <h1 className="text-4xl font-black uppercase leading-[0.95] tracking-tighter md:text-6xl">{doc.title}</h1>
+          <span className="mt-4 inline-block -rotate-1 border-4 border-black bg-neo-accent px-3 py-1 text-xs font-black uppercase tracking-widest shadow-neo-sm">
+            {ui.updated}: {updated}
+          </span>
         </div>
-      </section>
+
+        {/* body card */}
+        <article className="mt-8 border-4 border-black bg-white p-6 shadow-neo md:p-10">
+          <p className="text-lg font-bold leading-relaxed">{doc.intro}</p>
+
+          <div className="mt-8 space-y-9">
+            {doc.sections.map((sec, i) => (
+              <section key={i}>
+                <h2 className="flex items-baseline gap-3 text-xl font-black uppercase tracking-tight md:text-2xl">
+                  <span className="text-neo-accent">{String(i + 1).padStart(2, '0')}</span>
+                  {sec.h}
+                </h2>
+                {sec.body.length > 1 ? (
+                  <ul className="mt-3 space-y-2">
+                    {sec.body.map((b, j) => (
+                      <li key={j} className="flex gap-3 text-base font-medium leading-relaxed text-black/85">
+                        <span aria-hidden="true" className="mt-2 h-2.5 w-2.5 shrink-0 border-2 border-black bg-neo-accent" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-base font-medium leading-relaxed text-black/85">{sec.body[0]}</p>
+                )}
+              </section>
+            ))}
+          </div>
+
+          <p className="mt-9 border-t-4 border-black pt-5 text-sm font-bold text-black/60">{ui.disclaimer}</p>
+        </article>
+
+        {/* contact strip */}
+        <div className="mt-8 flex flex-col items-start justify-between gap-4 border-4 border-black bg-neo-accent/10 p-6 shadow-neo-sm sm:flex-row sm:items-center">
+          <span className="text-lg font-black uppercase tracking-tight">{ui.needHelp}</span>
+          <a href={`mailto:${COMPANY.email}`}
+            className="inline-flex h-12 items-center gap-2 border-4 border-black bg-neo-accent px-6 text-sm font-bold uppercase tracking-wide text-black shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:shadow-neo active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
+            {ui.contactCta} <span aria-hidden="true">{lang === 'ar' ? '←' : '→'}</span>
+          </a>
+        </div>
+      </main>
+
+      <SiteFooter />
     </div>
   );
 }

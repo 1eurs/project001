@@ -1,372 +1,545 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { api, ApiError } from '../../lib/api';
-import { useToast } from '../../lib/toast';
-import { useI18n, useT, type Dict } from '../../lib/i18n';
-import { BRAND } from '../../lib/brand';
-import { DEMO } from '../../lib/demo';
+import { useI18n } from '../../lib/i18n';
+import { ensureGoogleFonts } from '../../lib/fonts';
+import type { Lang } from '../../lib/types';
+import { SiteFooter } from './SiteFooter';
 import './site.css';
 
-const T: Dict = {
-  ar: {
-    nav_how: 'كيف يعمل', nav_feat: 'المزايا', nav_price: 'السعر', nav_demo: 'العرض', nav_req: 'ابدأ', nav_signin: 'دخول', cta_start: 'ابدأ الآن',
-    kicker: 'الطابور ينتهي هنا.',
-    h1a: 'اطلب من', h1b: 'أي مكان', trans: 'Order from anywhere.',
-    sub: 'من الطاولة، أو الكاونتر، أو السيارة.',
-    lead: 'للمقاهي والمطاعم في عُمان. يمسح زبونك الرمز من طاولته أو من الطابور أو من سيارته، يتصفّح القائمة بالعربية أو الإنجليزية، ويطلب خلال ثوانٍ — دون تطبيق، ودون انتظار، ودون التلويح للنادل.',
-    cta_req: 'ابدأ استقبال الطلبات', cta_demo: 'شاهده يعمل', sl_scan: 'امسح', sl_order: 'اطلب', sl_track: 'استلم',
-    prob_lbl: 'المشكلة',
-    m1: 'طابور عند الكاونتر، وتلويح للنادل، وسيارات تنتظر في الخارج —', m2: 'كلها الاختناق نفسه.',
-    ba_before: 'ساعة الذروة بدون Serva',
-    bb1: 'طابور عند الكاشير، وزبائن ينسحبون منه.',
-    bb2: 'زبائن يلوّحون لنادلٍ يقوم بثلاث وظائف في الوقت نفسه.',
-    bb3: 'سيارات تنتظر في الخارج والموظفون يركضون ذهاباً وإياباً.',
-    bb4: 'طلبات تُملى وسط الضجيج — أخطاء، وإعادة تحضير، واعتذارات.',
-    ba_after: 'ساعة الذروة مع Serva',
-    ba1: 'كل طاولة وكاونتر وموقف سيارة يستقبل طلبه بنفسه.',
-    ba2: 'الطلبات تصل إلى شاشة التحضير لحظة تأكيدها.',
-    ba3: 'موظفوك يحضّرون المشروبات بدل تدوين الطلبات.',
-    ba4: 'طلبات مكتوبة كما كتبها الزبون تماماً — بلا إعادة تحضير.',
-    how_lbl: 'كيف يعمل',
-    s1t: 'امسح الرمز', s1d: 'رمز QR على الطاولة أو الكاونتر أو لوحة الموقف يفتح قائمتك فوراً في المتصفح — لا تنزيل ولا تثبيت.',
-    s2t: 'اختر واطلب', s2d: 'سلة سريعة بالعربية أو الإنجليزية، وأسعار بالريال العُماني، وإرسال بضغطة واحدة. والزبون الدائم يجد بياناته مُعبّأة مسبقاً.',
-    s3t: 'حضّر وقدّم', s3d: 'يصل الطلب إلى شاشة التحضير لحظياً مع تنبيه صوتي، ويتابع الزبون حالة طلبه حتى يجهز — لا أحد يضطر للسؤال «هل جهز طلبي؟».',
-    magic_lbl: 'المزايا',
-    magic_h1: 'ثلاثة أشياء', magic_h2: 'لن تقدر عليها أي قائمة ورقية.',
-    f1k: 'ذاكرة الجهاز', f1t: 'يعرف زبائنك الدائمين بالاسم',
-    f1d: 'لحظة مسح الزبون العائد، يجد طلبه المفضّل ورقم هاتفه — وحتى رقم لوحة سيارته — معبّأة مسبقاً. من «وصلت للتو» إلى «أرسلت الطلب» في ثوانٍ، ويعود مرة بعد مرة لأن الطلب صار بلا مجهود.',
-    f2k: 'مراقبة السلة المباشرة', f2t: 'شاهد الطلبات قبل إرسالها',
-    f2d: 'راقب السلال وهي تمتلئ لحظياً، قبل أن يضغط أحد «اطلب». ترى الذروة وهي تتشكّل، وتبدأ التحضير مبكراً، وتُسرّع دوران الطاولات.',
-    f3k: 'هوية خاصة', f3t: 'قائمتك بهويتك أنت',
-    f3d: 'ألوانك وشعارك وصورك. يشعر الزبون أن مقهاك بنى تطبيقه الفاخر الخاص — لا رابط قائمة عام يحمل اسم شركة أخرى.',
-    cap_lbl: 'كل شيء مشمول',
-    i1t: 'عربي وإنجليزي', i1d: 'واجهة عربية أولاً مع تبديل فوري — قائمة واحدة باللغتين.',
-    i2t: 'شاشة تحضير مباشرة', i2d: 'الطلبات تصل لحظياً مع تنبيه صوتي.',
-    i3t: 'إدارة القائمة', i3d: 'أصناف وصور وتوفّر — تحديث بلمسة.',
-    i4t: 'رموز QR بهويتك', i4d: 'للطاولات أو الكاونتر أو المواقف — أنشئ واطبع.',
-    i5t: 'الدفع على طريقتك', i5d: 'نقداً أو بالبطاقة عند الاستلام — والدفع الإلكتروني اختياري.',
-    i6t: 'تقارير', i6d: 'مبيعات اليوم وأكثر الأصناف طلباً، بنظرة واحدة.',
-    i7t: 'وضع السيارة والطاولة', i7d: 'الاستلام من السيارة والطلب من الطاولة في نظام واحد — وكل طلب يخبرك أين زبونه.',
-    i8t: 'بلا أجهزة جديدة', i8d: 'يعمل في المتصفح على الهواتف وأي شاشة تملكها.',
-    price_lbl: 'السعر',
-    price_h: 'سعر واحد. كل شيء مشمول.',
-    price_amount: '29 ر.ع', price_per: 'لكل فرع · سنوياً',
-    price_p: 'أقل من 2.5 ريال شهرياً. بلا عمولات، وبلا رسوم على الطلبات، وبلا عقود معقّدة. سجّل، وحوّل مرة واحدة في السنة، وانتهيت.',
-    pr1: 'طلبات وأصناف بلا حدود',
-    pr2: 'تطبيق الزبون + شاشة التحضير + التقارير',
-    pr3: 'هويتك ورموز QR الخاصة بك مشمولة',
-    pr4: 'نفعّل حسابك فور تأكيد التحويل',
-    price_cta: 'ابدأ استقبال الطلبات',
-    demo_lbl: 'العرض', demo_h: 'جرّبه بنفسك الآن.', demo_guest: 'ما يراه زبونك', demo_guest_c: 'تجربة الطلب بالمسح كما يراها تماماً', demo_dash: 'ما تراه أنت', demo_dash_c: 'شاشة التحضير والإدارة مباشرة',
-    faq_lbl: 'أسئلة شائعة',
-    q1: 'هل يحتاج زبائني إلى تنزيل تطبيق؟', a1: 'لا. يفتح الرمز قائمتك مباشرة في المتصفح — سفاري أو كروم أو غيرهما. يمسح الزبون ويطلب خلال ثوانٍ.',
-    q2: 'هل يناسب الجلوس في المقهى والاستلام والسيارات؟', a2: 'الثلاثة معاً. كل رمز يعرف مكانه — طاولة 7، أو الكاونتر، أو موقف 3 — فيصل كل طلب وعليه مكان صاحبه.',
-    q3: 'وماذا عن الدفع؟', a3: 'القرار لك. معظم المقاهي تستلم نقداً أو بالبطاقة عند التسليم، تماماً كاليوم. Serva يلغي الانتظار في الطلب، لا تحكّمك في الدفع.',
-    q4: 'هل هو فعلاً بالعربية؟', a4: 'عربي أولاً. قائمتك ومسار الطلب ولوحة التحكم كلها بالعربية والإنجليزية، والأسعار بالريال العُماني.',
-    q5: 'ماذا أحتاج أن أركّب؟', a5: 'لا شيء. اطبع الرموز، وافتح اللوحة على أي هاتف أو جهاز لوحي أو شاشة تملكها، وأنت جاهز.',
-    q6: 'كم التكلفة؟', a6: '29 ريالاً عُمانياً لكل فرع سنوياً — سعر ثابت، وبلا أي عمولة على الطلبات.',
-    req_lbl: 'ابدأ', req_h: 'ذروتك القادمة تدير نفسها.',
-    req_p: 'أنشئ حسابك بنفسك وجهّز قائمتك خلال دقائق، وسنفعّله فور تأكيد التحويل. أو اترك بياناتك وسنتواصل معك.',
-    f_cafe: 'اسم المقهى / النشاط', f_name: 'اسمك', f_phone: 'رقم الجوال', f_city: 'المدينة', f_note: 'ملاحظة (اختياري)',
-    f_send: 'أرسل الطلب', f_sending: 'جارٍ الإرسال…', f_okh: 'وصلنا طلبك ✓', f_okp: 'شكراً لك — سنتواصل معك قريباً.',
-    cta_big1: 'أوقف', cta_big2: 'الانتظار',
-    foot_demo: 'العرض', foot_dash: 'لوحة الإدارة', foot_admin: 'لوحة المنصّة', foot_contact: 'تواصل',
-    foot_privacy: 'الخصوصية', foot_terms: 'الشروط', foot_refund: 'الاسترداد', foot_made: 'صُنع لمقاهي وأنشطة عُمان الغذائية', foot_rights: 'جميع الحقوق محفوظة',
-  },
+/* ─────────────────────────────────────────────────────────────────────────
+   Serva — neo-brutalist marketing landing (bilingual AR/EN, RTL-aware).
+   Text-only: no illustrations or icon art — the visual interest comes purely
+   from typography, color blocks, hard borders, shadows and oversized numerals.
+   The whole page lives under <div id="neo">, the scope Tailwind is confined to
+   (tailwind.config.js: important:'#neo', preflight off), so none of these
+   utilities can leak onto the customer / dashboard / admin apps.
+   ───────────────────────────────────────────────────────────────────────── */
+
+// ⚠️ TODO: replace with Serva's real WhatsApp number — international format, digits only, no "+".
+const WHATSAPP_NUMBER = '96890000000';
+const waLink = (msg: string) => `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+
+/* ── parallel AR / EN content ────────────────────────────────────────────── */
+type Plan = {
+  name: string; price: string; per: string; tagline: string;
+  features: string[]; featured?: boolean; badge?: string;
+};
+type Copy = {
+  dir: 'rtl' | 'ltr'; arrow: string; topbar: string;
+  nav: { features: string; pricing: string; how: string; faq: string; cta: string; login: string };
+  ticker: string[];
+  hero: {
+    badge: string; k1: string; k2: string; k3: string;
+    sub: string; cta1: string; cta2: string; trust: string;
+  };
+  stats: { value: string; label: string }[];
+  pillarsHead: { kicker: string; title: string; sub: string };
+  pillars: { title: string; blurb: string }[];
+  value: { kicker: string; title: string; points: string[]; color: string }[];
+  how: { kicker: string; title: string; steps: { t: string; d: string }[] };
+  pricing: { kicker: string; title: string; sub: string; setup: string; plans: Plan[]; cta: string; note: string };
+  faq: { kicker: string; title: string; items: { q: string; a: string }[] };
+  cta: { title: string; sub: string; btn: string };
+  footer: { tagline: string; made: string; rights: string; links: string[] };
+};
+
+const COPY: Record<Lang, Copy> = {
   en: {
-    nav_how: 'How', nav_feat: 'Features', nav_price: 'Pricing', nav_demo: 'Demo', nav_req: 'Get started', nav_signin: 'Sign in', cta_start: 'Start now',
-    kicker: 'The line stops here.',
-    h1a: 'Order from', h1b: 'anywhere', trans: 'اطلب من أي مكان.',
-    sub: 'table, counter, or car.',
-    lead: 'For cafés and restaurants in Oman. Your customers scan a QR from the table, the line, or the car, browse your menu in Arabic or English, and order in seconds — no app, no waiting, no waving for a waiter.',
-    cta_req: 'Start taking orders', cta_demo: 'Watch it work', sl_scan: 'scan', sl_order: 'order', sl_track: 'pick up',
-    prob_lbl: 'The problem',
-    m1: 'The line at the counter, the waving at waiters, the cars idling outside —', m2: "it's all the same bottleneck.",
-    ba_before: 'Rush hour without Serva',
-    bb1: 'A line at the register, and people walking away from it.',
-    bb2: "Customers waving for a waiter who's already doing three jobs.",
-    bb3: 'Cars waiting outside while staff run back and forth.',
-    bb4: 'Orders dictated over noise — mistakes, remakes, apologies.',
-    ba_after: 'Rush hour with Serva',
-    ba1: 'Every table, counter spot, and parking bay takes its own order.',
-    ba2: 'Orders land on the prep screen the second they’re confirmed.',
-    ba3: 'Your staff make drinks instead of taking dictation.',
-    ba4: 'Orders written exactly as the customer typed them — no remakes.',
-    how_lbl: 'How it works',
-    s1t: 'Scan the code', s1d: 'A QR on the table, the counter, or the parking sign opens your menu instantly in the browser — nothing to download, nothing to install.',
-    s2t: 'Pick & order', s2d: 'A fast cart in Arabic or English, prices in OMR, one tap to send. Returning customers find their details already filled in.',
-    s3t: 'Make & serve', s3d: 'The order hits your prep display in real time with a sound cue, and the customer tracks it until it’s ready — nobody has to ask “is it done yet?”',
-    magic_lbl: 'Features',
-    magic_h1: 'Three things', magic_h2: 'no paper menu will ever do.',
-    f1k: 'Device memory', f1t: 'It knows your regulars by heart',
-    f1d: 'The moment a returning customer scans, their favorite order, phone number — even their car plate — are already filled in. Regulars go from “just parked” to “order sent” in seconds, and they keep coming back because ordering is effortless.',
-    f2k: 'Live cart peek', f2t: 'See orders before they’re sent',
-    f2d: 'Watch carts fill up in real time, before anyone presses “order”. You see the rush while it’s still forming, start prepping early, and turn tables faster.',
-    f3k: 'Custom branding', f3t: 'Your menu, wearing your brand',
-    f3d: 'Your colors, your logo, your photos. To customers it feels like your café built its own premium app — not a generic menu link with somebody else’s name on it.',
-    cap_lbl: 'Everything included',
-    i1t: 'Arabic & English', i1d: 'RTL-first with an instant switch — one menu, both languages.',
-    i2t: 'Live prep display', i2d: 'Orders arrive in real time with a sound cue.',
-    i3t: 'Menu management', i3d: 'Items, photos, availability — updated in a tap.',
-    i4t: 'QR codes in your brand', i4d: 'For tables, the counter, or parking bays — generate & print.',
-    i5t: 'Payments your way', i5d: 'Cash or card at pickup — online payment optional.',
-    i6t: 'Reports', i6d: 'Today’s sales and your best sellers, at a glance.',
-    i7t: 'Car & table modes', i7d: 'Curbside and dine-in in one system — every order says where its customer is.',
-    i8t: 'No new hardware', i8d: 'Runs in the browser on phones and any screen you already own.',
-    price_lbl: 'Pricing',
-    price_h: 'One price. Everything included.',
-    price_amount: '29 OMR', price_per: 'per branch · per year',
-    price_p: 'Less than 2.5 rials a month. No commissions, no per-order fees, no contracts that need a lawyer. Sign up, transfer once a year, done.',
-    pr1: 'Unlimited orders & menu items',
-    pr2: 'Customer app + prep display + reports',
-    pr3: 'Your branding & QR codes included',
-    pr4: 'Activated as soon as your transfer is confirmed',
-    price_cta: 'Start taking orders',
-    demo_lbl: 'Demo', demo_h: 'Try it yourself, right now.', demo_guest: 'What your customer sees', demo_guest_c: 'Scan-to-order, exactly as they’d see it', demo_dash: 'What you see', demo_dash_c: 'Live prep display & management',
-    faq_lbl: 'Questions',
-    q1: 'Do my customers need to download an app?', a1: 'No. The QR opens your menu straight in the browser — Safari, Chrome, anything. They scan and they’re ordering within seconds.',
-    q2: 'Does it work for tables and outdoor car service?', a2: 'Yes. Each QR knows where it lives — table 7 or the outdoor car QR — so every order arrives labeled with the right handoff point.',
-    q3: 'What about payment?', a3: 'Your call. Most cafés take cash or card at pickup, exactly like today. Serva removes the wait from ordering, not your control over payment.',
-    q4: 'Is it really in Arabic?', a4: 'Arabic-first, actually. Your menu, the ordering flow, and your dashboard all work in Arabic and English, with prices in OMR.',
-    q5: 'What do I need to install?', a5: 'Nothing. Print the QR codes, open the dashboard on any phone, tablet, or screen you already own, and you’re live.',
-    q6: 'What does it cost?', a6: '29 OMR per branch per year — flat. No commission on orders, ever.',
-    req_lbl: 'Get started', req_h: 'Your next rush hour can run itself.',
-    req_p: 'Create your account and set up your menu in minutes — we activate it as soon as your transfer is confirmed. Or leave your details and we’ll call you.',
-    f_cafe: 'Business / café name', f_name: 'Your name', f_phone: 'Phone number', f_city: 'City', f_note: 'Note (optional)',
-    f_send: 'Send request', f_sending: 'Sending…', f_okh: 'Got your request ✓', f_okp: 'Thank you — we’ll be in touch shortly.',
-    cta_big1: 'Stop the', cta_big2: 'wait',
-    foot_demo: 'Demo', foot_dash: 'Dashboard', foot_admin: 'Platform', foot_contact: 'Contact',
-    foot_privacy: 'Privacy', foot_terms: 'Terms', foot_refund: 'Refunds', foot_made: 'Made for Omani cafés and food businesses', foot_rights: 'All rights reserved',
+    dir: 'ltr', arrow: '→',
+    topbar: 'Now live in Oman — one-time 50 OMR setup, go live this week.',
+    nav: { features: 'Features', pricing: 'Pricing', how: 'How it works', faq: 'FAQ', cta: 'Get started', login: 'Log in' },
+    ticker: ['POS', 'ONLINE ORDERING', 'LOYALTY', 'ANALYTICS', 'CUSTOMER DATA', 'ONE PLATFORM'],
+    hero: {
+      badge: 'The platform for modern cafés & restaurants',
+      k1: 'Serve faster.', k2: 'Run smarter.', k3: 'Grow bigger.',
+      sub: 'POS, online ordering, loyalty, analytics, and customer data — unified in one secure cloud platform, with new solutions shipping all the time. Serva gives your team one place to move faster, decide smarter, and scale without the chaos.',
+      cta1: 'Get started on WhatsApp', cta2: 'See pricing',
+      trust: 'Trusted by cafés & restaurants in Oman',
+    },
+    stats: [
+      { value: '1', label: 'platform, one login' },
+      { value: '0', label: 'extra hardware' },
+      { value: '24/7', label: 'cloud access' },
+      { value: '100%', label: 'your data & customers' },
+    ],
+    pillarsHead: { kicker: 'Everything in one place', title: 'One platform. No more stitched-together tools.', sub: 'Replace the patchwork of disconnected apps with one platform that runs your whole operation — and keeps adding the tools you grow into.' },
+    pillars: [
+      { title: 'Point of sale', blurb: 'A fast, no-fuss POS that keeps the counter moving.' },
+      { title: 'Online ordering', blurb: 'QR & web ordering, with no app for your guests to install.' },
+      { title: 'Loyalty', blurb: 'Reward your regulars and turn first visits into habits.' },
+      { title: 'Analytics', blurb: 'See what sells and decide with real numbers, not guesses.' },
+      { title: 'Customer data', blurb: 'Own your customer relationships — they’re yours, not a delivery app’s.' },
+    ],
+    value: [
+      { kicker: 'Serve faster', title: 'Take orders everywhere', color: 'bg-neo-accent', points: ['QR & web ordering with zero app friction', 'Fast counter POS for walk-ins', 'Upsells and modifiers built into the flow'] },
+      { kicker: 'Run smarter', title: 'Turn visits into regulars', color: 'bg-neo-secondary', points: ['Loyalty rewards that bring people back', 'Customer data you actually own', 'Know your regulars by name and order'] },
+      { kicker: 'Grow bigger', title: 'Grow without the chaos', color: 'bg-neo-muted', points: ['Live analytics across every branch', 'Cloud access from any device', 'Add branches without adding headaches'] },
+    ],
+    how: {
+      kicker: 'How it works', title: 'Live in days, not months.',
+      steps: [
+        { t: 'Get set up', d: 'A one-time 50 OMR setup and we configure everything for your venue — POS, menu, the lot.' },
+        { t: 'Add menu & brand', d: 'Your items, photos, branches and branding. We help you import it fast.' },
+        { t: 'Go live & grow', d: 'Start taking orders the same week and watch the numbers in real time.' },
+      ],
+    },
+    pricing: {
+      kicker: 'Pricing', title: 'Simple, honest pricing.', sub: 'Two plans. One-time setup. No surprises.',
+      setup: '+ 50 OMR one-time setup',
+      cta: 'Get started on WhatsApp',
+      note: 'All prices in OMR. The 50 OMR setup is a one-time fee on both plans.',
+      plans: [
+        { name: 'Standard', price: '15', per: '/mo', tagline: 'Everything you need to start selling.', features: ['Point of sale', 'Online & QR ordering', 'Menu management', 'Basic analytics', 'Single branch', 'Email support'] },
+        { name: 'Pro', price: '20', per: '/mo', tagline: 'Standard, plus the tools that scale.', featured: true, badge: 'Most popular', features: ['Everything in Standard', 'Loyalty program', 'Advanced analytics', 'Customer data tools', 'Multi-branch', 'Priority support'] },
+      ],
+    },
+    faq: {
+      kicker: 'FAQ', title: 'Questions, answered.',
+      items: [
+        { q: 'Is there a setup fee?', a: 'Yes — a one-time 50 OMR covers full onboarding and configuration, on both the Standard and Pro plans.' },
+        { q: 'Do I need special hardware?', a: 'No. Serva is cloud-based and runs on any phone, tablet or computer you already have.' },
+        { q: 'What’s the difference between Standard and Pro?', a: 'Pro includes everything in Standard, plus loyalty, advanced analytics, customer-data tools and multi-branch support.' },
+        { q: 'Can I upgrade later?', a: 'Anytime. Move from Standard to Pro whenever you’re ready — no second setup fee.' },
+      ],
+    },
+    cta: { title: 'Serve faster. Run smarter. Grow bigger.', sub: 'Get set up this week. Message us and we’ll take it from there.', btn: 'Get started on WhatsApp' },
+    footer: { tagline: 'Your whole operation, one platform.', made: 'Built in Oman', rights: 'All rights reserved.', links: ['Features', 'Pricing', 'How it works', 'FAQ'] },
+  },
+  ar: {
+    dir: 'rtl', arrow: '←',
+    topbar: 'متوفّرة الآن في عُمان — تهيئة لمرة واحدة بـ 50 ر.ع، وانطلق هذا الأسبوع.',
+    nav: { features: 'المميزات', pricing: 'الأسعار', how: 'كيف تعمل', faq: 'الأسئلة', cta: 'ابدأ الآن', login: 'تسجيل الدخول' },
+    ticker: ['نقاط البيع', 'الطلب أونلاين', 'الولاء', 'التحليلات', 'بيانات العملاء', 'منصة واحدة'],
+    hero: {
+      badge: 'منصّة متكاملة للمقاهي والمطاعم',
+      k1: 'خدمة أسرع.', k2: 'إدارة أذكى.', k3: 'نموّ أكبر.',
+      sub: 'نقاط البيع، الطلب أونلاين، الولاء، التحليلات، وبيانات العملاء — موحّدة في منصّة سحابية واحدة، مع حلول جديدة تصدر تباعاً. تمنح Serva فريقك مكاناً واحداً للعمل أسرع، واتخاذ قرارات أذكى، والتوسّع دون فوضى.',
+      cta1: 'ابدأ عبر واتساب', cta2: 'شاهد الأسعار',
+      trust: 'موثوقة لدى المقاهي والمطاعم في عُمان',
+    },
+    stats: [
+      { value: '1', label: 'منصّة، دخول واحد' },
+      { value: '0', label: 'أجهزة إضافية' },
+      { value: '24/7', label: 'وصول سحابي' },
+      { value: '100%', label: 'بياناتك وعملاؤك' },
+    ],
+    pillarsHead: { kicker: 'كل شيء في مكان واحد', title: 'منصّة واحدة. لا مزيد من الأدوات المتفرّقة.', sub: 'استبدل فوضى التطبيقات المتفرّقة بمنصّة واحدة تدير عملك بالكامل — وتضيف باستمرار الأدوات التي تنمو إليها.' },
+    pillars: [
+      { title: 'نقاط البيع', blurb: 'نظام بيع سريع وبسيط يبقي الكاونتر متحرّكاً.' },
+      { title: 'الطلب أونلاين', blurb: 'طلب عبر QR والويب، دون تطبيق يثبّته ضيوفك.' },
+      { title: 'برنامج الولاء', blurb: 'كافئ عملاءك الدائمين وحوّل أول زيارة إلى عادة.' },
+      { title: 'التحليلات', blurb: 'اعرف ما الذي يُباع وقرّر بالأرقام لا بالتخمين.' },
+      { title: 'بيانات العملاء', blurb: 'امتلك علاقتك بعملائك — هم لك، لا لتطبيق توصيل.' },
+    ],
+    value: [
+      { kicker: 'خدمة أسرع', title: 'استقبل الطلبات من كل مكان', color: 'bg-neo-accent', points: ['طلب عبر QR والويب دون أي تطبيق', 'نقاط بيع سريعة للزبائن في الموقع', 'إضافات وعروض مدمجة في مسار الطلب'] },
+      { kicker: 'إدارة أذكى', title: 'حوّل الزيارات إلى عملاء دائمين', color: 'bg-neo-secondary', points: ['مكافآت ولاء تُعيد الناس إليك', 'بيانات عملاء تملكها فعلاً', 'اعرف عملاءك بالاسم والطلب'] },
+      { kicker: 'نموّ أكبر', title: 'كبّر عملك دون فوضى', color: 'bg-neo-muted', points: ['تحليلات لحظية لكل فرع', 'وصول سحابي من أي جهاز', 'أضف فروعاً دون صداع إضافي'] },
+    ],
+    how: {
+      kicker: 'كيف تعمل', title: 'جاهز خلال أيام، لا شهور.',
+      steps: [
+        { t: 'جهّز حسابك', d: 'رسوم تهيئة لمرة واحدة بـ 50 ر.ع ونضبط لك كل شيء — نقاط البيع والقائمة وغيرها.' },
+        { t: 'أضف القائمة والهوية', d: 'أصنافك وصورك وفروعك وهويّتك. نساعدك على استيرادها بسرعة.' },
+        { t: 'انطلق وانمُ', d: 'ابدأ استقبال الطلبات في نفس الأسبوع وتابع الأرقام لحظياً.' },
+      ],
+    },
+    pricing: {
+      kicker: 'الأسعار', title: 'تسعير بسيط وصريح.', sub: 'خطتان. تهيئة لمرة واحدة. دون مفاجآت.',
+      setup: '+ 50 ر.ع تهيئة لمرة واحدة',
+      cta: 'ابدأ عبر واتساب',
+      note: 'جميع الأسعار بالريال العُماني. رسوم التهيئة 50 ر.ع لمرة واحدة على كلتا الخطتين.',
+      plans: [
+        { name: 'ستاندرد', price: '15', per: '/شهر', tagline: 'كل ما تحتاجه لتبدأ البيع.', features: ['نقاط البيع', 'طلب أونلاين وعبر QR', 'إدارة القائمة', 'تحليلات أساسية', 'فرع واحد', 'دعم بالبريد'] },
+        { name: 'برو', price: '20', per: '/شهر', tagline: 'ستاندرد، مع أدوات تكبّر عملك.', featured: true, badge: 'الأكثر طلباً', features: ['كل مزايا ستاندرد', 'برنامج الولاء', 'تحليلات متقدّمة', 'أدوات بيانات العملاء', 'فروع متعدّدة', 'دعم أولوية'] },
+      ],
+    },
+    faq: {
+      kicker: 'الأسئلة الشائعة', title: 'إجابات على أسئلتك.',
+      items: [
+        { q: 'هل هناك رسوم تهيئة؟', a: 'نعم — رسوم لمرة واحدة بقيمة 50 ر.ع تغطّي التهيئة والإعداد الكامل، على خطّتي ستاندرد وبرو.' },
+        { q: 'هل أحتاج أجهزة خاصة؟', a: 'لا. Serva سحابية وتعمل على أي هاتف أو جهاز لوحي أو حاسوب لديك بالفعل.' },
+        { q: 'ما الفرق بين ستاندرد وبرو؟', a: 'تشمل برو كل ما في ستاندرد، مع الولاء والتحليلات المتقدّمة وأدوات بيانات العملاء ودعم الفروع المتعدّدة.' },
+        { q: 'هل يمكنني الترقية لاحقاً؟', a: 'في أي وقت. انتقل من ستاندرد إلى برو متى شئت — دون رسوم تهيئة جديدة.' },
+      ],
+    },
+    cta: { title: 'خدمة أسرع. إدارة أذكى. نموّ أكبر.', sub: 'جهّز حسابك هذا الأسبوع. راسلنا ونتولّى الباقي.', btn: 'ابدأ عبر واتساب' },
+    footer: { tagline: 'عملك بالكامل، في منصّة واحدة.', made: 'صُنع في عُمان', rights: 'جميع الحقوق محفوظة.', links: ['المميزات', 'الأسعار', 'كيف تعمل', 'الأسئلة'] },
   },
 };
 
-const customerUrl = `/r/${DEMO.slug}/b/${DEMO.branchId}/t/${DEMO.tableToken}`;
-const N = ['01', '02', '03', '04', '05', '06', '07', '08'];
-const TICKER = ['قهوة', 'KARAK', 'لاتيه', 'ORDER', 'طاولتك', 'TABLE', 'سيارتك', 'SCAN', 'إسبريسو', 'NO APP', 'حلوى', 'PICKUP', 'مقهى', 'MENU', 'بلا طابور', 'QR'];
-
-export default function LandingPage() {
-  const { lang } = useI18n();
-  const t = useT(T);
-  const steps: [string, string][] = [['s1t', 's1d'], ['s2t', 's2d'], ['s3t', 's3d']];
-  const feats: [string, string, string][] = [['f1k', 'f1t', 'f1d'], ['f2k', 'f2t', 'f2d'], ['f3k', 'f3t', 'f3d']];
-  const caps: [string, string][] = [['i1t', 'i1d'], ['i2t', 'i2d'], ['i3t', 'i3d'], ['i4t', 'i4d'], ['i5t', 'i5d'], ['i6t', 'i6d'], ['i7t', 'i7d'], ['i8t', 'i8d']];
-  const faqs: [string, string][] = [['q1', 'a1'], ['q2', 'a2'], ['q3', 'a3'], ['q4', 'a4'], ['q5', 'a5'], ['q6', 'a6']];
-
+/* ── reusable bits ───────────────────────────────────────────────────────── */
+function Cta({ href, children, arrow, variant = 'accent', className = '' }: {
+  href: string; children: ReactNode; arrow: string;
+  variant?: 'accent' | 'dark' | 'white' | 'secondary'; className?: string;
+}) {
+  const bg = {
+    accent: 'bg-neo-accent text-black',
+    secondary: 'bg-neo-secondary text-black',
+    white: 'bg-white text-black',
+    dark: 'bg-black text-white',
+  }[variant];
+  const external = href.startsWith('http');
   return (
-    <div className="ed">
-      <div className="ed-glyph" aria-hidden>ق</div>
+    <a
+      href={href}
+      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+      className={`inline-flex h-14 items-center justify-center gap-2 border-4 border-black px-7 text-sm font-bold uppercase tracking-wide shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:shadow-neo active:translate-x-[3px] active:translate-y-[3px] active:shadow-none ${bg} ${className}`}
+    >
+      {children}
+      <span aria-hidden="true" className="text-lg font-black leading-none">{arrow}</span>
+    </a>
+  );
+}
 
-      <nav className="ed-top">
-        <div className="ed-wrap row">
-          <div className="ed-mark">
-            <span className="mk">{BRAND.name.charAt(0)}</span><span>{BRAND.name}</span>
-            {BRAND.working && <span className="ed-wn">{lang === 'ar' ? 'اسم مؤقت' : 'working title'}</span>}
-          </div>
-          <div className="ed-nav">
-            <a href="#how">{t('nav_how')}</a>
-            <a href="#magic">{t('nav_feat')}</a>
-            <a href="#pricing">{t('nav_price')}</a>
-            <a href="#demo">{t('nav_demo')}</a>
-            <a href="#request">{t('nav_req')}</a>
-          </div>
-          <div className="ed-tools">
-            <Link className="ed-signin" to="/signup">{t('cta_start')}</Link>
-            <Link className="ed-signin" to="/dashboard">{t('nav_signin')}</Link>
-          </div>
-        </div>
-      </nav>
+function Kicker({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <span className={`inline-block -rotate-1 border-4 border-black bg-neo-accent px-3 py-1 text-xs font-black uppercase tracking-widest shadow-neo-sm ${className}`}>
+      {children}
+    </span>
+  );
+}
 
-      <header className="ed-hero ed-wrap">
-        <div className="ed-kicker rv">{t('kicker')}</div>
-        <h1 className="ed-h1 rv" style={{ animationDelay: '.06s' }}>{t('h1a')}<br />{t('h1b')}<span className="dot">.</span></h1>
-        <div className="ed-trans rv" style={{ animationDelay: '.12s' }}>{t('trans')} <span className="ed-or">{t('sub')}</span></div>
-        <p className="ed-lead rv" style={{ animationDelay: '.18s' }}>{t('lead')}</p>
-        <div className="ed-actions rv" style={{ animationDelay: '.24s' }}>
-          <Link className="ed-link" to="/signup">{t('cta_req')} ↗</Link>
-          <Link className="ed-link alt" to={customerUrl}>{t('cta_demo')}</Link>
-        </div>
-        <div className="ed-stepline rv" style={{ animationDelay: '.3s' }}>
-          <span><b>01</b>{t('sl_scan')}</span><span><b>02</b>{t('sl_order')}</span><span><b>03</b>{t('sl_track')}</span>
-        </div>
-      </header>
+/* check glyph marker (a text "✓" in a bordered box — no icon art) */
+function Tick({ className = '' }: { className?: string }) {
+  return (
+    <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center border-2 border-black text-sm font-black leading-none ${className}`}>✓</span>
+  );
+}
 
-      <div className="ed-ticker"><div className="ed-track">{[...TICKER, ...TICKER].map((w, i) => <span key={i}>{w}</span>)}</div></div>
-
-      <section className="ed-sec ed-wrap" id="problem">
-        <div className="ed-lbl"><span className="n">{N[0]}</span>{t('prob_lbl')}</div>
-        <h2 className="ed-statement">{t('m1')} <span className="hl">{t('m2')}</span></h2>
-        <div className="ed-ba">
-          <div className="ed-ba-col">
-            <h3>{t('ba_before')}</h3>
-            <ul>{['bb1', 'bb2', 'bb3', 'bb4'].map((k) => <li key={k}>{t(k)}</li>)}</ul>
-          </div>
-          <div className="ed-ba-col good">
-            <h3>{t('ba_after')}</h3>
-            <ul>{['ba1', 'ba2', 'ba3', 'ba4'].map((k) => <li key={k}>{t(k)}</li>)}</ul>
-          </div>
-        </div>
-      </section>
-
-      <section className="ed-sec ed-wrap" id="how">
-        <div className="ed-lbl"><span className="n">{N[1]}</span>{t('how_lbl')}</div>
-        <div className="ed-steps">
-          {steps.map(([tk, dk], i) => (
-            <div className="ed-step" key={tk}><div className="num">{N[i]}</div><div><h3>{t(tk)}</h3><p>{t(dk)}</p></div></div>
-          ))}
-        </div>
-      </section>
-
-      <section className="ed-sec ed-wrap" id="magic">
-        <div className="ed-lbl"><span className="n">{N[2]}</span>{t('magic_lbl')}</div>
-        <h2 className="ed-statement">{t('magic_h1')} <span className="hl">{t('magic_h2')}</span></h2>
-        <div className="ed-magic">
-          {feats.map(([kk, tk, dk], i) => (
-            <div className="ed-magic-card" key={kk}>
-              <span className="mn">{N[i]}</span>
-              <span className="k">{t(kk)}</span>
-              <h3>{t(tk)}</h3>
-              <p>{t(dk)}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="ed-sec ed-wrap" id="cap">
-        <div className="ed-lbl"><span className="n">{N[3]}</span>{t('cap_lbl')}</div>
-        <div className="ed-rows">
-          {caps.map(([tk, dk], i) => (
-            <div className="ed-row" key={tk}><span className="rn">{N[i]}</span><div><div className="rt">{t(tk)}</div><div className="rd">{t(dk)}</div></div></div>
-          ))}
-        </div>
-      </section>
-
-      <section className="ed-sec ed-wrap" id="pricing">
-        <div className="ed-lbl"><span className="n">{N[4]}</span>{t('price_lbl')}</div>
-        <h2 className="ed-statement" style={{ fontSize: 'clamp(28px,4.4vw,56px)' }}>{t('price_h')}</h2>
-        <div className="ed-price">
-          <div className="ed-price-card">
-            <div className="ed-price-amount">{t('price_amount')}</div>
-            <div className="ed-price-per">{t('price_per')}</div>
-            <p className="ed-price-p">{t('price_p')}</p>
-            <Link className="ed-link" to="/signup">{t('price_cta')} ↗</Link>
-          </div>
-          <ul className="ed-price-list">
-            {['pr1', 'pr2', 'pr3', 'pr4'].map((k) => <li key={k}>{t(k)}</li>)}
-          </ul>
-        </div>
-      </section>
-
-      <section className="ed-sec ed-wrap" id="demo">
-        <div className="ed-lbl"><span className="n">{N[5]}</span>{t('demo_lbl')}</div>
-        <h2 className="ed-statement" style={{ fontSize: 'clamp(28px,4.4vw,56px)' }}>{t('demo_h')}</h2>
-        <div className="ed-demo">
-          <Link className="ed-demo-card" to={customerUrl}>
-            <span className="tag">{t('demo_guest')}</span><span className="cap">{t('demo_guest_c')}</span><span className="go">↗</span>
-          </Link>
-          <Link className="ed-demo-card" to="/dashboard">
-            <span className="tag">{t('demo_dash')}</span><span className="cap">{t('demo_dash_c')}</span><span className="go">↗</span>
-          </Link>
-        </div>
-      </section>
-
-      <section className="ed-sec ed-wrap" id="faq">
-        <div className="ed-lbl"><span className="n">{N[6]}</span>{t('faq_lbl')}</div>
-        <div className="ed-faq">
-          {faqs.map(([qk, ak], i) => (
-            <details key={qk}>
-              <summary><span className="qn">{N[i]}</span>{t(qk)}<span className="qa">+</span></summary>
-              <p className="ans">{t(ak)}</p>
-            </details>
-          ))}
-        </div>
-      </section>
-
-      <section className="ed-sec ed-wrap" id="request">
-        <div className="ed-lbl"><span className="n">{N[7]}</span>{t('req_lbl')}</div>
-        <h2 className="ed-statement">{t('req_h')}</h2>
-        <p className="ed-lead" style={{ marginTop: 14 }}>{t('req_p')}</p>
-        <RequestForm t={t} />
-      </section>
-
-      <section className="ed-cta">
-        <h2>{t('cta_big1')}<br />{t('cta_big2')}<span className="dot">.</span></h2>
-        <Link className="ed-link" to="/signup">{t('cta_start')} ↗</Link>
-      </section>
-
-      <footer className="ed-foot ed-wrap">
-        <div className="grid">
-          <div>
-            <div className="ed-mark"><span className="mk">{BRAND.name.charAt(0)}</span><span>{BRAND.name}</span></div>
-            <p className="tag">{BRAND.tagline[lang]}</p>
-          </div>
-          <div>
-            <h4>{t('nav_demo')}</h4>
-            <Link to={customerUrl}>{t('foot_demo')}</Link>
-            <Link to="/dashboard">{t('foot_dash')}</Link>
-            <Link to="/admin">{t('foot_admin')}</Link>
-          </div>
-          <div>
-            <h4>{t('foot_contact')}</h4>
-            <a href="mailto:hello@serva.app">hello@serva.app</a>
-            <a href="tel:+96890000000">+968 9000 0000</a>
-            <a href="#request">{t('nav_req')}</a>
-          </div>
-        </div>
-        <div className="big">{BRAND.name}</div>
-        <div className="bar">
-          <span className="mono">© {new Date().getFullYear()} {BRAND.name}</span>
-          <span>· {t('foot_rights')}</span>
-          <span className="sp" />
-          <Link to="/privacy">{t('foot_privacy')}</Link><Link to="/terms">{t('foot_terms')}</Link><Link to="/refund">{t('foot_refund')}</Link>
-          <span>· {t('foot_made')}</span>
-        </div>
-      </footer>
+function Marquee({ items }: { items: string[] }) {
+  const row = (
+    <div className="flex shrink-0 items-center">
+      {items.map((it, i) => (
+        <span key={i} className="flex items-center gap-6 whitespace-nowrap px-6 text-lg font-black uppercase tracking-widest text-neo-accent md:text-2xl">
+          {it}
+          <span aria-hidden="true" className="text-neo-accent">✦</span>
+        </span>
+      ))}
+    </div>
+  );
+  return (
+    <div className="overflow-hidden border-y-4 border-black bg-black py-3" dir="ltr" aria-hidden="true">
+      <div className="neo-marquee-track">
+        {row}{row}
+      </div>
     </div>
   );
 }
 
-function RequestForm({ t }: { t: (k: string) => string }) {
-  const toast = useToast();
-  const [f, setF] = useState({ cafeName: '', contactName: '', phone: '', city: '', note: '' });
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
-  const valid = f.cafeName.trim() && f.contactName.trim() && f.phone.trim();
+/* ── page ────────────────────────────────────────────────────────────────── */
+export default function LandingPage() {
+  const { lang, dir } = useI18n();
+  const c = COPY[lang];
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
-    setLoading(true);
-    try {
-      await api.post('/api/public/leads', f, { auth: false });
-      setDone(true);
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Error');
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    ensureGoogleFonts(['Space+Grotesk:wght@400;500;700', 'Tajawal:wght@400;500;700;900']);
+  }, []);
 
-  if (done) {
-    return (
-      <div className="ed-ok">
-        <div className="ed-ok-mk">✓</div>
-        <h3>{t('f_okh')}</h3>
-        <p>{t('f_okp')}</p>
-      </div>
-    );
-  }
+  const nav = [
+    { href: '#features', label: c.nav.features },
+    { href: '#how', label: c.nav.how },
+    { href: '#pricing', label: c.nav.pricing },
+    { href: '#faq', label: c.nav.faq },
+  ];
 
   return (
-    <form className="ed-form" onSubmit={submit}>
-      <label className="ef"><span>{t('f_cafe')}</span><input value={f.cafeName} onChange={(e) => set('cafeName', e.target.value)} required /></label>
-      <label className="ef"><span>{t('f_name')}</span><input value={f.contactName} onChange={(e) => set('contactName', e.target.value)} required /></label>
-      <label className="ef"><span>{t('f_phone')}</span><input className="num" inputMode="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} placeholder="9XXXXXXX" required /></label>
-      <label className="ef"><span>{t('f_city')}</span><input value={f.city} onChange={(e) => set('city', e.target.value)} /></label>
-      <label className="ef ef-full"><span>{t('f_note')}</span><textarea rows={2} value={f.note} onChange={(e) => set('note', e.target.value)} /></label>
-      <div className="ed-form-foot">
-        <button className="btn" type="submit" disabled={!valid || loading}>{loading ? t('f_sending') : `${t('f_send')} ↗`}</button>
+    <div id="neo" dir={dir} className={lang === 'ar' ? 'lang-ar' : ''}>
+      {/* ── ANNOUNCEMENT STRIP ──────────────────────────────── */}
+      <div className="border-b-4 border-black bg-neo-accent">
+        <div className="mx-auto flex h-9 max-w-7xl items-center justify-center gap-2 px-4 text-center text-[11px] font-black uppercase tracking-widest text-black sm:text-xs">
+          <span aria-hidden="true" className="hidden sm:inline">★</span>
+          {c.topbar}
+        </div>
       </div>
-    </form>
+
+      {/* ── NAV ─────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-50 border-b-4 border-black bg-neo-bg">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+          <a href="#top" className="group flex items-center text-2xl font-black tracking-tighter">
+            <span className="flex h-11 items-center border-4 border-black bg-neo-accent px-3 text-black shadow-neo-sm transition-transform duration-100 group-hover:-translate-y-0.5">
+              SERVA
+            </span>
+          </a>
+
+          <nav className="hidden items-center gap-1 lg:flex">
+            {nav.map((n) => (
+              <a key={n.href} href={n.href}
+                className="border-4 border-transparent px-3 py-1.5 text-sm font-bold uppercase tracking-wide transition-all duration-100 hover:-translate-y-0.5 hover:border-black hover:bg-neo-accent hover:shadow-neo-sm">
+                {n.label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2.5">
+            <Link to="/dashboard"
+              className="hidden h-12 items-center justify-center border-4 border-black bg-white px-5 text-sm font-bold uppercase tracking-wide shadow-neo-sm transition-all duration-100 hover:-translate-y-0.5 hover:bg-neo-accent hover:shadow-neo active:translate-x-[2px] active:translate-y-[2px] active:shadow-none sm:inline-flex">
+              {c.nav.login}
+            </Link>
+            <Cta href={waLink(c.cta.btn)} arrow={c.arrow} className="hidden h-12 md:inline-flex">{c.nav.cta}</Cta>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Menu" aria-expanded={menuOpen}
+              className="flex h-12 w-12 items-center justify-center border-4 border-black bg-white shadow-neo-sm transition-all duration-100 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none lg:hidden">
+              <div className="space-y-1.5">
+                <span className="block h-1 w-6 bg-black" />
+                <span className="block h-1 w-6 bg-black" />
+                <span className="block h-1 w-6 bg-black" />
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {menuOpen && (
+          <div className="border-t-4 border-black bg-neo-bg p-4 lg:hidden">
+            <div className="flex flex-col gap-2">
+              {nav.map((n) => (
+                <a key={n.href} href={n.href} onClick={() => setMenuOpen(false)}
+                  className="border-4 border-black bg-white px-4 py-3 text-base font-bold uppercase tracking-wide shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
+                  {n.label}
+                </a>
+              ))}
+              <Link to="/dashboard" onClick={() => setMenuOpen(false)}
+                className="border-4 border-black bg-white px-4 py-3 text-base font-bold uppercase tracking-wide shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
+                {c.nav.login}
+              </Link>
+              <Cta href={waLink(c.cta.btn)} arrow={c.arrow} className="mt-1 w-full">{c.nav.cta}</Cta>
+            </div>
+          </div>
+        )}
+      </header>
+
+      <main id="top">
+        {/* ── HERO (pure typography) ────────────────────────── */}
+        <section className="relative overflow-hidden border-b-4 border-black">
+          <div className="neo-dots pointer-events-none absolute inset-0 opacity-[0.15]" aria-hidden="true" />
+          {/* oversized faint wordmark = typographic texture, not an illustration */}
+          <span aria-hidden="true" className="neo-stroke pointer-events-none absolute -bottom-10 end-[-2%] select-none text-[28vw] font-black uppercase leading-none opacity-[0.07] md:text-[22vw]">
+            serva
+          </span>
+
+          <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-28">
+            <Kicker>★ {c.hero.badge}</Kicker>
+
+            <h1 className="mt-7 font-black uppercase leading-[0.86] tracking-tighter">
+              <span className="block text-6xl sm:text-7xl md:text-8xl xl:text-9xl">
+                <span className="inline-block rotate-1 border-4 border-black bg-neo-accent px-3 shadow-neo">{c.hero.k1}</span>
+              </span>
+              <span className="mt-3 block text-6xl sm:text-7xl md:text-8xl xl:text-9xl">
+                <span className="inline-block border-b-8 border-neo-accent">{c.hero.k2}</span>
+              </span>
+              <span className="neo-stroke mt-3 block text-6xl sm:text-7xl md:text-8xl xl:text-9xl">{c.hero.k3}</span>
+            </h1>
+
+            <p className="mt-9 max-w-2xl text-lg font-medium leading-relaxed text-black/80 sm:text-xl">
+              {c.hero.sub}
+            </p>
+
+            {/* capability tags — current solutions, plus a nod to what's shipping next */}
+            <div className="mt-7 flex flex-wrap gap-2">
+              {c.pillars.map((p, i) => (
+                <span key={i} className="border-4 border-black bg-white px-3 py-1.5 text-xs font-black uppercase tracking-wide shadow-neo-sm">
+                  {p.title}
+                </span>
+              ))}
+              <span className="border-4 border-dashed border-black bg-neo-accent/20 px-3 py-1.5 text-xs font-black uppercase tracking-wide">
+                {lang === 'ar' ? '+ المزيد قريباً' : '+ more coming'}
+              </span>
+            </div>
+
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Cta href={waLink(c.hero.cta1)} arrow={c.arrow}>{c.hero.cta1}</Cta>
+              <Cta href="#pricing" arrow={c.arrow} variant="white">{c.hero.cta2}</Cta>
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <span aria-hidden="true" className="text-2xl leading-none tracking-tight text-neo-accent">★★★★★</span>
+              <span className="text-sm font-bold uppercase tracking-wide">{c.hero.trust}</span>
+            </div>
+          </div>
+
+          {/* stat strip */}
+          <div className="relative border-t-4 border-black bg-neo-accent">
+            <div className="mx-auto grid max-w-7xl grid-cols-2 md:grid-cols-4">
+              {c.stats.map((s, i) => (
+                <div key={i} className={`px-5 py-7 text-center ${i % 2 === 1 ? 'border-s-4 border-black' : ''} ${i >= 2 ? 'border-t-4 border-black md:border-t-0' : ''} ${i % 4 !== 0 ? 'md:border-s-4 md:border-black' : ''}`}>
+                  <div className="text-4xl font-black tracking-tighter md:text-5xl">{s.value}</div>
+                  <div className="mt-1 text-xs font-bold uppercase tracking-widest text-black/70">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <Marquee items={c.ticker} />
+
+        {/* ── PILLARS (numbered, text-only) ─────────────────── */}
+        <section id="features" className="scroll-mt-24 border-b-4 border-black py-20 md:py-28">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="max-w-3xl">
+              <Kicker>{c.pillarsHead.kicker}</Kicker>
+              <h2 className="mt-5 text-4xl font-black uppercase leading-[0.95] tracking-tighter md:text-6xl">{c.pillarsHead.title}</h2>
+              <p className="mt-5 text-lg font-medium text-black/80 md:text-xl">{c.pillarsHead.sub}</p>
+            </div>
+            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {c.pillars.map((p, i) => {
+                const tones = ['bg-neo-accent', 'bg-neo-accent', 'bg-neo-accent', 'bg-neo-accent', 'bg-neo-accent'];
+                return (
+                  <div key={i} className="border-4 border-black bg-white p-6 shadow-neo transition-all duration-200 hover:-translate-y-2 hover:shadow-neo-lg">
+                    <div className={`flex h-14 w-14 items-center justify-center border-4 border-black ${tones[i]} text-2xl font-black shadow-neo-sm`}>
+                      {String(i + 1).padStart(2, '0')}
+                    </div>
+                    <h3 className="mt-5 text-2xl font-black uppercase tracking-tight">{p.title}</h3>
+                    <p className="mt-2 text-base font-medium leading-relaxed text-black/75">{p.blurb}</p>
+                  </div>
+                );
+              })}
+              {/* 6th cell: CTA tile */}
+              <a href={waLink(c.cta.btn)} target="_blank" rel="noopener noreferrer"
+                className="group flex flex-col justify-between border-4 border-black bg-black p-6 text-white shadow-neo transition-all duration-200 hover:-translate-y-2 hover:shadow-neo-white">
+                <span className="text-5xl font-black tracking-tighter text-neo-accent">+</span>
+                <div className="mt-6">
+                  <h3 className="text-2xl font-black uppercase tracking-tight">{c.nav.cta}</h3>
+                  <span className="mt-2 inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-neo-accent">
+                    {c.hero.cta1} <span aria-hidden="true">{c.arrow}</span>
+                  </span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* ── VALUE ROWS ────────────────────────────────────── */}
+        <section className="border-b-4 border-black bg-neo-accent/15 py-20 md:py-28">
+          <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 sm:px-6">
+            {c.value.map((v, i) => (
+              <div key={i} className="grid items-center gap-8 border-4 border-black bg-neo-bg p-7 shadow-neo md:p-10 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className={i % 2 === 1 ? 'lg:order-2' : ''}>
+                  <span className="inline-block border-4 border-black bg-neo-accent px-3 py-1 text-xs font-black uppercase tracking-widest shadow-neo-sm">
+                    {v.kicker}
+                  </span>
+                  <h3 className="mt-4 text-3xl font-black uppercase leading-[0.95] tracking-tighter md:text-5xl">{v.title}</h3>
+                </div>
+                <ul className={`grid gap-3 ${i % 2 === 1 ? 'lg:order-1' : ''}`}>
+                  {v.points.map((pt, j) => (
+                    <li key={j} className="flex items-center gap-3 border-4 border-black bg-white px-4 py-3.5 text-base font-bold shadow-neo-sm">
+                      <Tick className="h-8 w-8 bg-neo-accent" />
+                      {pt}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── HOW IT WORKS ──────────────────────────────────── */}
+        <section id="how" className="scroll-mt-24 border-b-4 border-black py-20 md:py-28">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="max-w-3xl">
+              <Kicker>{c.how.kicker}</Kicker>
+              <h2 className="mt-5 text-4xl font-black uppercase leading-[0.95] tracking-tighter md:text-6xl">{c.how.title}</h2>
+            </div>
+            <div className="mt-12 grid gap-6 md:grid-cols-3">
+              {c.how.steps.map((s, i) => (
+                <div key={i} className="relative border-4 border-black bg-white p-7 shadow-neo">
+                  <div className="absolute -top-6 start-6 flex h-14 w-14 items-center justify-center border-4 border-black bg-neo-accent text-2xl font-black text-white shadow-neo-sm">
+                    {i + 1}
+                  </div>
+                  <h3 className="mt-6 text-2xl font-black uppercase tracking-tight">{s.t}</h3>
+                  <p className="mt-2 text-base font-medium leading-relaxed text-black/75">{s.d}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── PRICING ───────────────────────────────────────── */}
+        <section id="pricing" className="scroll-mt-24 border-b-4 border-black bg-neo-accent py-20 md:py-28">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="text-center">
+              <Kicker className="bg-white">{c.pricing.kicker}</Kicker>
+              <h2 className="mt-5 text-4xl font-black uppercase leading-[0.95] tracking-tighter md:text-6xl">{c.pricing.title}</h2>
+              <p className="mt-4 text-lg font-bold md:text-xl">{c.pricing.sub}</p>
+            </div>
+            <div className="mx-auto mt-12 grid max-w-4xl gap-8 md:grid-cols-2">
+              {c.pricing.plans.map((plan, i) => (
+                <div key={i}
+                  className={`relative border-4 border-black p-8 transition-all duration-200 hover:-translate-y-2 ${plan.featured ? 'rotate-1 bg-black text-white shadow-neo-xl hover:shadow-neo-white-lg' : 'bg-white shadow-neo-lg hover:shadow-neo-xl'}`}>
+                  {plan.badge && (
+                    <span className="absolute -top-5 end-6 rotate-3 border-4 border-black bg-neo-accent px-3 py-1.5 text-xs font-black uppercase tracking-widest text-black shadow-neo-sm">
+                      ★ {plan.badge}
+                    </span>
+                  )}
+                  <h3 className={`text-2xl font-black uppercase tracking-tight ${plan.featured ? 'text-neo-accent' : ''}`}>{plan.name}</h3>
+                  <p className={`mt-1 text-sm font-bold ${plan.featured ? 'text-white/70' : 'text-black/70'}`}>{plan.tagline}</p>
+                  <div className="mt-6 flex items-end gap-1">
+                    <span className="text-6xl font-black tracking-tighter md:text-7xl">{plan.price}</span>
+                    <span className="pb-2 text-xl font-black">OMR</span>
+                    <span className={`pb-2.5 text-sm font-bold ${plan.featured ? 'text-white/60' : 'text-black/60'}`}>{plan.per}</span>
+                  </div>
+                  <div className={`mt-2 inline-block border-2 border-dashed px-2 py-1 text-xs font-black uppercase tracking-wide ${plan.featured ? 'border-white/50 text-neo-accent' : 'border-black/40 text-black/70'}`}>
+                    {c.pricing.setup}
+                  </div>
+                  <ul className="mt-6 space-y-3">
+                    {plan.features.map((f, j) => (
+                      <li key={j} className="flex items-center gap-3 text-base font-bold">
+                        <Tick className="bg-neo-accent text-black" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Cta href={waLink(`${c.pricing.cta} — ${plan.name}`)} arrow={c.arrow}
+                    variant={plan.featured ? 'white' : 'accent'} className="mt-8 w-full">
+                    {c.pricing.cta}
+                  </Cta>
+                </div>
+              ))}
+            </div>
+            <p className="mx-auto mt-8 max-w-2xl text-center text-sm font-bold text-black/70">{c.pricing.note}</p>
+          </div>
+        </section>
+
+        {/* ── FAQ ───────────────────────────────────────────── */}
+        <section id="faq" className="scroll-mt-24 border-b-4 border-black py-20 md:py-28">
+          <div className="mx-auto max-w-3xl px-4 sm:px-6">
+            <div className="text-center">
+              <Kicker>{c.faq.kicker}</Kicker>
+              <h2 className="mt-5 text-4xl font-black uppercase leading-[0.95] tracking-tighter md:text-6xl">{c.faq.title}</h2>
+            </div>
+            <div className="mt-10 space-y-4">
+              {c.faq.items.map((it, i) => (
+                <details key={i} className="group border-4 border-black bg-white shadow-neo-sm open:shadow-neo">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 text-lg font-black uppercase tracking-tight">
+                    {it.q}
+                    <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-black bg-neo-accent text-2xl leading-none transition-transform duration-200 group-open:rotate-45">+</span>
+                  </summary>
+                  <div className="border-t-4 border-black bg-neo-accent/10 p-5 text-base font-medium leading-relaxed">
+                    {it.a}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA BAND ──────────────────────────────────────── */}
+        <section className="relative overflow-hidden border-b-4 border-black bg-neo-accent py-20 md:py-28">
+          <div className="neo-diag pointer-events-none absolute inset-0 opacity-[0.08]" aria-hidden="true" />
+          <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-6">
+            <h2 className="text-4xl font-black uppercase leading-[0.95] tracking-tighter text-[#15181c] md:text-6xl" style={{ textShadow: '4px 4px 0 #fafaf7' }}>
+              {c.cta.title}
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-lg font-bold text-[#15181c] md:text-xl">{c.cta.sub}</p>
+            <div className="mt-9 flex justify-center">
+              <Cta href={waLink(c.cta.btn)} arrow={c.arrow} variant="dark" className="h-16 px-9 text-base">{c.cta.btn}</Cta>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }

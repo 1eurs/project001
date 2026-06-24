@@ -20,6 +20,27 @@
   --font-brand:'Sora','IBM Plex Sans Arabic',system-ui,sans-serif;
   --font-mono:'IBM Plex Mono',ui-monospace,monospace;
 }
+
+/* =====================================================================
+   Brand "BOLD GREEN" palette — one source of truth for every Serva-branded
+   app surface: the dashboard (.dash), the auth screens (.login) and the
+   platform admin (.adm). The marketing landing carries the same hex values
+   via Tailwind tokens. Retune the product's colour here, in one place.
+   (Structural bold tokens — radii, --bold font, page backgrounds — live in
+   each surface's own stylesheet. Customer menu pages are intentionally left
+   out so per-restaurant theming keeps working.)
+   ===================================================================== */
+.dash, .login, .adm{
+  --accent:#10b981; --accent-2:#059669; --accent-ink:#03120D; --accent-text:#047857;
+  --accent-glow:rgba(16,185,129,.30);
+  --canvas:#FAFAF7; --bg-2:#FFFFFF; --surface:#FFFFFF; --surface-2:#ECF3EE;
+  --line:rgba(21,24,28,.22); --line-2:rgba(21,24,28,.42);
+  --text:#15181C; --muted:#566058; --faint:#8A938B;
+  --paper:#FAFAF7; --ink:#15181C; --lime:#10b981; --sun:#F5B83D;
+  --rail-bg:#FFFFFF; --glass:rgba(250,250,247,.92);
+  --hard:4px 4px 0 var(--ink); --hard-sm:3px 3px 0 var(--ink);
+}
+
 *{box-sizing:border-box;margin:0;padding:0}
 html,body,#root{height:100%}
 body{font-family:var(--font-ar);color:var(--text);background:var(--canvas);-webkit-font-smoothing:antialiased;transition:background-color .3s ease,color .3s ease}
@@ -73,6 +94,28 @@ a{color:inherit;text-decoration:none}
 .empty{text-align:center;color:var(--faint);padding:60px 20px}
 .empty .big{font-size:46px;filter:grayscale(1) opacity(.5)}
 .empty h3{color:var(--muted);margin-top:10px}.empty p{font-size:13px;margin-top:6px}
+
+/* ---- segmented control (shared: dashboard + admin) ---- */
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line-2);border-radius:11px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--muted);font-family:var(--font-ar);font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer}
+.seg button.on{background:var(--surface-2);color:var(--text)}
+
+/* ---- side drawer (shared: bulletproof — invisible + off-screen when closed; docks right in RTL) ---- */
+.drawer-bg{position:fixed;inset:0;z-index:200;background:rgba(5,6,8,.55);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .3s}
+.drawer-bg.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;bottom:0;width:420px;max-width:92vw;z-index:201;background:var(--bg-2);display:flex;flex-direction:column;visibility:hidden;
+  transition:transform .35s cubic-bezier(.2,.8,.2,1),visibility .35s}
+html[dir="ltr"] .drawer{left:0;border-right:1px solid var(--line-2);box-shadow:40px 0 80px -40px rgba(0,0,0,.9);transform:translateX(-100%)}
+html[dir="rtl"] .drawer{right:0;border-left:1px solid var(--line-2);box-shadow:-40px 0 80px -40px rgba(0,0,0,.9);transform:translateX(100%)}
+html[dir] .drawer.open{transform:none;visibility:visible}
+.drawer-hd{display:flex;align-items:center;gap:12px;padding:20px;border-bottom:1px solid var(--line)}
+.drawer-hd .x{margin-inline-start:auto;width:34px;height:34px;border-radius:10px;border:1px solid var(--line-2);background:transparent;color:var(--text);font-size:18px;cursor:pointer}
+.drawer-bd{flex:1;overflow-y:auto;padding:20px}
+.sect{margin-bottom:22px}.sect h4{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:10px;font-weight:600}
+.kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.kv:last-child{border-bottom:0}.kv .k{color:var(--muted)}.kv .v{font-weight:500}
+.subbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px}
+.drawer-ft{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px}.drawer-ft .btn{flex:1}
 
 /* ---- modal (shared) ---- */
 .modal-bg{position:fixed;inset:0;z-index:500;display:grid;place-items:center;padding:24px;background:var(--scrim);backdrop-filter:blur(4px)}
