@@ -17,7 +17,8 @@ import java.math.BigDecimal;
  *   <li>{@code owner} — creates the restaurant's primary/owner user (active, role
  *       {@code RESTAURANT_OWNER}). Omit it if the owner will be added later.</li>
  *   <li>{@code defaultBranchName} — creates a first branch. Defaults to the restaurant name.</li>
- *   <li>{@code plan} — STANDARD or PRO (or ENTERPRISE). Defaults to PRO.</li>
+ *   <li>{@code plan} — STANDARD or PRO (or ENTERPRISE). Defaults to STANDARD; the admin
+ *       upgrades to PRO at onboarding or later via the plan control.</li>
  * </ul>
  */
 public record CreateRestaurantRequest(

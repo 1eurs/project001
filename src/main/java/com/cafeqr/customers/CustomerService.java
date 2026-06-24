@@ -12,6 +12,8 @@ import com.cafeqr.customers.dto.BlockedPhoneResponse;
 import com.cafeqr.customers.dto.ReturningCustomerResponse;
 import com.cafeqr.customers.repository.BlockedPhoneRepository;
 import com.cafeqr.customers.repository.CustomerProfileRepository;
+import com.cafeqr.loyalty.LoyaltyService;
+import com.cafeqr.loyalty.dto.LoyaltySummaryResponse;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.repository.OrderRepository;
@@ -40,17 +42,20 @@ public class CustomerService {
     private final OrderRepository orderRepository;
     private final RestaurantService restaurantService;
     private final AccessGuard accessGuard;
+    private final LoyaltyService loyaltyService;
 
     public CustomerService(CustomerProfileRepository profileRepository,
                            BlockedPhoneRepository blockedPhoneRepository,
                            OrderRepository orderRepository,
                            RestaurantService restaurantService,
-                           AccessGuard accessGuard) {
+                           AccessGuard accessGuard,
+                           LoyaltyService loyaltyService) {
         this.profileRepository = profileRepository;
         this.blockedPhoneRepository = blockedPhoneRepository;
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
         this.accessGuard = accessGuard;
+        this.loyaltyService = loyaltyService;
     }
 
     // ============================================================ order-flow hooks
@@ -141,9 +146,11 @@ public class CustomerService {
                     .orElse(null);
         }
 
+        LoyaltySummaryResponse loyalty = loyaltyService.summaryForRestaurant(restaurant.getId(), phone);
+
         return new ReturningCustomerResponse(
                 profile.getCustomerName(), phone, profile.getCarPlate(), profile.getCarColor(),
-                orderCount, favorites, lastOrder);
+                orderCount, favorites, lastOrder, loyalty);
     }
 
     // ============================================================ dashboard

@@ -112,23 +112,21 @@ public class ProAnalyticsService {
             nameAr.put(itemId, (String) row[2]);
         }
 
+        // Numerator = distinct orders that contained the item (not total quantity), so the
+        // ratio reads as a real view→order conversion. Names come from the view scan above.
         Map<Long, Long> ordersByItem = new HashMap<>();
-        for (Object[] row : orderItemRepository.bestSelling(restaurantId, branchId, from, to)) {
-            Long itemId = row[0] == null ? null : ((Number) row[0]).longValue();
-            if (itemId == null) continue;
-            // bestSelling returns [menuItemId, nameEn, nameAr, sumQty, sumLineTotal] —
-            // "orders" here = total quantity ordered, which is the actionable denominator.
-            ordersByItem.put(itemId, ((Number) row[3]).longValue());
-            nameEn.putIfAbsent(itemId, (String) row[1]);
-            nameAr.putIfAbsent(itemId, (String) row[2]);
+        for (Object[] row : orderItemRepository.orderCountByItem(restaurantId, branchId, from, to)) {
+            ordersByItem.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
         }
 
         List<ItemConversionResponse> out = new ArrayList<>();
         for (Long itemId : viewsByItem.keySet()) {
             long views = viewsByItem.getOrDefault(itemId, 0L);
             long orders = ordersByItem.getOrDefault(itemId, 0L);
+            // Cap the rate at 100%: a reorder placed without a fresh menu view can otherwise
+            // push a popular item's orders above its views. The raw order count is still surfaced.
             BigDecimal rate = views > 0
-                    ? BigDecimal.valueOf(orders).divide(BigDecimal.valueOf(views), 4, RoundingMode.HALF_UP)
+                    ? BigDecimal.valueOf(Math.min(orders, views)).divide(BigDecimal.valueOf(views), 4, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO;
             out.add(new ItemConversionResponse(itemId, nameEn.get(itemId), nameAr.get(itemId),
                     views, orders, rate));
@@ -284,10 +282,9 @@ public class ProAnalyticsService {
     // ----------------------------------------------------------------- 5b. conversion funnel
 
     /**
-     * Customer journey funnel for the window: distinct browsing sessions that reached each
-     * of menu-view / add-to-cart / checkout (from {@code analytics_events}), then orders
-     * placed (non-cancelled) and completed (from {@code orders}). Event stages count
-     * sessions; order stages count orders — different units, surfaced as such.
+     * Customer journey funnel for the window: distinct browsing sessions that reached each stage —
+     * menu view → add to cart → checkout started → order placed — all from {@code analytics_events}.
+     * Every stage counts distinct sessions, so the steps share one unit and are directly comparable.
      */
     @Transactional(readOnly = true)
     public FunnelResponse funnel(Instant from, Instant to, Long branchId) {

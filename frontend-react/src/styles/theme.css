@@ -125,5 +125,15 @@ html[dir] .drawer.open{transform:none;visibility:visible}
 .modal-card .ph{color:var(--muted);font-size:13px;margin-bottom:18px}
 .modal-actions{display:flex;gap:10px;margin-top:20px}.modal-actions .btn{flex:1}
 
+/* ---- branded confirm dialog (useConfirm) ----
+   Bold ink keyline + hard offset shadow to match the dashboard's neobrutalist
+   surfaces. Self-contained (token fallbacks) because it renders above the app
+   shell, outside the .dash/.adm scopes where --ink/--paper are defined. */
+.modal-card.confirm-card{border:2.5px solid var(--ink,#15181C);border-radius:12px;box-shadow:6px 6px 0 var(--ink,#15181C)}
+.confirm-card h3{color:var(--ink,#15181C)}
+.confirm-card .modal-actions .btn{border-radius:10px;font-weight:800;box-shadow:none}
+.confirm-card .btn.ghost{background:var(--paper,#FAFAF7);color:var(--ink,#15181C);border:2px solid var(--ink,#15181C)}
+.confirm-card .btn.danger{background:var(--paper,#FAFAF7);color:var(--bad);border:2px solid var(--bad)}
+
 .fade-in{animation:fade .4s ease both}
 @keyframes fade{from{opacity:0}to{opacity:1}}

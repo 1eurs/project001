@@ -79,6 +79,13 @@ public class Order extends BaseEntity {
     @Column(name = "internal_note")
     private String internalNote;
 
+    /** Loyalty reward redeemed on this order (snapshot); total already reflects the discount. */
+    @Column(name = "loyalty_reward_label", length = 120)
+    private String loyaltyRewardLabel;
+
+    @Column(name = "loyalty_reward_discount")
+    private BigDecimal loyaltyRewardDiscount;
+
     @Column(name = "accepted_at")
     private Instant acceptedAt;
 
@@ -256,6 +263,22 @@ public class Order extends BaseEntity {
 
     public void setInternalNote(String internalNote) {
         this.internalNote = internalNote;
+    }
+
+    public String getLoyaltyRewardLabel() {
+        return loyaltyRewardLabel;
+    }
+
+    public void setLoyaltyRewardLabel(String loyaltyRewardLabel) {
+        this.loyaltyRewardLabel = loyaltyRewardLabel;
+    }
+
+    public BigDecimal getLoyaltyRewardDiscount() {
+        return loyaltyRewardDiscount;
+    }
+
+    public void setLoyaltyRewardDiscount(BigDecimal loyaltyRewardDiscount) {
+        this.loyaltyRewardDiscount = loyaltyRewardDiscount;
     }
 
     public Instant getAcceptedAt() {

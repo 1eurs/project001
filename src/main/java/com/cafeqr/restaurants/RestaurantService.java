@@ -43,7 +43,7 @@ public class RestaurantService {
         restaurant.setVatEnabled(request.vatEnabled() == null || request.vatEnabled());
         restaurant.setVatRate(request.vatRate() != null ? request.vatRate() : new BigDecimal("5"));
         restaurant.setActive(true);
-        // Tier endpoints default the column to PRO via the DB; honor an explicit choice here.
+        // New cafés default to STANDARD (gate is on); honor an explicit tier choice from the admin.
         if (request.plan() != null) {
             restaurant.setPlan(request.plan());
         }

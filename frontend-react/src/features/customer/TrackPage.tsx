@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { OrderTracking, OrderStatus } from '../../lib/types';
@@ -9,6 +9,8 @@ import { useOrderStream } from '../../lib/sse';
 import { useAudioArm, playChime, vibrate } from '../../lib/alerts';
 import { menuPathOf, useVenue } from './venue';
 import { CustomerFrame } from './CustomerFrame';
+import { StampCard } from './StampCard';
+import './loyalty.css';
 
 // Accepted = "being prepared" now (Preparing merged in); the stepper is 3 stops.
 const FLOW: OrderStatus[] = ['PENDING', 'ACCEPTED', 'READY'];
@@ -18,13 +20,17 @@ const DICT: Dict = {
         st_PENDING: 'أرسلنا طلبك', st_ACCEPTED: 'يُحضَّر الآن', st_PREPARING: 'يُحضَّر الآن', st_READY: 'جاهز!',
         sorry_DECLINED: 'نعتذر منك، لم يتمكن المقهى من استلام هذا الطلب', sorry_CANCELLED: 'نعتذر منك، أُلغي هذا الطلب من المقهى',
         maybeWhy: 'يحدث هذا عادةً عند ضغط الطلبات أو إغلاق المقهى مؤقتاً.',
-        sorrySub: 'لم يُحتسب عليك أي مبلغ، ويسعدنا خدمتك في طلب جديد ☕', reasonLbl: 'سبب الاعتذار', orderAgain: 'اطلب من جديد' },
+        sorrySub: 'لم يُحتسب عليك أي مبلغ، ويسعدنا خدمتك في طلب جديد ☕', reasonLbl: 'سبب الاعتذار', orderAgain: 'اطلب من جديد',
+        loyReward: 'مكافأة الولاء', loyEarned: 'أُضيف ختم إلى بطاقتك ✓', loyCard: 'بطاقة أختامك', viewRewards: 'عرض كل مكافآتي',
+        of: 'من', moreOne: 'ختم واحد على', moreN: 'أختام على', counter: 'اعرضها عند الكاشير', ready: 'مكافأة جاهزة', readyN: 'مكافآت جاهزة' },
   en: { title: 'Track order', orderNo: 'Order', cur: 'OMR', min: 'min', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', back: 'Back to menu', estPrep: 'Estimated', thanks: 'Thank you',
         head_PENDING: 'Sent — waiting for the cafe', head_ACCEPTED: 'Being prepared', head_PREPARING: 'Being prepared', head_READY: 'Ready to serve', head_COMPLETED: 'Completed', head_DECLINED: 'Order declined', head_CANCELLED: 'Order cancelled',
         st_PENDING: 'Order sent', st_ACCEPTED: 'Being prepared', st_PREPARING: 'Being prepared', st_READY: 'Ready!',
         sorry_DECLINED: "We're sorry — the cafe couldn't take this order", sorry_CANCELLED: "We're sorry — this order was cancelled by the cafe",
         maybeWhy: 'This usually happens when the cafe is very busy or temporarily closed.',
-        sorrySub: "You haven't been charged — we'd love to serve you on a fresh order ☕", reasonLbl: 'Reason', orderAgain: 'Order again' },
+        sorrySub: "You haven't been charged — we'd love to serve you on a fresh order ☕", reasonLbl: 'Reason', orderAgain: 'Order again',
+        loyReward: 'Loyalty reward', loyEarned: 'A stamp was added to your card ✓', loyCard: 'Your stamp card', viewRewards: 'View all my rewards',
+        of: 'of', moreOne: 'more stamp for', moreN: 'more stamps for', counter: 'Show this at the counter', ready: 'Reward ready', readyN: 'rewards ready' },
 };
 
 export default function TrackPage() {
@@ -32,6 +38,7 @@ export default function TrackPage() {
   const { lang } = useI18n();
   const t = useT(DICT);
   const nav = useNavigate();
+  const loc = useLocation();
   const qc = useQueryClient();
   const { slug, branchId, tableToken, orderType } = useVenue();
 
@@ -128,8 +135,32 @@ export default function TrackPage() {
         <div className="c-totals" style={{ marginTop: 14 }}>
           <div className="row"><span>{t('subtotal')}</span><span className="num">{omr(o.subtotal)} {t('cur')}</span></div>
           {o.vatAmount > 0 && <div className="row"><span>{t('vat')}</span><span className="num">{omr(o.vatAmount)} {t('cur')}</span></div>}
+          {o.loyaltyRewardDiscount != null && o.loyaltyRewardDiscount > 0 && (
+            <div className="row loy-discount"><span>🎁 {o.loyaltyRewardLabel || t('loyReward')}</span><span className="num">−{omr(o.loyaltyRewardDiscount)} {t('cur')}</span></div>
+          )}
           <div className="row grand"><span>{t('total')}</span><span className="num">{omr(o.total)} {t('cur')}</span></div>
         </div>
+
+        {!bad && o.loyalty?.enabled && (
+          <div style={{ marginTop: 16 }}>
+            {o.status === 'COMPLETED' && <div className="loy-earned"><span className="ic">🎟️</span> {t('loyEarned')}</div>}
+            <div style={{ marginTop: o.status === 'COMPLETED' ? 12 : 0, cursor: 'pointer' }}
+              onClick={() => nav('/loyalty', { state: { from: loc.pathname } })} role="button" tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: loc.pathname } })}>
+              <StampCard name={t('loyCard')} rewardLabel={o.loyalty.rewardLabel || ''}
+                stamps={o.loyalty.stamps} stampsRequired={o.loyalty.stampsRequired}
+                availableRewards={o.loyalty.availableRewards}
+                footer={o.loyalty.availableRewards > 0
+                  ? <><span className="loy-progress">{t('counter')}</span>
+                      <span className="loy-ready">★ {o.loyalty.availableRewards > 1
+                        ? <><span className="num">{o.loyalty.availableRewards}</span> {t('readyN')}</> : t('ready')}</span></>
+                  : (() => { const rem = Math.max(0, o.loyalty.stampsRequired - o.loyalty.stamps);
+                      return <span className="loy-progress"><b className="num">{o.loyalty.stamps}</b> {t('of')} <span className="num">{o.loyalty.stampsRequired}</span>
+                        {rem > 0 && <> · {rem} {rem === 1 ? t('moreOne') : t('moreN')} {o.loyalty.rewardLabel}</>}</span>; })()} />
+            </div>
+            <button className="loy-link" style={{ display: 'block', margin: '10px auto 0' }} onClick={() => nav('/loyalty', { state: { from: loc.pathname } })}>{t('viewRewards')}</button>
+          </div>
+        )}
 
         {bad && (
           <button className="btn full" style={{ marginTop: 18 }} onClick={() => nav(menuPath)}>

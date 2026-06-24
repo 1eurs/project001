@@ -92,6 +92,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM orders
             WHERE (:restaurantId IS NULL OR restaurant_id = :restaurantId)
               AND (:branchId IS NULL OR branch_id = :branchId)
+              AND status NOT IN ('DECLINED', 'CANCELLED')
               AND created_at >= :from AND created_at < :to
             GROUP BY hour
             ORDER BY cnt DESC

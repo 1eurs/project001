@@ -131,6 +131,25 @@ public class OtpService {
         }
     }
 
+    /**
+     * Returns the normalized phone a valid phone-verification token belongs to, or {@code null}
+     * when the token is missing, malformed, expired, or of the wrong type. Used to authorize the
+     * customer's cross-café loyalty portal (the subject is the verified phone).
+     */
+    public String phoneFromToken(String token) {
+        if (token == null || token.isBlank()) return null;
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return TOKEN_TYPE.equals(claims.get("typ", String.class)) ? claims.getSubject() : null;
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     private String issuePhoneToken(String normalizedPhone) {
         Instant now = Instant.now();
         return Jwts.builder()

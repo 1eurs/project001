@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import { api, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken,
 import { useAuth, isManager, canAcceptOrders, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
+import { useConfirm } from '../../lib/confirm';
 import { useOrderStream, type StreamStatus } from '../../lib/sse';
 import { useOrderSound, SoundToggle, notify } from '../../lib/alerts';
 import { useWakeLock } from '../../lib/wakeLock';
@@ -25,13 +26,14 @@ import TeamPage from './TeamPage';
 const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
 import OrderPad from './OrderPad';
 import InvoicePrint from './InvoicePrint';
+import LoyaltyPage from './LoyaltyPage';
 import './dashboard.css';
 
 const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
-        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم',
+        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء',
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
-        table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة',
+        table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء',
         accept: 'قبول', decline: 'رفض', startPrep: 'بدء التحضير', ready: 'جاهز', complete: 'اكتمل', cancel: 'إلغاء',
         collect: 'حصّل', done: 'تم', doneUnpaid: 'تم دون دفع', undo: 'تراجع', finishing: 'يُنهى…',
         unpaid: 'تحديد كمدفوع', paid: 'مدفوع', confirm: 'تأكيد', back: 'رجوع',
@@ -53,9 +55,9 @@ const DICT: Dict = {
         emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
         role_owner: 'مالك المطعم', role_staff: 'موظف' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
-        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile',
+        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty',
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
-        table: 'Table', car: 'Outdoor car', note: 'Note',
+        table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward',
         accept: 'Accept', decline: 'Decline', startPrep: 'Start preparing', ready: 'Ready', complete: 'Complete', cancel: 'Cancel',
         collect: 'Collect', done: 'Done', doneUnpaid: 'Done, unpaid', undo: 'Undo', finishing: 'Finishing…',
         unpaid: 'Mark paid', paid: 'Paid', confirm: 'Confirm', back: 'Back',
@@ -99,7 +101,7 @@ export default function DashboardApp() {
   return <Shell />;
 }
 
-type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'look' | 'team' | 'analytics' | 'profile' | 'tables';
+type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'look' | 'team' | 'analytics' | 'profile' | 'tables' | 'loyalty';
 
 function LivePill({ stream, t }: { stream: StreamStatus; t: (k: string) => string }) {
   if (stream === 'open') {
@@ -123,6 +125,30 @@ function useCalmStream(stream: StreamStatus, delayMs = 5_000): StreamStatus {
   return shown;
 }
 
+/* Monochrome line icons (Lucide-style) for the rail. Drawn inline so we add no
+   icon dependency, and stroked with currentColor so — unlike the old emoji — they
+   pick up the rail's muted / hover / active-ink states (incl. ink-on-lime in the
+   neo theme). Sized in `em` so they ride the button font-size (rail 20px, bottom
+   nav 19px). */
+function Ico({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 24 24" width="1.15em" height="1.15em" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
+      {children}
+    </svg>
+  );
+}
+const IcLive = () => <Ico><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" /></Ico>;
+const IcNew = () => <Ico><path d="M12 5v14M5 12h14" /></Ico>;
+const IcHistory = () => <Ico><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" /><path d="M14 8H8M16 12H8M13 16H8" /></Ico>;
+const IcAnalytics = () => <Ico><path d="M3 3v18h18" /><path d="M18 17V9M13 17V5M8 17v-3" /></Ico>;
+const IcMenu = () => <Ico><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></Ico>;
+const IcLook = () => <Ico><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z" /></Ico>;
+const IcTables = () => <Ico><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" /></Ico>;
+const IcTeam = () => <Ico><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Ico>;
+const IcPower = () => <Ico><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.77.04" /></Ico>;
+const IcLoyalty = () => <Ico><path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.6 8.8l6.5-.9z" /></Ico>;
+
 function Shell() {
   const { user } = useAuth();
   const t = useT(DICT);
@@ -130,18 +156,21 @@ function Shell() {
   const sound = useOrderSound();
   const [stream, setStream] = useState<StreamStatus>('connecting');
   const calmStream = useCalmStream(stream);
-  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), team: t('nav_team'), analytics: t('nav_analytics'), profile: t('nav_profile'), tables: t('tablesTitle') };
+  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), team: t('nav_team'), analytics: t('nav_analytics'), profile: t('nav_profile'), tables: t('tablesTitle'), loyalty: t('nav_loyalty') };
 
+  // Ordered by daily workflow: run the floor (live → new → history), read the
+  // numbers (analytics), then set things up (menu → look → tables → team).
   const navItems = ([
-    { key: 'board', icon: '🍳', label: t('nav_board'), show: can(user, 'ORDERS') },
-    { key: 'orders', icon: '🧾', label: t('nav_orders'), show: can(user, 'ORDERS') },
-    { key: 'neworder', icon: '➕', label: t('nav_neworder'), show: can(user, 'ORDERS') },
-    { key: 'menu', icon: '📋', label: t('nav_menu'), show: can(user, 'MENU') },
-    { key: 'look', icon: '🎨', label: t('nav_look'), show: can(user, 'MENU') },
-    { key: 'team', icon: '👥', label: t('nav_team'), show: can(user, 'TEAM') },
-    { key: 'analytics', icon: '📊', label: t('nav_analytics'), show: can(user, 'ANALYTICS') },
-    { key: 'tables', icon: '🔳', label: t('nav_tables'), show: can(user, 'QR_TABLES') },
-  ] as { key: Page; icon: string; label: string; show: boolean }[]).filter((i) => i.show);
+    { key: 'board', icon: <IcLive />, label: t('nav_board'), show: can(user, 'ORDERS') },
+    { key: 'neworder', icon: <IcNew />, label: t('nav_neworder'), show: can(user, 'ORDERS') },
+    { key: 'orders', icon: <IcHistory />, label: t('nav_orders'), show: can(user, 'ORDERS') },
+    { key: 'analytics', icon: <IcAnalytics />, label: t('nav_analytics'), show: can(user, 'ANALYTICS') },
+    { key: 'loyalty', icon: <IcLoyalty />, label: t('nav_loyalty'), show: can(user, 'PROFILE') },
+    { key: 'menu', icon: <IcMenu />, label: t('nav_menu'), show: can(user, 'MENU') },
+    { key: 'look', icon: <IcLook />, label: t('nav_look'), show: can(user, 'MENU') },
+    { key: 'tables', icon: <IcTables />, label: t('nav_tables'), show: can(user, 'QR_TABLES') },
+    { key: 'team', icon: <IcTeam />, label: t('nav_team'), show: can(user, 'TEAM') },
+  ] as { key: Page; icon: ReactNode; label: string; show: boolean }[]).filter((i) => i.show);
 
   // Land on the first screen the user can actually open (e.g. a kitchen-only or menu-only member).
   const navKeys = navItems.map((i) => i.key).join(',');
@@ -204,7 +233,7 @@ function Shell() {
             </button>
           ))}
         </nav>
-        <button className="out" title={t('logoutT')} onClick={() => logout()}>⏻</button>
+        <button className="out" title={t('logoutT')} aria-label={t('logoutT')} onClick={() => logout()}><IcPower /></button>
       </aside>
 
       <div className="dmain">
@@ -236,6 +265,7 @@ function Shell() {
         {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) ? activeBranches : []} /></Suspense>}
         {page === 'profile' && <RestaurantProfile branchId={branchId} />}
         {page === 'tables' && <TablesPage branchId={branchId} />}
+        {page === 'loyalty' && <LoyaltyPage />}
       </div>
 
       <nav className="dnav-bottom">
@@ -750,6 +780,7 @@ function OrderCard({ o, tableNo, t, lang, canAccept, canPay, finishing, onAccept
             <span>{lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}{i.note ? <span className="nt">↳ {i.note}</span> : null}</span></div>
         ))}
       </div>
+      {o.loyaltyRewardLabel && <div className="oreward"><b>🎁 {t('loyaltyReward')}</b> {o.loyaltyRewardLabel}{o.loyaltyRewardDiscount ? <span className="num"> · −{omr(o.loyaltyRewardDiscount)} {t('cur')}</span> : null}</div>}
       {o.customerNote && <div className="onote"><b>{t('note')}:</b> {o.customerNote}{o.customerName ? ` — ${o.customerName}` : ''}</div>}
       <div className="ocard-foot">
         <span className="ototal num">{omr(o.total)} <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span></span>
@@ -804,7 +835,12 @@ const roundRectPath = (x: number, y: number, w: number, h: number, r: number) =>
     + `v${fmt(-(h - 2 * rad))}a${fmt(rad)} ${fmt(rad)} 0 0 1 ${fmt(rad)} ${fmt(-rad)}z`;
 };
 
-function BrandedQrCode({ value, size, fgColor = '#0a1712', marginSize = 1, badge = true }:
+// On-screen QR ink + badge mirror the Serva theme tokens (theme.css): --ink and
+// --accent/--lime. Hardcoded (not var()) because the print path renders this SVG
+// into a popup window with no app stylesheet — print callers pass #000 explicitly.
+const QR_INK = '#15181C';      // --ink
+const QR_ACCENT = '#10b981';   // --accent / --lime
+function BrandedQrCode({ value, size, fgColor = QR_INK, marginSize = 1, badge = true }:
   { value: string; size: number; fgColor?: string; marginSize?: number; badge?: boolean }) {
   const { cells, eyes, cell } = useMemo(() => {
     const { modules } = createQrMatrix(value, { errorCorrectionLevel: 'H' });
@@ -830,18 +866,21 @@ function BrandedQrCode({ value, size, fgColor = '#0a1712', marginSize = 1, badge
         if (!modules.get(r, c) || isFinder(r, c)) continue;
         const cx = px(c) + cell / 2, cy = px(r) + cell / 2;
         if (inBadge(cx, cy)) continue;
-        cells += roundRectPath(px(c), px(r), cell, cell, cell * 0.35);
+        cells += roundRectPath(px(c), px(r), cell, cell, cell * 0.16);
       }
     }
     const eye = (gr: number, gc: number) => {
       const x = px(gc), y = px(gr), s = cell * 7;
-      return `${roundRectPath(x, y, s, s, cell * 1.75)}${roundRectPath(x + cell, y + cell, cell * 5, cell * 5, cell * 1.2)}${roundRectPath(x + cell * 2, y + cell * 2, cell * 3, cell * 3, cell * 0.9)}`;
+      // square, bold finder frames — mirror the app's hard-edged boxes (not soft circles)
+      return `${roundRectPath(x, y, s, s, cell * 0.45)}${roundRectPath(x + cell, y + cell, cell * 5, cell * 5, cell * 0.32)}${roundRectPath(x + cell * 2, y + cell * 2, cell * 3, cell * 3, cell * 0.24)}`;
     };
     const eyes = `${eye(0, 0)}${eye(0, n - 7)}${eye(n - 7, 0)}`;
     return { cells, eyes, cell };
   }, [value, size, marginSize, badge]);
 
   const bw = size * 0.3, bh = size * 0.135, bx = (size - bw) / 2, by = (size - bh) / 2;
+  // Neobrutalist chip: hard offset shadow, tight corners, thick ink keyline.
+  const badgeSh = Math.max(2, size * 0.016), badgeR = bh * 0.16, badgeBorder = Math.max(2, size * 0.013);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" shapeRendering="geometricPrecision">
       <rect width={size} height={size} fill="#ffffff" />
@@ -850,8 +889,12 @@ function BrandedQrCode({ value, size, fgColor = '#0a1712', marginSize = 1, badge
       <path d={eyes} fill={fgColor} fillRule="evenodd" />
       {badge && (
         <>
-          <path d={roundRectPath(bx - cell, by - cell, bw + cell * 2, bh + cell * 2, cell * 1.4)} fill="#ffffff" />
-          <path d={roundRectPath(bx, by, bw, bh, bh * 0.3)} fill="#34e2a4" stroke={fgColor} strokeWidth={Math.max(2, size * 0.013)} />
+          {/* clear the QR behind the chip and its hard shadow */}
+          <path d={roundRectPath(bx - cell, by - cell, bw + cell * 2 + badgeSh, bh + cell * 2 + badgeSh, cell * 0.4)} fill="#ffffff" />
+          {/* signature offset block shadow */}
+          <path d={roundRectPath(bx + badgeSh, by + badgeSh, bw, bh, badgeR)} fill={fgColor} />
+          {/* lime brand chip + ink keyline \u2014 same recipe as the .mark chip */}
+          <path d={roundRectPath(bx, by, bw, bh, badgeR)} fill={QR_ACCENT} stroke={fgColor} strokeWidth={badgeBorder} />
           <text x={size / 2} y={size / 2 + bh * 0.02} textAnchor="middle" dominantBaseline="central" direction="ltr" unicodeBidi="bidi-override"
             fontFamily="'Bricolage Grotesque','IBM Plex Sans Arabic',system-ui,sans-serif"
             fontWeight={800} fontSize={bh * 0.6} letterSpacing="-0.02em" fill={fgColor}>{'Serva.\u200E'}</text>
@@ -866,6 +909,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
   const { lang } = useI18n();
   const toast = useToast();
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { user } = useAuth();
   const [num, setNum] = useState('');
@@ -971,8 +1015,8 @@ function TablesPage({ branchId }: { branchId?: number }) {
                   <ActivityRow liveKey={tb.qrCodeToken} todayKey={String(tb.id)} />
                   <div className="tcard-actions">
                     <button className="btn sm ghost" onClick={() => printOne({ title: `${t('table')} ${tb.tableNumber}`, subtitle: slugOf(tb), value: url })}>🖨 {t('printOne')}</button>
-                    <button className="btn sm ghost" onClick={() => { if (confirm(t('regenWarn'))) regen.mutate(tb.id); }}>↻ {t('regenerate')}</button>
-                    <button className="btn sm danger" onClick={() => { if (confirm(t('delWarn'))) del.mutate(tb.id); }}>{t('del')}</button>
+                    <button className="btn sm ghost" onClick={async () => { if (await confirm({ danger: true, title: t('regenerate'), message: t('regenWarn'), confirmLabel: t('regenerate'), cancelLabel: t('cancel') })) regen.mutate(tb.id); }}>↻ {t('regenerate')}</button>
+                    <button className="btn sm danger" onClick={async () => { if (await confirm({ danger: true, title: t('delWarn'), confirmLabel: t('del'), cancelLabel: t('cancel') })) del.mutate(tb.id); }}>{t('del')}</button>
                   </div>
                 </div>
               );

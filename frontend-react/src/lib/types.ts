@@ -77,7 +77,8 @@ export interface OrderItem {
 export interface OrderTracking {
   orderNumber: string; trackingToken: string; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
-  customerName?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null; items: OrderItem[];
+  customerName?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
+  loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null; loyalty?: LoyaltySummary | null; items: OrderItem[];
   createdAt: string; acceptedAt?: string | null; preparingAt?: string | null; readyAt?: string | null;
   completedAt?: string | null; cancelledAt?: string | null; declinedAt?: string | null;
 }
@@ -86,7 +87,8 @@ export interface OrderResponse {
   id: number; orderNumber: string; trackingToken: string; restaurantId: number; branchId: number; tableId?: number | null;
   customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
-  customerNote?: string | null; internalNote?: string | null; paymentMethod?: PaymentMethod | null; items: OrderItem[];
+  customerNote?: string | null; internalNote?: string | null; loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null;
+  paymentMethod?: PaymentMethod | null; items: OrderItem[];
   createdAt: string; acceptedAt?: string | null; declinedAt?: string | null; preparingAt?: string | null;
   readyAt?: string | null; completedAt?: string | null; cancelledAt?: string | null;
 }
@@ -135,7 +137,7 @@ export interface CreateOrderItem {
 export interface CreateOrderPayload {
   restaurantSlug: string; branchId: number; tableToken?: string | null; orderType: OrderType;
   customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
-  deviceToken?: string | null; phoneToken?: string | null; items: CreateOrderItem[];
+  deviceToken?: string | null; phoneToken?: string | null; redeemReward?: boolean; items: CreateOrderItem[];
 }
 // Manual order taken by staff from the dashboard order pad — mirrors CreateStaffOrderRequest.java.
 export interface CreateStaffOrderPayload {
@@ -152,6 +154,29 @@ export interface ReturningCustomer {
   customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null;
   orderCount: number; favorites: FavoriteItem[];
   lastOrder?: { createdAt: string; items: LastOrderItem[] } | null;
+  loyalty?: LoyaltySummary | null;
+}
+
+/* ---- loyalty (stamp card) ---- */
+// Café configuration (dashboard) — mirrors LoyaltyProgramResponse.java.
+export interface LoyaltyProgram {
+  enabled: boolean; stampsRequired: number; rewardLabel: string;
+  rewardItemId?: number | null; minOrderAmount?: number | null;
+}
+// One café's stamp progress for a phone (menu/checkout) — mirrors LoyaltySummaryResponse.java.
+export interface LoyaltySummary {
+  enabled: boolean; stampsRequired: number; rewardLabel?: string | null;
+  rewardItemId?: number | null; stamps: number; availableRewards: number;
+}
+// A café's member row (dashboard) — mirrors LoyaltyMemberResponse.java.
+export interface LoyaltyMemberRow {
+  phone: string; name?: string | null; stamps: number; availableRewards: number;
+  lifetimeStamps: number; rewardsRedeemed: number; updatedAt: string;
+}
+// One café's stamp card in the cross-café portal — mirrors LoyaltyPortalEntryResponse.java.
+export interface LoyaltyPortalEntry {
+  restaurantSlug: string; restaurantName: string; logoUrl?: string | null;
+  stampsRequired: number; rewardLabel: string; stamps: number; availableRewards: number; updatedAt: string;
 }
 
 /* ---- platform admin: per-restaurant stats ---- */

@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Serva Analytics — Standard vs Pro · الأساسية مقابل برو</title>
+<style>
+  :root{
+    --ink:#15181C;
+    --lime:#10b981;
+    --lime-soft:#d6f5e9;
+    --muted:#566058;
+    --line:#e6e8e6;
+    --paper:#fbfbf9;
+    --card:#ffffff;
+    --pro:#7c4dff;
+    --pro-soft:#efe9ff;
+    --pending:#e6a700;
+    --bad:#e0524b;
+    --shadow:0 1px 2px rgba(21,24,28,.04), 0 8px 24px rgba(21,24,28,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  [dir=rtl] body{
+    font-family:"Segoe UI",Tahoma,"Geeza Pro","Noto Naskh Arabic","Noto Sans Arabic",Arial,sans-serif;
+    line-height:1.85;
+  }
+  .mono{font-family:"IBM Plex Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  a{color:var(--lime);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{
+    background:#f1f3f1;border:1px solid var(--line);border-radius:5px;padding:1px 6px;
+    font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#384038;
+    direction:ltr;unicode-bidi:isolate;
+  }
+
+  /* ---- shell ---- */
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  header.top{
+    border-bottom:1.5px solid var(--ink);background:var(--paper);
+    position:sticky;top:0;z-index:20;backdrop-filter:saturate(1.2) blur(6px);
+  }
+  .top-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
+  .top-right{display:flex;align-items:center;gap:22px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.02em;font-size:18px}
+  .brand .logo{
+    width:26px;height:26px;border-radius:7px;background:var(--ink);color:#fff;
+    display:grid;place-items:center;font-weight:800;font-size:14px;
+  }
+  .navlinks{display:flex;gap:18px;font-size:13px}
+  .navlinks a{color:var(--muted);font-weight:600}
+  .navlinks a:hover{color:var(--ink);text-decoration:none}
+  @media(max-width:620px){.navlinks{display:none}}
+
+  /* ---- language toggle ---- */
+  .lang-toggle{display:flex;border:1.5px solid var(--ink);border-radius:999px;overflow:hidden}
+  .lang-toggle button{
+    border:0;background:transparent;font:inherit;font-size:12px;font-weight:800;
+    padding:5px 13px;cursor:pointer;color:var(--muted);line-height:1.5;letter-spacing:.02em;
+  }
+  .lang-toggle button.on{background:var(--ink);color:#fff}
+
+  /* ---- hero ---- */
+  .hero{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .eyebrow{
+    font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;margin-bottom:16px;
+  }
+  [dir=rtl] .eyebrow{letter-spacing:.04em}
+  h1{font-size:clamp(30px,5vw,46px);line-height:1.12;letter-spacing:-.03em;margin:0 0 18px;max-width:20ch}
+  [dir=rtl] h1{letter-spacing:0;line-height:1.3}
+  .lede{font-size:18px;color:var(--muted);max-width:64ch;margin:0}
+  .legend{display:flex;flex-wrap:wrap;gap:12px 22px;margin-top:28px}
+  .legend .key{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+
+  /* ---- badges ---- */
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;line-height:1.4;
+    white-space:nowrap;
+  }
+  [dir=rtl] .badge{letter-spacing:0}
+  .badge.std{background:var(--lime-soft);color:#0a7150;border:1px solid #b6ead7}
+  .badge.pro{background:var(--pro-soft);color:#5a32cc;border:1px solid #d6c9ff}
+  .badge.pro::before{content:"🔒";font-size:10px}
+
+  /* ---- sections ---- */
+  section.block{padding:54px 0;border-bottom:1px solid var(--line)}
+  .block-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .block-head h2{font-size:26px;letter-spacing:-.02em;margin:0}
+  [dir=rtl] .block-head h2{letter-spacing:0}
+  .block-sub{color:var(--muted);max-width:66ch;margin:8px 0 32px}
+
+  /* ---- metric cards ---- */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 22px 20px;
+    box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .card.tall{grid-column:1 / -1}
+  .card::before{content:"";position:absolute;inset-inline-start:0;top:0;bottom:0;width:3px;background:var(--lime)}
+  .card.is-pro::before{background:var(--pro)}
+  .card h3{margin:0 0 4px;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  [dir=rtl] .card h3{letter-spacing:0}
+  .card .what{color:var(--muted);font-size:14.5px;margin:8px 0 0}
+  .card .meta{margin:14px 0 0;border-top:1px dashed var(--line);padding-top:13px;display:grid;gap:9px}
+  .row{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start;font-size:13.5px}
+  .row .lbl{
+    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;padding-top:2px;
+  }
+  [dir=rtl] .row .lbl{letter-spacing:0;font-size:11.5px}
+  .row .val{color:#2c332c}
+  .why b,.why strong{color:var(--ink)}
+  .val b{color:var(--ink)}
+
+  /* ---- comparison table ---- */
+  .cmp{padding:54px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  thead th{
+    text-align:start;background:var(--ink);color:#fff;font-weight:600;font-size:12px;
+    letter-spacing:.04em;padding:13px 16px;
+  }
+  thead th:not(:first-child){text-align:center;width:140px}
+  tbody td{padding:12px 16px;border-top:1px solid var(--line);vertical-align:middle}
+  tbody td:not(:first-child){text-align:center}
+  tbody tr:hover{background:#fafcfb}
+  .tier-row td{background:#f4f6f4;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  [dir=rtl] .tier-row td{letter-spacing:0;font-size:12px}
+  .yes{color:var(--lime);font-weight:800}
+  .no{color:#c4c9c4}
+  .partial{color:var(--pending);font-weight:700;font-size:12px}
+
+  /* ---- callout ---- */
+  .note{
+    margin-top:26px;background:#fff;border:1px solid var(--line);border-inline-start:3px solid var(--pending);
+    border-radius:10px;padding:14px 18px;font-size:14px;color:var(--muted);
+  }
+  .note b{color:var(--ink)}
+
+  footer{padding:40px 0 64px;color:var(--muted);font-size:13px}
+  footer .mono{font-size:12px;direction:ltr;unicode-bidi:isolate}
+  .pill-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .pill-tabs span{
+    font-size:12px;border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:#fff;color:var(--muted)
+  }
+  .pill-tabs span.lock::after{content:" 🔒";font-size:10px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <div class="brand"><span class="logo">S</span> Serva</div>
+    <div class="top-right">
+      <nav class="navlinks">
+        <a href="#standard" data-ar="الأساسية">Standard</a>
+        <a href="#pro" data-ar="برو">Pro</a>
+        <a href="#compare" data-ar="مقارنة">Compare</a>
+      </nav>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-lang="en" class="on">EN</button>
+        <button type="button" data-lang="ar">ع</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow" data-ar="لوحة التحكم · التحليلات">Dashboard · Analytics</div>
+    <h1 data-ar="كل بطاقة تحليلات، ولماذا تستحق مكانها.">Every analytics card, and why it earns its place.</h1>
+    <p class="lede" data-ar="تحوّل تحليلات Serva نشاط الطلبات والتصفّح الخام إلى قرارات يستطيع المدير تنفيذها في اليوم نفسه. تمنح الباقة الأساسية كل مقهى نبضه التشغيلي، وتضيف برو العمق التحليلي — التحويل والاحتفاظ والتوظيف والطلب — الذي يفسّر <em>لماذا</em> تتحرك الأرقام.">
+      Serva’s analytics turn a café’s raw order and browsing activity into decisions a manager can act on
+      the same day. Standard gives every café the operational pulse; Pro adds the diagnostic depth —
+      conversion, retention, staffing and demand — that explains <em>why</em> the numbers move.
+    </p>
+
+    <div class="legend">
+      <span class="key"><span class="badge std">Standard</span> <span data-ar="متاحة في كل الباقات، مجانًا">on every plan, free</span></span>
+      <span class="key"><span class="badge pro">Pro</span> <span data-ar="حصري لباقتَي برو والمؤسسات">Pro &amp; Enterprise plans only</span></span>
+    </div>
+
+    <div class="pill-tabs" aria-hidden="true">
+      <span data-ar="نظرة عامة">Overview</span><span data-ar="القائمة">Menu</span><span class="lock" data-ar="الفريق">Team</span><span class="lock" data-ar="العملاء">Customers</span>
+    </div>
+  </section>
+
+  <!-- ============================ STANDARD ============================ -->
+  <section class="block" id="standard">
+    <div class="block-head">
+      <h2 data-ar="التحليلات الأساسية">Standard analytics</h2><span class="badge std">Standard</span>
+    </div>
+    <p class="block-sub" data-ar="الصورة التشغيلية اليومية. متاحة في تبويبَي <b>نظرة عامة</b> و<b>القائمة</b>، ضمن نطاق <b>اليوم</b> أو <b>آخر ٧ أيام</b>، مع مرشّح لكل فرع لأصحاب الفروع المتعددة. تُقارَن الأرقام دائمًا بفترة سابقة مكافئة فيعرف المدير فورًا «أفضل أم أسوأ من المعتاد».">
+      The daily operating picture. Available on the <b>Overview</b> and <b>Menu</b> tabs, scoped to
+      <b>Today</b> or the <b>last 7 days</b>, with a per-branch filter for multi-branch owners.
+      Numbers always compare against a like-for-like previous period so a manager instantly knows
+      “better or worse than usual.”
+    </p>
+
+    <div class="grid">
+
+      <div class="card tall">
+        <h3><span data-ar="الواجهة اليومية">Daybook headline</span> <span class="badge std">Standard</span></h3>
+        <p class="what" data-ar="الرقم الرئيسي: الإيرادات المكتملة، إجمالي الطلبات، متوسط قيمة الطلب، وعدد المكتملة، مع مؤشر ارتفاع/انخفاض لكلٍّ منها.">The hero figure: completed <b>revenue</b>, total <b>orders</b>, <b>average order value</b>
+          and <b>completed</b> count, each with an up/down delta pill.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="الإيرادات = مجموع إجماليات الطلبات <code>المكتملة</code>. متوسط الطلب = الإيرادات ÷ الطلبات المكتملة. تُقارَن النسبة بنفس يوم الأسبوع الماضي (اليوم) أو بالفترة السابقة مباشرةً (عدة أيام).">Revenue = sum of <code>COMPLETED</code> order totals. AOV = revenue ÷ completed orders. Delta compares to the <b>same weekday last week</b> (Today) or the <b>immediately preceding window</b> (multi-day).</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="الإجابة في خمس ثوانٍ عن <b>«كيف حالنا الآن؟»</b>. تستبعد المقارنة المتكافئة إيقاع الأسبوع المعتاد، فلا يُحسَب يوم اثنين هادئ على أنه تراجع.">The 5-second answer to <b>“how are we doing right now?”</b> The like-for-like delta strips out normal week-rhythm so a quiet Monday isn’t mistaken for a slump.</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span data-ar="المخطط المصغّر">Sparkline</span> <span class="badge std">Standard</span></h3>
+        <p class="what" data-ar="مخطط أعمدة صغير بجانب الرقم الرئيسي — الطلبات حسب الساعة (اليوم) أو الإيرادات حسب اليوم (عدة أيام)، مع إبراز عمود الذروة.">A mini bar chart beside the headline — orders by hour (Today) or revenue by day
+          (multi-day), with the peak bar highlighted.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="اليوم ← أعداد أكثر الساعات ازدحامًا؛ عدة أيام ← سلسلة الإيرادات اليومية.">Today → busiest-hours counts; multi-day → daily revenue series.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يُظهر <b>شكل</b> اليوم أو الأسبوع بلمحة — أين تقع الذروة وهل الزخم يتصاعد أم يخفت.">Shows the <b>shape</b> of the day or week at a glance — where the rush lands and whether momentum is building or fading.</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span data-ar="شريط الملاحظات">Insight strip</span> <span class="badge std">Standard</span></h3>
+        <p class="what" data-ar="حتى ثلاث ملاحظات بلغة واضحة بالنبرة نفسها للبريد الأسبوعي (مثل «٢ ظهرًا أكثر ساعاتك ازدحامًا»، «اللاتيه يمثّل ٢٤٪ من الإيرادات»).">Up to three plain-language callouts in the same voice as the weekly email
+          (e.g. “2pm is your busiest hour”, “Latte is 24% of revenue”).</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="مشتقة من أكثر الساعات ازدحامًا وحصة الأكثر مبيعًا من الإيرادات. تضيف برو تنبيهات الأصناف ضعيفة التحويل والعملاء الدائمين المعرّضين للابتعاد.">Derived from busiest hours + best-seller revenue share. Pro adds weak-converting item &amp; at-risk-regulars callouts.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="تحوّل المخططات إلى <b>جُمل يمكن للمدير التصرّف بناءً عليها</b> دون قراءة أي محور.">Translates charts into <b>sentences a manager can act on</b> without reading a single axis.</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span data-ar="توزيع حالة الطلبات">Order-status breakdown</span> <span class="badge std">Standard</span></h3>
+        <p class="what" data-ar="شريط مقسّم يوزّع طلبات الفترة إلى مكتملة، جاهزة، قيد التنفيذ، معلّقة، وملغاة/مرفوضة.">A segmented bar splitting the period’s orders into completed, ready,
+          in-progress, pending and cancelled/declined.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="أعداد مجمّعة حسب <code>حالة الطلب</code> خلال الفترة.">Counts grouped by <code>OrderStatus</code> over the window.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="<b>فحص صحّة تشغيلي</b> — شريحة معلّقة كبيرة تعني تراكمًا في الصف؛ وتنامي شريحة الملغاة يعني تسرّب الطلبات.">An <b>operational health check</b> — a fat pending slice means the line is backing up; a growing cancelled slice means orders are slipping through.</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span data-ar="حسب وقت اليوم">By time of day</span> <span class="badge std">Standard</span></h3>
+        <p class="what" data-ar="الطلبات والإيرادات موزّعة على الصباح والظهيرة والعصر والمساء ووقت متأخر، مع إبراز فترة الذروة.">Orders and revenue bucketed into Morning, Midday, Afternoon, Evening and Late night,
+          peak daypart flagged.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="الطلبات مجمّعة حسب فترة اليوم بتوقيت المقهى؛ تُعرض الفترات الخمس دائمًا، مع تعبئة الفارغ بصفر.">Orders grouped by daypart in the café’s timezone; all five buckets always shown, zero-filled.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يوجّه <b>التوظيف وتوقيت العروض</b> — أطلِق عرضًا في فترة العصر الهادئة، وزِد العاملين قبل ذروة المساء.">Drives <b>staffing and promo timing</b> — push a happy-hour offer into the soft afternoon, staff up before the evening peak.</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span data-ar="مخطط الاتجاه">Trend chart</span> <span class="badge std">Standard</span></h3>
+        <p class="what" data-ar="مخطط مساحي للإيرادات/الطلبات على مدى الفترة المختارة، مع إمكانية التبديل بين المقياسين.">A revenue/orders area chart over the selected multi-day range, toggleable between
+          the two metrics.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="الإيرادات المكتملة وعدد الطلبات لكل يوم، مع سدّ الفجوات بحيث يكون لكل يوم في الفترة نقطة.">Per-day completed revenue and order count, gap-filled so every day in range has a point.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يُظهر <b>الاتجاه عبر الزمن</b> — هل ما زال عرض الأسبوع الماضي يرفع المبيعات أم خفت بعد اليوم الثاني؟">Shows <b>direction over time</b> — is last week’s promo still lifting sales, or did it fade after day two?</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span data-ar="الأكثر مبيعًا">Best sellers</span> <span class="badge std">Standard</span></h3>
+        <p class="what" data-ar="أعلى الأصناف مرتّبة حسب الكمية المباعة والإيرادات، في تبويب القائمة.">Ranked top items by quantity sold and revenue, on the Menu tab.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="مجموع الكمية وإجماليات البنود لكل صنف خلال الفترة، مع عرض أعلى ٨.">Sum of quantity and line totals per menu item over the window, top 8 shown.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="العمود الفقري <b>لقرارات القائمة</b> — ماذا تُبرز، وتُبقي متوفّرًا، ولا تنفد منه أبدًا.">The backbone of <b>menu decisions</b> — what to feature, keep stocked, and never run out of.</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================ PRO ============================ -->
+  <section class="block" id="pro">
+    <div class="block-head">
+      <h2 data-ar="تحليلات برو">Pro analytics</h2><span class="badge pro">Pro</span>
+    </div>
+    <p class="block-sub" data-ar="الطبقة التشخيصية. تفتح برو نطاقات أطول (<b>٣٠ / ٩٠ يومًا ومخصّصة</b>)، وتبويبَي <b>الفريق</b> و<b>العملاء</b>، وبطاقات أعمق في كل تبويب. حيث تخبرك الأساسية بـ<em>ماذا</em> حدث، تشرح برو <em>لماذا</em> — وما العمل. كل مسار محمي بـ <code>Entitlements.requirePro()</code>؛ وترى المقاهي على الباقة الأساسية دعوة للترقية بدلًا منه.">
+      The diagnostic layer. Pro unlocks longer ranges (<b>30 / 90 days &amp; custom</b>), the
+      <b>Team</b> and <b>Customers</b> tabs, and deeper cards across every tab. Where Standard tells you
+      <em>what</em> happened, Pro explains <em>why</em> — and what to do about it. Each route is gated by
+      <code>Entitlements.requirePro()</code>; Standard cafés see an upgrade prompt instead.
+    </p>
+
+    <div class="grid">
+
+      <div class="card is-pro">
+        <h3><span data-ar="نطاقات زمنية أوسع">Extended date ranges</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="نوافذ زمنية ٣٠ و٩٠ يومًا ومخصّصة بالكامل، إضافةً إلى اليوم / ٧ أيام في الباقة الأساسية.">30-day, 90-day and fully custom date windows, on top of Standard’s Today / 7 days.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="النوافذ القصيرة تُظهر الضجيج؛ و<b>النوافذ الأطول تُظهر الاتجاهات</b> — الموسمية، والنمو شهرًا بعد شهر، والأثر الحقيقي لتغيير السعر.">Short windows show noise; <b>longer windows show trends</b> — seasonality, month-over-month growth, the real effect of a price change.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="تحويل الأصناف">Item conversion</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="لكل صنف: كم مرة يُشاهَد مقابل كم مرة يُطلَب — معدّل مشاهدة←طلب، مع وسم الأضعف بـ«ضعيف».">Per item: how often it’s <b>viewed</b> vs how often it’s <b>ordered</b> — a view→order rate,
+          with weak performers flagged “low”.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="المعدّل = الكمية المطلوبة ÷ مشاهدات الصنف (من <code>analytics_events</code>). مرتّبة من الأسوأ أولًا لإبراز الاهتمام المهدور.">Rate = quantity ordered ÷ menu-item views (from <code>analytics_events</code>). Sorted worst-first to surface wasted attention.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يكشف الأصناف التي <b>تُشاهَد لكنها لا تُباع</b> — عادةً مشكلة صورة أو سعر أو وصف، لا مشكلة طلب. الأصناف عالية المشاهدة منخفضة التحويل هي أسرع مكاسب الإيرادات.">Finds items that <b>get looked at but don’t sell</b> — usually a photo, price or description problem, not a demand problem. High-traffic, low-conversion items are the fastest revenue wins.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="مسار التحويل">Conversion funnel</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="رحلة العميل: <b>مشاهدة القائمة ← الإضافة للسلة ← بدء الدفع ← إتمام الطلب</b>، مع نسبة لكل خطوة ونسبة تحويل إجمالية واحدة.">The customer journey: <b>menu view → add to cart → checkout started → order placed</b>,
+          with step-to-step % and one overall conversion number.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="مراحل الأحداث تَعُدّ جلسات التصفّح المتمايزة؛ ومرحلة الطلب تَعُدّ الطلبات المنفّذة. النسبة الإجمالية = الطلبات ÷ مشاهدات القائمة.">Event stages count distinct browsing sessions; the order stage counts placed orders. Overall % = orders ÷ menu views.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يحدّد <b>أين ينسحب العملاء</b>. الهبوط الكبير عند الدفع يشير إلى عائق (دفع، خيارات توصيل) — وهو علاج مختلف تمامًا عن الهبوط عند «الإضافة للسلة».">Pinpoints <b>where customers drop off</b>. A big fall at checkout points to friction (payment, delivery options) — a very different fix than a fall at “add to cart”.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="يُطلبان معًا">Ordered together</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="أزواج سلّة الشراء — الأصناف الأكثر شراءً في الطلب نفسه (مثل كرواسون × فلات وايت).">Market-basket pairs — the items most frequently bought in the same order
+          (e.g. Croissant × Flat White).</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="يَعُدّ أزواج الأصناف المتزامنة عبر الطلبات؛ وتُعرض فقط الأزواج التي ظهرت في طلبين على الأقل.">Counts item pairs co-occurring across orders; only pairs seen in ≥2 orders are shown.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يغذّي <b>العروض المجمّعة والباقات والبيع الإضافي</b> — اجمع الرفقاء المثبَتين في وجبة، أو اقترح «أضِف …؟» عند الدفع.">Fuels <b>combos, bundles and upsells</b> — pair proven companions into a meal deal, or prompt “add a …?” at checkout.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="إيقاع الأسبوع">Weekly rhythm</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="منحنى طلب لكل يوم من الأسبوع يُظهر الطلبات المتوقعة حسب الساعة، بمتوسّط آخر ٤ أسابيع، مع تحديد ساعة الذروة لكل يوم.">A demand curve per weekday showing expected orders by hour, averaged over the last
+          4 weeks, with each day’s peak hour marked.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="الطلبات مجمّعة حسب يوم الأسبوع × الساعة خلال الفترة، مقسومة على عدد الأسابيع للحصول على رقم متوقَّع لكل ساعة.">Orders grouped by weekday × hour over the trailing window, divided by weeks-in-window to get an expected-per-hour figure.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="<b>خطة توظيف وتحضير استباقية</b> — اعرف أن السبت يبلغ ذروته ١١ صباحًا قبل حدوثه لا بعده.">A forward-looking <b>staffing &amp; prep plan</b> — know that Saturday spikes at 11am before it happens, not after.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="أداء الفريق">Staff performance</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="لوحة ترتيب للفريق: الطلبات <b>المكتملة</b> والمقبولة والمرفوضة و<b>متوسّط زمن القبول</b> لكل عضو.">A team leaderboard: orders <b>completed</b>, accepted, declined and <b>average accept time</b>
+          per staff member.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="مجمّعة من سجل أحداث الطلبات حسب المنفِّذ خلال الفترة.">Aggregated from the order event log by actor over the window.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يحوّل سرعة الخدمة إلى أمر <b>قابل للتدريب وعادل</b> — كافئ الأسرع في القبول، واكتشف من هو محمَّل فوق طاقته أو متأخّر في الطلبات.">Turns service speed into something <b>coachable and fair</b> — recognise the fast acceptors, spot who’s overloaded or sitting on tickets.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="توقيت المطبخ">Kitchen timing</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="متوسّط الثواني لكل مرحلة تنفيذ — <b>حتى القبول</b>، <b>التحضير</b>، <b>التسليم</b> — إضافةً إلى حتى الجاهزية والإجمالي، مع وسم أبطأ خطوة كعنق الزجاجة.">Average seconds per fulfillment stage — <b>to accept</b>, <b>prep</b>, <b>handoff</b> — plus
+          to-ready and total, with the slowest step flagged as the bottleneck.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="من طوابع زمن أحداث الطلب؛ تحسب كل مرحلة متوسّط الطلبات التي بلغت طرفيها فقط، على حجم عيّنة معلَن.">From order-event timestamps; each stage averages only orders that reached both of its ends, over a stated sample size.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يعزل <b>المرحلة الأكثر استهلاكًا للوقت</b>. إن كان «حتى القبول» عنق الزجاجة فالمشكلة في توظيف الواجهة؛ وإن كان «التحضير» فهي في المطبخ.">Isolates the <b>one stage costing the most time</b>. If “to accept” is the bottleneck it’s a front-of-house staffing issue; if “prep” is, it’s a kitchen one.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="العملاء — الدائمون والمعرّضون للابتعاد">Customers — regulars &amp; at-risk</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="قائمتان: <b>الأكثر ولاءً</b> (أكثر عملائك ولاءً) و<b>من بدأوا يبتعدون</b> (دائمون توقّفوا عن الحضور).">Two lists: <b>top regulars</b> (your most loyal) and <b>going quiet</b> (regulars who’ve
+          stopped showing up).</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="الدائم = ٣ طلبات أو أكثر. المعرّض = دائم سابق بلا طلب خلال آخر ٢١ يومًا. أعلى ٨ من كلٍّ.">Regular = ≥3 orders. At-risk = a former regular with no order in the last 21 days. Top 8 of each.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يدعم <b>الولاء واستعادة العملاء</b> — كافئ الدائمين، وتواصل مع العميل المتراجع بينما لا يزال التذكير مجديًا، لا بعد رحيله.">Powers <b>loyalty and win-back</b> — reward the regulars, and reach a lapsing customer while a nudge still works rather than after they’re gone.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="قاعدة العملاء">Customer base</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="مؤشرات الاحتفاظ: <b>نسبة العائدين</b>، متوسّط الطلبات لكل عميل، الجدد هذا الشهر، النشطون آخر ٣٠ يومًا، وحصة الطلبات المتكررة (أوائل مقابل عائدين).">Retention KPIs: <b>repeat rate</b>, avg orders per customer, new this month, active in the
+          last 30 days, and repeat-order share (first-time vs returning).</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="نسبة العائدين = العملاء العائدون ÷ الإجمالي. حصة الطلبات المتكررة = (الطلبات − العملاء) ÷ الطلبات، لأن أول طلب لكل عميل يخصّه.">Repeat rate = repeat customers ÷ total. Repeat-order share = (orders − customers) ÷ orders, since each customer’s first order is their own.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="أفضل مقياس مفرد <b>لمتانة العمل</b>. إيرادات الدائمين أرخص وأثبت من شراء عملاء جدد باستمرار — وهذا يبيّن هل القاعدة تتراكم.">The single best gauge of <b>business durability</b>. Revenue from regulars is cheaper and steadier than constantly buying new customers — this shows whether the base is compounding.</span></div>
+        </div>
+      </div>
+
+      <div class="card is-pro">
+        <h3><span data-ar="مقارنة مرجعية">Benchmark</span> <span class="badge pro">Pro</span></h3>
+        <p class="what" data-ar="مقهاك مقابل الوسيط المجهَّل لـ Serva — متوسّط قيمة الطلب وزمن القبول، معروضًا كمئين.">Your café vs the anonymised <b>Serva median</b> — average order value and accept time,
+          shown as a percentile.</p>
+        <div class="meta">
+          <div class="row"><span class="lbl" data-ar="الطريقة">How</span><span class="val" data-ar="محسوب عبر كل المقاهي خلال ٣٠ يومًا؛ ولا يُكشف إلا عند وجود ٥ مقاهٍ مماثلة على الأقل، فلا يمكن تمييز مقهى بعينه.">Computed across all cafés over 30 days; only released when ≥5 comparable cafés exist, so no single café is identifiable.</span></div>
+          <div class="row"><span class="lbl" data-ar="الفائدة">Why</span><span class="val why" data-ar="يضيف <b>سياقًا خارجيًا</b> — زمن قبول من ٩٠ ثانية لا يعني شيئًا إلا بمقارنته بما تحققه المقاهي المماثلة.">Adds <b>outside context</b> — a 90-second accept time only means something next to what comparable cafés achieve.</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="note" data-ar="<b>ملاحظة تنفيذية.</b> بطاقة المقارنة المرجعية مبنيّة ومحميّة على الخادم لكنها معطّلة حاليًا في واجهة اللوحة بانتظار إعادة تصميم (تجربة العيّنات الصغيرة، حدّ أدنى لحجم كل مقهى، مجموعة مماثلة للمقارنة). وكل ما عداها أعلاه فعّال.">
+      <b>Implementation note.</b> The Benchmark card is built and gated server-side but currently
+      commented out in the dashboard UI pending a rework (small-sample UX, per-café volume floor,
+      like-for-like cohort). Everything else above is live.
+    </div>
+  </section>
+
+  <!-- ============================ COMPARE ============================ -->
+  <section class="cmp" id="compare">
+    <div class="block-head"><h2 data-ar="الأساسية مقابل برو بلمحة">Standard vs Pro at a glance</h2></div>
+    <p class="block-sub" data-ar="الأساس نفسه من البيانات — توسّع برو الأفق الزمني وتضيف البطاقات التشخيصية.">Same data foundation — Pro widens the time horizon and adds the diagnostic cards.</p>
+
+    <table>
+      <thead>
+        <tr><th data-ar="القدرة">Capability</th><th data-ar="الأساسية">Standard</th><th data-ar="برو">Pro</th></tr>
+      </thead>
+      <tbody>
+        <tr class="tier-row"><td colspan="3" data-ar="النطاق والتنقّل">Scope &amp; navigation</td></tr>
+        <tr><td data-ar="النطاقات الزمنية">Date ranges</td><td data-ar="اليوم · ٧ أيام">Today · 7 days</td><td data-ar="+ ٣٠ · ٩٠ يومًا · مخصّص">+ 30d · 90d · custom</td></tr>
+        <tr><td data-ar="التبويبات">Tabs</td><td data-ar="نظرة عامة · القائمة">Overview · Menu</td><td data-ar="+ الفريق · العملاء">+ Team · Customers</td></tr>
+        <tr><td data-ar="مرشّح لكل فرع">Per-branch filter</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+
+        <tr class="tier-row"><td colspan="3" data-ar="نظرة عامة">Overview</td></tr>
+        <tr><td data-ar="الواجهة اليومية + الفروقات">Daybook headline + deltas</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="المخطط المصغّر وشريط الملاحظات">Sparkline &amp; insight strip</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="حالة الطلبات وفترة اليوم">Order status &amp; daypart</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="مخطط الاتجاه">Trend chart</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="تنبؤ إيقاع الأسبوع">Weekly rhythm forecast</td><td class="no">—</td><td class="yes">✓</td></tr>
+
+        <tr class="tier-row"><td colspan="3" data-ar="القائمة">Menu</td></tr>
+        <tr><td data-ar="الأكثر مبيعًا">Best sellers</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="تحويل الأصناف">Item conversion</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="مسار التحويل">Conversion funnel</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="يُطلبان معًا">Ordered together</td><td class="no">—</td><td class="yes">✓</td></tr>
+
+        <tr class="tier-row"><td colspan="3" data-ar="الفريق">Team</td></tr>
+        <tr><td data-ar="أداء الفريق">Staff performance</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="توقيت المطبخ">Kitchen timing</td><td class="no">—</td><td class="yes">✓</td></tr>
+
+        <tr class="tier-row"><td colspan="3" data-ar="العملاء">Customers</td></tr>
+        <tr><td data-ar="الدائمون والمعرّضون">Regulars &amp; at-risk</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="مؤشرات قاعدة العملاء">Customer base KPIs</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td data-ar="مقارنة مرجعية">Benchmark</td><td class="no">—</td><td class="partial" data-ar="برو (الواجهة قيد الإعداد)">Pro (UI pending)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note" style="border-inline-start-color:var(--lime)" data-ar="<b>الخلاصة.</b> تجيب الأساسية عن «كيف كان أداؤنا؟» — النبض اليومي الذي يحتاجه كل مقهى. وتجيب برو عن «لماذا، وما التالي؟» — التحويل والاحتفاظ والتوظيف والطلب، وهي الرافعات التي يحرّكها المشغّل ليُحرّك الأرقام فعلًا.">
+      <b>The short version.</b> Standard answers <i>“how did we do?”</i> — the daily pulse every café needs.
+      Pro answers <i>“why, and what next?”</i> — conversion, retention, staffing and demand, the levers an
+      operator pulls to actually move the numbers.
+    </div>
+  </section>
+
+  <footer>
+    <div class="brand" style="margin-bottom:8px"><span class="logo">S</span> Serva</div>
+    <div class="mono">Generated from the live analytics implementation · AnalyticsService · ProAnalyticsService · AnalyticsPage.tsx</div>
+  </footer>
+
+</div>
+
+<script>
+  (function(){
+    var STD = {en:'Standard', ar:'الأساسية'};
+    var PRO = {en:'Pro', ar:'برو'};
+    var nodes = document.querySelectorAll('[data-ar]');
+    var buttons = document.querySelectorAll('.lang-toggle button');
+
+    function setLang(lang){
+      var ar = lang === 'ar';
+      document.documentElement.lang = lang;
+      document.documentElement.dir = ar ? 'rtl' : 'ltr';
+      nodes.forEach(function(el){
+        if(!el.dataset.enHtml) el.dataset.enHtml = el.innerHTML;   // capture English once
+        el.innerHTML = ar ? el.dataset.ar : el.dataset.enHtml;
+      });
+      // Badge labels are styled by class, swapped by language here.
+      document.querySelectorAll('.badge.std').forEach(function(b){ b.textContent = ar ? STD.ar : STD.en; });
+      document.querySelectorAll('.badge.pro').forEach(function(b){ b.textContent = ar ? PRO.ar : PRO.en; });
+      buttons.forEach(function(b){ b.classList.toggle('on', b.dataset.lang === lang); });
+      try{ localStorage.setItem('serva-analytics-lang', lang); }catch(e){}
+    }
+
+    buttons.forEach(function(b){ b.addEventListener('click', function(){ setLang(b.dataset.lang); }); });
+
+    var saved;
+    try{ saved = localStorage.getItem('serva-analytics-lang'); }catch(e){}
+    setLang(saved === 'ar' ? 'ar' : 'en');
+  })();
+</script>
+</body>
+</html>

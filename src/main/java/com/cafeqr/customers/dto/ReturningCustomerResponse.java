@@ -1,13 +1,16 @@
 package com.cafeqr.customers.dto;
 
+import com.cafeqr.loyalty.dto.LoyaltySummaryResponse;
+
 import java.time.Instant;
 import java.util.List;
 
 /**
  * Everything the menu needs to greet a returning customer: saved contact/car details for
- * autofill, the time-decayed favorites, and the last order for one-tap reorder.
- * {@code orderCount} counts non-declined/cancelled orders placed with this phone, so the
- * frontend can decide whether the "your usual" signal is strong enough to show.
+ * autofill, the time-decayed favorites, the last order for one-tap reorder, and the customer's
+ * stamp-card progress at this café. {@code orderCount} counts non-declined/cancelled orders
+ * placed with this phone, so the frontend can decide whether the "your usual" signal is strong
+ * enough to show. {@code loyalty.enabled} is false when the café has no active program.
  */
 public record ReturningCustomerResponse(
         String customerName,
@@ -16,7 +19,8 @@ public record ReturningCustomerResponse(
         String carColor,
         long orderCount,
         List<FavoriteItem> favorites,
-        LastOrder lastOrder
+        LastOrder lastOrder,
+        LoyaltySummaryResponse loyalty
 ) {
 
     public record FavoriteItem(

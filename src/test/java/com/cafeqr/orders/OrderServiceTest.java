@@ -7,6 +7,7 @@ import com.cafeqr.branches.domain.Branch;
 import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.customers.CustomerService;
+import com.cafeqr.loyalty.LoyaltyService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.menus.domain.MenuItem;
 import com.cafeqr.notifications.NotificationService;
@@ -59,6 +60,7 @@ class OrderServiceTest {
     @Mock private CustomerService customerService;
     @Mock private OtpService otpService;
     @Mock private EventLogService eventLogService;
+    @Mock private LoyaltyService loyaltyService;
 
     private OrderService orderService;
 
@@ -66,7 +68,7 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
                 menuService, accessGuard, notificationService, streamService, events, customerService,
-                otpService, eventLogService, new ObjectMapper());
+                otpService, eventLogService, loyaltyService, new ObjectMapper());
         lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
 
@@ -136,7 +138,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, "tok", OrderType.DINE_IN, "Sara", "9999", null, null, "no sugar", null, "ptok",
-                List.of(new CreateOrderRequest.Item(100L, 2, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 2, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -162,7 +164,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Ali", "9999", "ABC1234", null, null, null, "ptok",
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -182,7 +184,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, "tok", OrderType.DINE_IN, "Sara", null, null, null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -196,7 +198,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.DINE_IN, null, null, null, null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -218,7 +220,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Sara", "9999", "  a 1234  ", "  White ", null, null, "ptok",
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         OrderTrackingResponse response = orderService.createOrder(request);
 
@@ -234,7 +236,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Sara", null, "A 1234", null, null, null, null,
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -248,7 +250,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Sara", "9999", " ", null, null, null, "ptok",
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -263,7 +265,7 @@ class OrderServiceTest {
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Ali", "9999-0000", "ABC1234", null, null, null, "ptok",
-                List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BadRequestException.class)
@@ -299,8 +301,10 @@ class OrderServiceTest {
 
         OrderResponse response = orderService.decline(1L, "Out of stock");
 
-        assertThat(response.status()).isEqualTo(OrderStatus.DECLINED);
+        // Since the V23 status merge, a pre-accept decline lands in the unified CANCELLED state
+        // (reason still surfaced) and stamps cancelledAt rather than the legacy declinedAt.
+        assertThat(response.status()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(response.declineReason()).isEqualTo("Out of stock");
-        assertThat(response.declinedAt()).isNotNull();
+        assertThat(response.cancelledAt()).isNotNull();
     }
 }

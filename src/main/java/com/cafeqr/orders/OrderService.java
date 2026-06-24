@@ -9,6 +9,7 @@ import com.cafeqr.common.exception.ResourceNotFoundException;
 import com.cafeqr.common.util.Phones;
 import com.cafeqr.common.util.Tokens;
 import com.cafeqr.customers.CustomerService;
+import com.cafeqr.loyalty.LoyaltyService;
 import com.cafeqr.menus.MenuService;
 import com.cafeqr.otp.OtpService;
 import com.cafeqr.menus.domain.MenuItem;
@@ -71,6 +72,7 @@ public class OrderService {
     private final CustomerService customerService;
     private final OtpService otpService;
     private final EventLogService eventLogService;
+    private final LoyaltyService loyaltyService;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
@@ -85,6 +87,7 @@ public class OrderService {
                         CustomerService customerService,
                         OtpService otpService,
                         EventLogService eventLogService,
+                        LoyaltyService loyaltyService,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
@@ -98,6 +101,7 @@ public class OrderService {
         this.customerService = customerService;
         this.otpService = otpService;
         this.eventLogService = eventLogService;
+        this.loyaltyService = loyaltyService;
         this.objectMapper = objectMapper;
     }
 
@@ -157,6 +161,8 @@ public class OrderService {
 
         Order saved = orderRepository.save(order);
         customerService.recordOrder(saved, request.deviceToken());
+        // Reserve a loyalty reward redemption if requested (adjusts the saved order's total).
+        loyaltyService.applyRedemption(saved, request.redeemReward());
 
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New order " + saved.getOrderNumber() + " received");
@@ -231,7 +237,10 @@ public class OrderService {
     public OrderTrackingResponse getTracking(String trackingToken) {
         Order order = orderRepository.findWithItemsByTrackingToken(trackingToken)
                 .orElseThrow(() -> ResourceNotFoundException.of("Order", trackingToken));
-        return OrderTrackingResponse.from(order);
+        // The customer reached this page by placing the order, so it's safe to show their own
+        // stamp progress here — closes the loop after a stamp is earned / reward redeemed.
+        return OrderTrackingResponse.from(order,
+                loyaltyService.summaryForRestaurant(order.getRestaurantId(), order.getCustomerPhone()));
     }
 
     @Transactional(readOnly = true)
@@ -288,6 +297,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
+        loyaltyService.onOrderCancelled(order); // return any reserved reward
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         order.setDeclineReason(trimmed);
         eventLogService.recordOrderEvent(order, OrderStatus.CANCELLED, trimmed);
@@ -322,6 +332,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.COMPLETED);
         order.setCompletedAt(Instant.now());
+        loyaltyService.onOrderCompleted(order); // earn a stamp + confirm any reserved reward
         eventLogService.recordOrderEvent(order, OrderStatus.COMPLETED, null);
         notifyAndStream(order, NotificationType.ORDER_COMPLETED, "order.completed",
                 "Order " + order.getOrderNumber() + " completed");
@@ -333,6 +344,7 @@ public class OrderService {
         Order order = loadGuarded(orderId);
         transition(order, OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
+        loyaltyService.onOrderCancelled(order); // return any reserved reward
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         if (trimmed != null) {
             order.setInternalNote(trimmed);

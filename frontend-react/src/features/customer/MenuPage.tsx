@@ -14,16 +14,19 @@ import { readMenuCache, writeMenuCache } from './menuCache';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 import { ItemDetailModal } from './ItemDetailModal';
+import './loyalty.css';
 
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د', from: 'يبدأ من',
         soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
         browseHint: 'امسح رمز طاولتك أو رمز خدمة السيارة لإرسال طلب.',
-        welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓' },
+        welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓',
+        loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'اعرض رموزك عند الكاشير' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min', from: 'from',
         soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
         browseHint: 'Scan your table’s QR or the car-service QR to place an order.',
-        welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓' },
+        welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
+        loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Show your stamps at the counter' },
 };
 
 const fallbackThumb = (it: PublicItem) => {
@@ -217,6 +220,27 @@ export default function MenuPage() {
       </nav>
 
       <main className="c-scroll" ref={scrollRef}>
+        {returning?.loyalty?.enabled && (() => {
+          const loy = returning.loyalty!;
+          const ready = loy.availableRewards > 0;
+          const dots = Math.min(loy.stampsRequired, 10);
+          return (
+            <div className={'loy-strip on-menu' + (ready ? ' ready' : '')} onClick={() => nav('/loyalty', { state: { from: pathname } })}
+              role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: pathname } })}>
+              <span className="loy-spark">{ready ? '★' : '🎟️'}</span>
+              <div className="loy-strip-main">
+                <b>{ready ? t('loyReady') : <><span className="num">{loy.stamps}</span> / <span className="num">{loy.stampsRequired}</span> {t('loyStamps')}</>}</b>
+                <span>{ready ? t('loyReadySub') : loy.rewardLabel}</span>
+              </div>
+              <div className="loy-mini" aria-hidden="true">
+                {Array.from({ length: dots }).map((_, i) => (
+                  <i key={i} className={ready || i < loy.stamps ? 'on' : ''} />
+                ))}
+              </div>
+              <span className="loy-go">›</span>
+            </div>
+          );
+        })()}
         {(usual || lastItems.length > 0) && (
           <div className="c-usual">
             <h3><span className="wave">👋</span>{t('welcome')}{returning?.customerName ? (lang === 'ar' ? '، ' : ', ') + returning.customerName : ''}</h3>

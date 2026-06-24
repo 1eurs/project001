@@ -53,7 +53,7 @@ public class Restaurant extends BaseEntity {
     /** Pricing tier — gates Pro analytics features. Defaults to PRO on rollout. */
     @Enumerated(EnumType.STRING)
     @Column(name = "plan", nullable = false, length = 20)
-    private Plan plan = Plan.PRO;
+    private Plan plan = Plan.STANDARD;
 
     @Column(name = "active", nullable = false)
     private boolean active = true;

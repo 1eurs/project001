@@ -31,6 +31,8 @@ public record OrderResponse(
         String declineReason,
         String customerNote,
         String internalNote,
+        String loyaltyRewardLabel,
+        BigDecimal loyaltyRewardDiscount,
         List<OrderItemResponse> items,
         Instant createdAt,
         Instant acceptedAt,
@@ -46,6 +48,7 @@ public record OrderResponse(
                 o.getTableId(), o.getCustomerName(), o.getCustomerPhone(), o.getCarPlate(), o.getCarColor(), o.getOrderType(), o.getStatus(),
                 o.getPaymentStatus(), o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(),
                 o.getDeclineReason(), o.getCustomerNote(), o.getInternalNote(),
+                o.getLoyaltyRewardLabel(), o.getLoyaltyRewardDiscount(),
                 o.getItems().stream().map(OrderItemResponse::from).toList(),
                 o.getCreatedAt(), o.getAcceptedAt(), o.getDeclinedAt(), o.getPreparingAt(),
                 o.getReadyAt(), o.getCompletedAt(), o.getCancelledAt());

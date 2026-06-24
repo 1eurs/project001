@@ -29,6 +29,28 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                                @Param("to") Instant to);
 
     /**
+     * Distinct orders containing each menu item in the window (non-cancelled/declined) — the
+     * numerator for the conversion radar (orders-per-view, not quantity-per-view). Branch-scoped
+     * like {@link #bestSelling}. Rows: {@code [menuItemId, distinctOrders]}.
+     */
+    @Query("""
+            SELECT oi.menuItemId, COUNT(DISTINCT o.id)
+            FROM OrderItem oi
+            JOIN oi.order o
+            WHERE (:restaurantId IS NULL OR o.restaurantId = :restaurantId)
+              AND (:branchId IS NULL OR o.branchId = :branchId)
+              AND o.status <> com.cafeqr.orders.domain.OrderStatus.DECLINED
+              AND o.status <> com.cafeqr.orders.domain.OrderStatus.CANCELLED
+              AND o.createdAt >= :from AND o.createdAt < :to
+              AND oi.menuItemId IS NOT NULL
+            GROUP BY oi.menuItemId
+            """)
+    List<Object[]> orderCountByItem(@Param("restaurantId") Long restaurantId,
+                                    @Param("branchId") Long branchId,
+                                    @Param("from") Instant from,
+                                    @Param("to") Instant to);
+
+    /**
      * Top seller name + total quantity for one restaurant — used by the weekly email job
      * which runs without a security context (so it can't use {@link #bestSelling} which
      * relies on AccessGuard scoping). Rows: {@code [nameEn, totalQuantity]}.

@@ -83,7 +83,12 @@ public class AnalyticsService {
         Long branchScope = resolveBranchScope(branchId);
 
         Map<OrderStatus, Long> counts = statusCounts(restaurantId, branchScope, from, to);
-        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        // "Orders" means valid orders — exclude declined/cancelled so the headline reconciles
+        // with the trend and daypart (which already drop them). The status breakdown still
+        // surfaces cancellations via the declined/cancelled fields below.
+        long total = counts.entrySet().stream()
+                .filter(e -> e.getKey() != OrderStatus.DECLINED && e.getKey() != OrderStatus.CANCELLED)
+                .mapToLong(Map.Entry::getValue).sum();
 
         BigDecimal revenue = orderRepository.sumTotalByStatus(
                 restaurantId, branchScope, OrderStatus.COMPLETED, from, to);

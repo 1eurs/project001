@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nProvider } from './lib/i18n';
 import { ThemeProvider } from './lib/theme';
 import { ToastProvider } from './lib/toast';
+import { ConfirmProvider } from './lib/confirm';
 import App from './App';
 import './styles/theme.css';
 
@@ -18,9 +19,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <I18nProvider>
           <ToastProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
+            <ConfirmProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </ConfirmProvider>
           </ToastProvider>
         </I18nProvider>
       </ThemeProvider>

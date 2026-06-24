@@ -1,0 +1,11 @@
+-- =====================================================================
+-- Flip the default café tier to STANDARD so the Pro analytics gate is
+-- actually enforced. V17 backfilled every existing row to PRO and set
+-- the column default to PRO so live cafés kept access on rollout — but
+-- that also made every NEW café PRO, defeating the gate.
+--
+-- This only changes the default for rows inserted from now on; existing
+-- cafés keep whatever tier they already have. Admins set/upgrade a café
+-- to PRO explicitly at onboarding or via the plan control.
+-- =====================================================================
+ALTER TABLE restaurants ALTER COLUMN plan SET DEFAULT 'STANDARD';

@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType } from '../../lib/types';
+import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType, LoyaltySummary } from '../../lib/types';
 import { omr, estimateVat } from '../../lib/format';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
@@ -13,6 +13,7 @@ import { track } from '../../lib/analytics';
 import { useVenue, cartKeyOf, menuPathOf, menuUrlOf } from './venue';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
+import './loyalty.css';
 
 const DICT: Dict = {
   ar: { title: 'سلّتك', cur: 'ر.ع', empty: 'سلّتك فارغة', emptySub: 'أضف ما يطيب لك من القائمة.', back: 'العودة للقائمة',
@@ -23,7 +24,9 @@ const DICT: Dict = {
         phone: 'الجوال', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
-        finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…' },
+        finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…',
+        loyStamps: 'أختام', redeemTitle: 'استخدم مكافأتك', redeemSub: 'هذا الصنف مجاناً',
+        loyDiscount: 'مكافأة الولاء', myRewards: 'مكافآتي' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
         carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB', carPlateRequired: 'Enter the car plate',
         carPlateHint: 'Numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
@@ -32,7 +35,9 @@ const DICT: Dict = {
         phone: 'Phone', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
-        finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…' },
+        finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…',
+        loyStamps: 'stamps', redeemTitle: 'Use your reward', redeemSub: 'this item is free',
+        loyDiscount: 'Loyalty reward', myRewards: 'My rewards' },
 };
 
 const thumb = (it: PublicItem) => it.imageUrl
@@ -43,6 +48,7 @@ export default function CartPage() {
   const { lang } = useI18n();
   const t = useT(DICT);
   const nav = useNavigate();
+  const loc = useLocation();
   const toast = useToast();
   const { slug, branchId, tableToken, restaurant, orderType: venueOrderType } = useVenue();
   const orderType: OrderType = venueOrderType ?? (tableToken ? 'DINE_IN' : 'CAR');
@@ -96,6 +102,27 @@ export default function CartPage() {
   const vat = estimateVat(subtotal, restaurant?.vatRate ?? 0, vatEnabled);
   const total = subtotal + vat;
 
+  // Loyalty: once a phone is entered, fetch this café's stamp progress for it.
+  const phoneDigits = phone.replace(/\D/g, '');
+  const { data: loyalty } = useQuery({
+    queryKey: ['loyalty-summary', slug, phoneDigits],
+    queryFn: () => api.get<LoyaltySummary>(
+      `/api/public/loyalty/summary?slug=${encodeURIComponent(slug!)}&phone=${encodeURIComponent(phone.trim())}`,
+      { auth: false }),
+    enabled: !!slug && phoneDigits.length >= 7,
+    staleTime: 60_000,
+  });
+  // The reward is redeemable only when the customer has one AND the free item is in the cart.
+  const rewardLine = loyalty?.enabled && loyalty.rewardItemId != null
+    ? cart.find((l) => l.id === loyalty.rewardItemId) : undefined;
+  const canRedeem = !!(loyalty?.enabled && loyalty.availableRewards >= 1 && rewardLine);
+  const [redeem, setRedeem] = useState(false);
+  useEffect(() => { if (!canRedeem) setRedeem(false); }, [canRedeem]);
+  const rewardItem = rewardLine ? itemsById.get(rewardLine.id) : undefined;
+  const rewardDiscount = redeem && rewardItem && rewardLine
+    ? lineUnitPrice(rewardItem, rewardLine.selectedOptions) : 0;
+  const grandTotal = Math.max(0, total - rewardDiscount);
+
   const place = useMutation({
     mutationFn: () => {
       const normalizedPlate = carPlate.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -106,6 +133,7 @@ export default function CartPage() {
         carColor: orderType === 'CAR' ? (carColor || null) : null, customerNote: note || null,
         deviceToken: deviceToken(true),
         phoneToken: null,
+        redeemReward: redeem,
         items: cart.map((l) => ({
           menuItemId: l.id, quantity: l.qty, note: l.note || null,
           selectedOptions: l.selectedOptions?.length ? l.selectedOptions : null,
@@ -252,19 +280,54 @@ export default function CartPage() {
                 </div>
               )}
             </div>
+
+            {loyalty?.enabled && !canRedeem && (
+              <div className="loy-strip" onClick={() => nav('/loyalty', { state: { from: loc.pathname } })} role="button" tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: loc.pathname } })}>
+                <span className="loy-spark">🎟️</span>
+                <div className="loy-strip-main">
+                  <b><span className="num">{loyalty.stamps}</span> / <span className="num">{loyalty.stampsRequired}</span> {t('loyStamps')}</b>
+                  <span>{loyalty.rewardLabel}</span>
+                </div>
+                <div className="loy-mini" aria-hidden="true">
+                  {Array.from({ length: Math.min(loyalty.stampsRequired, 10) }).map((_, i) => (
+                    <i key={i} className={i < loyalty.stamps ? 'on' : ''} />
+                  ))}
+                </div>
+                <span className="loy-go">›</span>
+              </div>
+            )}
+            {canRedeem && (
+              <label className="loy-redeem">
+                <span className="gift" aria-hidden="true">🎁</span>
+                <div className="loy-redeem-main">
+                  <b>{t('redeemTitle')}</b>
+                  <span>{loyalty?.rewardLabel} — {t('redeemSub')}</span>
+                </div>
+                <span className="loy-switch">
+                  <input type="checkbox" checked={redeem} aria-label={t('redeemTitle')}
+                    onChange={(e) => setRedeem(e.target.checked)} />
+                  <span className="track" />
+                </span>
+              </label>
+            )}
+
             <div className="field"><label>{t('note')}</label><textarea rows={2} value={note} onChange={(e) => setOrderNote(e.target.value)} placeholder={t('notePh')} /></div>
 
             <div className="c-totals">
               <div className="row"><span>{t('subtotal')}</span><span className="num">{omr(subtotal)} {t('cur')}</span></div>
               {vatEnabled && <div className="row"><span>{t('vat')} ({restaurant?.vatRate}%)</span><span className="num">{omr(vat)} {t('cur')}</span></div>}
-              <div className="row grand"><span>{t('total')}</span><span className="num">{omr(total)} {t('cur')}</span></div>
+              {rewardDiscount > 0 && (
+                <div className="row loy-discount"><span>🎁 {t('loyDiscount')}</span><span className="num">−{omr(rewardDiscount)} {t('cur')}</span></div>
+              )}
+              <div className="row grand"><span>{t('total')}</span><span className="num">{omr(grandTotal)} {t('cur')}</span></div>
               <div className="c-hint">{t('finalNote')}</div>
             </div>
           </div>
 
           <div className="c-foot-bar">
             <button className="btn full" disabled={place.isPending || missingCarPlate} onClick={submit}>
-              {place.isPending ? t('placing') : <>{t('place')} · <span className="num">{omr(total)}</span></>}
+              {place.isPending ? t('placing') : <>{t('place')} · <span className="num">{omr(grandTotal)}</span></>}
             </button>
           </div>
         </>

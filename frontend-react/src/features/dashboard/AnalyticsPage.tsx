@@ -6,6 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { omr, omanDate } from '../../lib/format';
+import { isPlanRequiredError, isProPlan } from '../../lib/plan';
 import type { Restaurant, BranchResponse } from '../../lib/types';
 import './analytics.css';
 
@@ -59,6 +60,7 @@ const DICT: Dict = {
     a_noData: 'لا توجد بيانات لهذه الفترة.', a_retry: 'حاول مرة أخرى',
     a_secOverview: 'نظرة عامة', a_secMenu: 'القائمة', a_secTeam: 'الفريق', a_secCustomers: 'العملاء',
     a_lockTitle: 'افتح تحليلات برو', a_lockCta: 'الترقية إلى برو',
+    a_lockRange: 'استعلم حتى ٩٠ يومًا من السجل وافتح طبقة التحليلات التشخيصية.',
     a_lockMenu: 'اعرف أي الأصناف تُشاهَد كثيرًا وتُطلب قليلًا، وما الذي يُطلب معًا.',
     a_lockTeam: 'تابِع سرعة القبول وإنتاجية كل عضو في الفريق.',
     a_lockCustomers: 'اكتشف عملاءك الدائمين واستعِد من بدأوا يبتعدون.',
@@ -97,6 +99,7 @@ const DICT: Dict = {
     a_noData: 'No data for this period.', a_retry: 'Try again',
     a_secOverview: 'Overview', a_secMenu: 'Menu', a_secTeam: 'Team', a_secCustomers: 'Customers',
     a_lockTitle: 'Unlock Pro analytics', a_lockCta: 'Upgrade to Pro',
+    a_lockRange: 'Query up to 90 days of history and unlock the diagnostic layer.',
     a_lockMenu: 'See which items get views but few orders, and what sells together.',
     a_lockTeam: 'Track accept times and throughput for each team member.',
     a_lockCustomers: 'Spot your regulars and win back customers going quiet.',
@@ -170,65 +173,80 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   const nm = (en: string, ar: string) => (lang === 'ar' ? ar || en : en || ar);
   const cur = lang === 'ar' ? 'ر.ع' : 'OMR';
 
-  // Active window (Oman-local YYYY-MM-DD) for the chosen range.
-  const PRESET_DAYS: Record<Exclude<Range, 'custom'>, number> = { today: 1, '7d': 7, '30d': 30, '90d': 90 };
-  const win = range === 'custom'
-    ? { from: customFrom || todayD, to: customTo || todayD }
-    : { from: omanDate(new Date(Date.now() - (PRESET_DAYS[range] - 1) * DAY)), to: todayD };
-  const from = win.from, to = win.to;
-  const rangeQs = `from=${from}&to=${to}`;
-  const isMulti = range !== 'today';
-  const spanDays = Math.max(1, Math.round((new Date(to + 'T00:00:00').getTime() - new Date(from + 'T00:00:00').getTime()) / DAY) + 1);
-
-  // Comparable previous period — same weekday last week (today) or the immediately-preceding window.
-  const ymd = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  const prev = range === 'today'
-    ? { from: omanDate(new Date(Date.now() - 7 * DAY)), to: omanDate(new Date(Date.now() - 7 * DAY)) }
-    : (() => { const fromMs = new Date(from + 'T00:00:00').getTime(); return { from: ymd(fromMs - spanDays * DAY), to: ymd(fromMs - DAY) }; })();
-
   const restaurantQ = useQuery({
     queryKey: ['restaurant', user!.restaurantId],
     queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
     enabled: !!user!.restaurantId,
+    refetchOnMount: 'always',
   });
-  const isPro = restaurantQ.data?.plan === 'PRO' || restaurantQ.data?.plan === 'ENTERPRISE';
+  const planReady = restaurantQ.isSuccess && !!restaurantQ.data;
+  const isPro = planReady && isProPlan(restaurantQ.data!.plan);
+
+  // API window — Standard is capped at Today / 7d even if range state is stale.
+  const queryRange: Range = useMemo(() => {
+    if (!planReady || isPro) return range;
+    return range === '30d' || range === '90d' || range === 'custom' ? '7d' : range;
+  }, [planReady, isPro, range]);
+
+  const PRESET_DAYS: Record<Exclude<Range, 'custom'>, number> = { today: 1, '7d': 7, '30d': 30, '90d': 90 };
+  const win = queryRange === 'custom'
+    ? { from: customFrom || todayD, to: customTo || todayD }
+    : { from: omanDate(new Date(Date.now() - (PRESET_DAYS[queryRange] - 1) * DAY)), to: todayD };
+  const from = win.from, to = win.to;
+  const rangeQs = `from=${from}&to=${to}`;
+  const isMulti = queryRange !== 'today';
+  const spanDays = Math.max(1, Math.round((new Date(to + 'T00:00:00').getTime() - new Date(from + 'T00:00:00').getTime()) / DAY) + 1);
+
+  const ymd = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const prev = queryRange === 'today'
+    ? { from: omanDate(new Date(Date.now() - 7 * DAY)), to: omanDate(new Date(Date.now() - 7 * DAY)) }
+    : (() => { const fromMs = new Date(from + 'T00:00:00').getTime(); return { from: ymd(fromMs - spanDays * DAY), to: ymd(fromMs - DAY) }; })();
+
+  // Keep the picker in sync when a café is downgraded from Pro.
+  useEffect(() => {
+    if (!planReady || isPro) return;
+    if (range === '30d' || range === '90d' || range === 'custom') setRange('7d');
+  }, [planReady, isPro, range]);
 
   const summaryQ = useQuery({
-    queryKey: ['analytics-summary', from, to, branchFilter],
-    queryFn: () => range === 'today'
+    queryKey: ['analytics-summary', queryRange, from, to, branchFilter],
+    enabled: planReady,
+    queryFn: () => queryRange === 'today'
       ? api.get<Summary>(`/api/dashboard/analytics/today${branchQs ? `?${branchQs.slice(1)}` : ''}`)
       : api.get<Summary>(`/api/dashboard/analytics/orders?${rangeQs}${branchQs}`),
   });
 
   const prevQ = useQuery({
-    queryKey: ['analytics-prev', from, to, branchFilter],
+    queryKey: ['analytics-prev', queryRange, from, to, branchFilter],
+    enabled: planReady,
     queryFn: () => api.get<Summary>(`/api/dashboard/analytics/orders?from=${prev.from}&to=${prev.to}${branchQs}`),
   });
 
   const dailyQ = useQuery({
-    queryKey: ['an-daily', from, to, branchFilter],
-    enabled: isMulti,
+    queryKey: ['an-daily', queryRange, from, to, branchFilter],
+    enabled: planReady && isMulti,
     queryFn: () => api.get<DailyPoint[]>(`/api/dashboard/analytics/daily?${rangeQs}${branchQs}`),
   });
 
   const daypartQ = useQuery({
-    queryKey: ['an-daypart', from, to, branchFilter],
+    queryKey: ['an-daypart', queryRange, from, to, branchFilter],
+    enabled: planReady,
     queryFn: () => api.get<DaypartPoint[]>(`/api/dashboard/analytics/daypart?${rangeQs}${branchQs}`),
   });
 
   const kitchenQ = useQuery({
-    queryKey: ['an-kitchen', from, to, branchFilter],
-    enabled: isPro,
+    queryKey: ['an-kitchen', queryRange, from, to, branchFilter],
+    enabled: planReady && isPro,
     queryFn: () => api.get<KitchenTiming>(`/api/dashboard/analytics/pro/kitchen-timing?${rangeQs}${branchQs}`),
   });
 
-  const convQ = useQuery({ queryKey: ['an-conv', from, to, branchFilter], enabled: isPro, queryFn: () => api.get<Conversion[]>(`/api/dashboard/analytics/pro/item-conversion?${rangeQs}${branchQs}`) });
-  const funnelQ = useQuery({ queryKey: ['an-funnel', from, to, branchFilter], enabled: isPro, queryFn: () => api.get<Funnel>(`/api/dashboard/analytics/pro/funnel?${rangeQs}${branchQs}`) });
-  const basketQ = useQuery({ queryKey: ['an-basket', from, to, branchFilter], enabled: isPro, queryFn: () => api.get<Affinity[]>(`/api/dashboard/analytics/pro/market-basket?${rangeQs}${branchQs}&limit=6`) });
-  const staffQ = useQuery({ queryKey: ['an-staff', from, to, branchFilter], enabled: isPro, queryFn: () => api.get<Staff[]>(`/api/dashboard/analytics/pro/staff?${rangeQs}${branchQs}`) });
-  const forecastQ = useQuery({ queryKey: ['an-forecast', branchFilter], enabled: isPro, queryFn: () => api.get<ForecastSlot[]>(`/api/dashboard/analytics/pro/forecast?weeks=4${branchQs}`) });
-  const customersQ = useQuery({ queryKey: ['an-customers', branchFilter], enabled: isPro, queryFn: () => api.get<Customers>(`/api/dashboard/analytics/pro/customers${branchQs ? `?${branchQs.slice(1)}` : ''}`) });
-  const customerBaseQ = useQuery({ queryKey: ['an-customer-base', branchFilter], enabled: isPro, queryFn: () => api.get<CustomerBase>(`/api/dashboard/analytics/pro/customer-base${branchQs ? `?${branchQs.slice(1)}` : ''}`) });
+  const convQ = useQuery({ queryKey: ['an-conv', queryRange, from, to, branchFilter], enabled: planReady && isPro, queryFn: () => api.get<Conversion[]>(`/api/dashboard/analytics/pro/item-conversion?${rangeQs}${branchQs}`) });
+  const funnelQ = useQuery({ queryKey: ['an-funnel', queryRange, from, to, branchFilter], enabled: planReady && isPro, queryFn: () => api.get<Funnel>(`/api/dashboard/analytics/pro/funnel?${rangeQs}${branchQs}`) });
+  const basketQ = useQuery({ queryKey: ['an-basket', queryRange, from, to, branchFilter], enabled: planReady && isPro, queryFn: () => api.get<Affinity[]>(`/api/dashboard/analytics/pro/market-basket?${rangeQs}${branchQs}&limit=6`) });
+  const staffQ = useQuery({ queryKey: ['an-staff', queryRange, from, to, branchFilter], enabled: planReady && isPro, queryFn: () => api.get<Staff[]>(`/api/dashboard/analytics/pro/staff?${rangeQs}${branchQs}`) });
+  const forecastQ = useQuery({ queryKey: ['an-forecast', branchFilter], enabled: planReady && isPro, queryFn: () => api.get<ForecastSlot[]>(`/api/dashboard/analytics/pro/forecast?weeks=4${branchQs}`) });
+  const customersQ = useQuery({ queryKey: ['an-customers', branchFilter], enabled: planReady && isPro, queryFn: () => api.get<Customers>(`/api/dashboard/analytics/pro/customers${branchQs ? `?${branchQs.slice(1)}` : ''}`) });
+  const customerBaseQ = useQuery({ queryKey: ['an-customer-base', branchFilter], enabled: planReady && isPro, queryFn: () => api.get<CustomerBase>(`/api/dashboard/analytics/pro/customer-base${branchQs ? `?${branchQs.slice(1)}` : ''}`) });
   // Benchmark temporarily disabled — see commented card below. Re-enable when reworked.
   // const benchmarkQ = useQuery({ queryKey: ['an-benchmark'], enabled: isPro, queryFn: () => api.get<Benchmark>('/api/dashboard/analytics/pro/benchmark') });
 
@@ -238,7 +256,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   const insights = useMemo(() => {
     if (!s) return [] as Array<{ icon: string; text: string }>;
     const out: Array<{ icon: string; text: string }> = [];
-    if (range === 'today' && s.busiestHours.length) {
+    if (queryRange === 'today' && s.busiestHours.length) {
       const peak = [...s.busiestHours].sort((a, b) => b.orders - a.orders)[0];
       out.push({ icon: '☕', text: t('a_insBusiest').replace('{h}', hourLabel(peak.hour)) });
     }
@@ -259,11 +277,11 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
     }
     return out.slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s, range, isPro, convQ.data, customersQ.data, lang]);
+  }, [s, queryRange, isPro, convQ.data, customersQ.data, lang]);
 
   const sparkBars = useMemo(() => {
     if (!s) return [];
-    if (range === 'today') {
+    if (queryRange === 'today') {
       return [...s.busiestHours].sort((a, b) => a.hour - b.hour)
         .map((h) => ({ label: hourLabel(h.hour), value: h.orders, hint: `${hourLabel(h.hour)} · ${h.orders}` }));
     }
@@ -272,13 +290,13 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
       value: Number(d.revenue),
       hint: `${fmtDate(d.date, lang, { day: 'numeric', month: 'short' })} · ${omr(d.revenue)}`,
     }));
-  }, [s, range, dailyQ.data, lang]);
+  }, [s, queryRange, dailyQ.data, lang]);
 
-  const rangeLabel = range === 'today' ? t('a_today') : range === '7d' ? t('a_7d') : range === '30d' ? t('a_30d') : range === '90d' ? t('a_90d') : t('a_custom');
-  const eyebrow = range === 'today'
+  const rangeLabel = queryRange === 'today' ? t('a_today') : queryRange === '7d' ? t('a_7d') : queryRange === '30d' ? t('a_30d') : queryRange === '90d' ? t('a_90d') : t('a_custom');
+  const eyebrow = queryRange === 'today'
     ? `${t('a_today')} · ${fmtDate(to, lang, { weekday: 'short', day: 'numeric', month: 'short' })}`
     : `${rangeLabel} · ${fmtDate(from, lang, { day: 'numeric', month: 'short' })} – ${fmtDate(to, lang, { day: 'numeric', month: 'short' })}`;
-  const vsLabel = range === 'today'
+  const vsLabel = queryRange === 'today'
     ? t('a_vsLast').replace('{d}', fmtDate(prev.to, lang, { weekday: 'short' }))
     : t('a_vsPrevN').replace('{n}', String(spanDays));
   const presets: Range[] = isPro ? ['today', '7d', '30d', '90d', 'custom'] : ['today', '7d'];
@@ -289,6 +307,18 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
     { key: 'team', label: t('a_secTeam'), locked: !isPro },
     { key: 'customers', label: t('a_secCustomers'), locked: !isPro },
   ];
+  const bestSellerCap = isPro ? 8 : 5;
+
+  if (restaurantQ.isError) {
+    return (
+      <ErrCard
+        message={restaurantQ.error instanceof ApiError ? restaurantQ.error.message : t('a_noData')}
+        onRetry={() => restaurantQ.refetch()}
+        t={t}
+      />
+    );
+  }
+  if (restaurantQ.isLoading || !planReady) return <Skeleton />;
 
   return (
     <div className="an">
@@ -299,7 +329,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
               onClick={() => setRange(p)}>{p === 'today' ? t('a_today') : p === '7d' ? t('a_7d') : p === '30d' ? t('a_30d') : p === '90d' ? t('a_90d') : t('a_custom')}</button>
           ))}
         </div>
-        {range === 'custom' && (
+        {isPro && range === 'custom' && (
           <div className="an-daterange">
             <input type="date" value={customFrom} max={customTo || todayD} onChange={(e) => setCustomFrom(e.target.value)} aria-label={t('a_custom')} />
             <span className="an-dr-sep">–</span>
@@ -317,7 +347,8 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
       <div className="an-tabs" role="tablist">
         {tabs.map((tab) => (
           <button key={tab.key} role="tab" aria-selected={section === tab.key}
-            className={section === tab.key ? 'on' : ''} onClick={() => setSection(tab.key)}>
+            className={section === tab.key ? 'on' : ''}
+            onClick={() => setSection(tab.key)}>
             {tab.label}{tab.locked && <span className="an-tab-lock" aria-hidden> 🔒</span>}
           </button>
         ))}
@@ -328,8 +359,13 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
 
           {/* ---------- OVERVIEW ---------- */}
           {section === 'overview' && (
-            summaryQ.isLoading ? <Skeleton /> :
-            summaryQ.isError ? <ErrCard message={summaryQ.error instanceof ApiError ? summaryQ.error.message : t('a_noData')} onRetry={() => summaryQ.refetch()} t={t} /> :
+            <>
+            {summaryQ.isLoading ? <Skeleton /> :
+            summaryQ.isError ? (
+              isPlanRequiredError(summaryQ.error)
+                ? <ProUpsell desc={t('a_lockRange')} tags={[t('a_30d'), t('a_90d')]} t={t} />
+                : <ErrCard message={summaryQ.error instanceof ApiError ? summaryQ.error.message : t('a_noData')} onRetry={() => summaryQ.refetch()} t={t} />
+            ) :
             s ? (
               <>
                 <Hero
@@ -382,15 +418,19 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                   )}
                   */}
                 </div>
-
-                {isPro && forecastQ.data?.length ? (
-                  <section className="an-card">
-                    <h3>{t('a_forecast')}</h3>
-                    <WeeklyRhythm slots={forecastQ.data} lang={lang} t={t} />
-                  </section>
-                ) : null}
               </>
-            ) : null
+            ) : null}
+
+            {/* Weekly rhythm reflects the last 4 weeks, independent of the selected
+                range — kept outside the summary gate so it doesn't blank out while the
+                summary above refetches on a range change. */}
+            {isPro && forecastQ.data?.length ? (
+              <section className="an-card">
+                <h3>{t('a_forecast')}</h3>
+                <WeeklyRhythm slots={forecastQ.data} lang={lang} t={t} />
+              </section>
+            ) : null}
+            </>
           )}
 
           {/* ---------- MENU ---------- */}
@@ -405,7 +445,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                       <motion.ol className="an-list ranked" variants={listV} initial={reduce ? false : 'hidden'} animate="show">
                         {(() => {
                           const maxRev = Math.max(...s.bestSellingItems.map((it) => Number(it.totalRevenue)), 1);
-                          return s.bestSellingItems.slice(0, 8).map((it, i) => (
+                          return s.bestSellingItems.slice(0, bestSellerCap).map((it, i) => (
                             <motion.li key={it.menuItemId} className="an-rankrow" variants={itemV}>
                               <span className="an-li-rank">{i + 1}</span>
                               <div className="an-rankrow-main">

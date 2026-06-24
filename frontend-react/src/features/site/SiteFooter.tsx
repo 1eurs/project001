@@ -11,21 +11,21 @@ import { COMPANY, LEGAL_LABELS, LEGAL_ORDER } from './legal';
 const F: Record<Lang, {
   tagline: string; product: string; legal: string; company: string;
   cr: string; vat: string; made: string; rights: string;
-  links: { features: string; how: string; pricing: string; faq: string };
+  links: { features: string; how: string; pricing: string; faq: string; analytics: string };
 }> = {
   en: {
     tagline: 'Your whole operation, one platform.',
     product: 'Product', legal: 'Legal', company: 'Company',
     cr: 'CR No.', vat: 'All prices in OMR.', made: 'Built in Oman',
     rights: 'All rights reserved.',
-    links: { features: 'Features', how: 'How it works', pricing: 'Pricing', faq: 'FAQ' },
+    links: { features: 'Features', how: 'How it works', pricing: 'Pricing', faq: 'FAQ', analytics: 'Analytics guide' },
   },
   ar: {
     tagline: 'عملك بالكامل، في منصّة واحدة.',
     product: 'المنتج', legal: 'قانوني', company: 'الشركة',
     cr: 'سجل تجاري', vat: 'جميع الأسعار بالريال العُماني.', made: 'صُنع في عُمان',
     rights: 'جميع الحقوق محفوظة.',
-    links: { features: 'المميزات', how: 'كيف تعمل', pricing: 'الأسعار', faq: 'الأسئلة' },
+    links: { features: 'المميزات', how: 'كيف تعمل', pricing: 'الأسعار', faq: 'الأسئلة', analytics: 'دليل التحليلات' },
   },
 };
 
@@ -37,6 +37,7 @@ export function SiteFooter() {
     { href: '/#how', label: f.links.how },
     { href: '/#pricing', label: f.links.pricing },
     { href: '/#faq', label: f.links.faq },
+    { href: '/guide/analytics', label: f.links.analytics },
   ];
 
   return (

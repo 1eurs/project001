@@ -1,0 +1,202 @@
+/* ============================================================================
+   Loyalty — the stamp card is the signature.
+   A tactile café punch card: an accent "stub" bar, a dashed tear-perforation,
+   and pressed-ink stamps. Everything rides the active menu skin's tokens
+   (--accent/--text/--surface/--muted/--line) with fallbacks, so the same
+   components look at home in the customer portal, the menu/cart, the order
+   tracker, and the café dashboard preview. "Reward ready" turns gold.
+   ============================================================================ */
+/* Gold is fixed (a finished card feels special regardless of café theme); declared on every
+   loyalty root so the tokens inherit to descendants without needing a wrapper element. */
+.loy-ticket, .loy-strip, .loy-redeem, .loy-summary, .loy-earned, .loy-switch, .loy-ready, .row.loy-discount {
+  --loy-gold: #ecc04a;
+  --loy-gold-2: #c8901a;
+  --loy-gold-ink: #2a1d04;
+  --loy-ink: var(--accent-ink, #fff);
+}
+
+/* ------------------------------------------------------------------ the card */
+.loy-ticket {
+  position: relative;
+  background: var(--surface, #15181d);
+  border: 1px solid var(--line, rgba(255, 255, 255, .1));
+  border-radius: 18px;
+  overflow: hidden;
+}
+.loy-ticket::before { /* the ticket stub bar */
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 4px;
+  background: var(--accent, #c79a54);
+}
+.loy-ticket.ready { border-color: color-mix(in srgb, var(--loy-gold) 60%, var(--line, #555)); }
+.loy-ticket.ready::before { background: linear-gradient(90deg, var(--loy-gold), var(--loy-gold-2)); }
+
+.loy-ticket-hd { display: flex; align-items: center; gap: 12px; padding: 17px 16px 13px; }
+.loy-logo {
+  width: 44px; height: 44px; border-radius: 13px; object-fit: cover; flex: none;
+  display: grid; place-items: center; font-weight: 800; font-size: 18px;
+  color: var(--text, #eee); background: color-mix(in srgb, var(--text, #fff) 8%, transparent);
+  border: 1px solid var(--line, rgba(255, 255, 255, .12));
+}
+.loy-ticket-hd .who { min-width: 0; flex: 1; }
+.loy-ticket-hd h3 { margin: 0; color: var(--text, #eee); font-size: 15.5px; font-weight: 700; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loy-ticket-hd .reward { color: var(--muted, #9a958c); font-size: 12.5px; margin-top: 3px;
+  display: flex; align-items: center; gap: 5px; }
+
+/* dashed tear line between the header and the stamps */
+.loy-perf { height: 0; border-top: 1.5px dashed color-mix(in srgb, var(--text, #fff) 16%, transparent); margin: 0 16px; }
+
+.loy-stamps { display: flex; flex-wrap: wrap; gap: 9px; padding: 15px 16px 4px; }
+.loy-dot {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  border: 2px dashed color-mix(in srgb, var(--text, #fff) 24%, transparent);
+  display: grid; place-items: center; font-size: 13px; line-height: 1; color: transparent;
+  transition: transform .2s cubic-bezier(.2, .8, .3, 1.4), background .2s ease, border-color .2s ease;
+}
+.loy-dot.on {
+  border-style: solid; border-color: var(--accent, #c79a54);
+  background: radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--accent, #c79a54) 55%, #fff), var(--accent, #c79a54));
+  color: var(--loy-ink); font-size: 12px;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .3), 0 1px 3px rgba(0, 0, 0, .28);
+}
+.loy-ticket.ready .loy-dot.on,
+.loy-dot.gold {
+  border-color: var(--loy-gold);
+  background: radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--loy-gold) 60%, #fff), var(--loy-gold-2));
+  color: var(--loy-gold-ink);
+}
+.loy-dot.pop { animation: loy-pop .4s cubic-bezier(.2, .8, .3, 1.4); }
+@keyframes loy-pop { 0% { transform: scale(.4); opacity: .4; } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+.loy-ticket-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 16px 16px; }
+.loy-progress { font-size: 12.5px; color: var(--muted, #9a958c); line-height: 1.4; }
+.loy-progress b { color: var(--text, #eee); }
+.loy-ready {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--loy-gold), var(--loy-gold-2)); color: var(--loy-gold-ink);
+  font-weight: 800; font-size: 12.5px; white-space: nowrap;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--loy-gold) 35%, transparent);
+}
+.loy-ticket.ready { box-shadow: 0 0 0 1px color-mix(in srgb, var(--loy-gold) 25%, transparent),
+  0 10px 30px color-mix(in srgb, var(--loy-gold) 14%, transparent); }
+
+/* ------------------------------------------------------------- portal shell */
+.loy-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  --loy-bg: var(--bg, #0c0e11); }
+.loy-hdr {
+  padding: 22px 18px 14px; display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, .08));
+}
+.loy-hdr .loy-spark { font-size: 22px; line-height: 1; }
+.loy-hdr h1 { font-family: var(--font-display, inherit); font-size: 19px; font-weight: 800; color: var(--text, #eee); margin: 0; letter-spacing: -.01em; }
+.loy-hdr p { color: var(--muted, #9a958c); font-size: 12.5px; margin: 2px 0 0; }
+.loy-back {
+  margin-inline-start: auto; background: color-mix(in srgb, var(--text, #fff) 6%, transparent); color: var(--text, #eee);
+  border: 1px solid var(--line, rgba(255, 255, 255, .12)); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 14px;
+}
+.loy-back:hover { background: color-mix(in srgb, var(--text, #fff) 12%, transparent); }
+.loy-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+/* rewards-ready summary banner (only shown when something is claimable) */
+.loy-summary {
+  display: flex; align-items: center; gap: 10px; padding: 12px 15px; border-radius: 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--loy-gold) 22%, var(--surface, #15181d)), var(--surface, #15181d));
+  border: 1px solid color-mix(in srgb, var(--loy-gold) 45%, var(--line, #555)); color: var(--text, #eee);
+}
+.loy-summary .star { font-size: 18px; }
+.loy-summary b { font-size: 14px; }
+.loy-summary span { color: var(--muted, #9a958c); font-size: 12px; display: block; }
+
+/* --------------------------------------------------------------- sign-in */
+.loy-auth { padding: 20px 20px 26px; display: flex; flex-direction: column; gap: 15px; margin: auto 0; }
+.loy-auth .loy-ticket.sample { margin-bottom: 4px; opacity: .96; }
+.loy-auth h2 { text-align: center; color: var(--text, #eee); font-size: 21px; font-weight: 800; margin: 4px 0 0;
+  font-family: var(--font-display, inherit); letter-spacing: -.01em; }
+.loy-auth .loy-lede { text-align: center; color: var(--muted, #9a958c); font-size: 13.5px; margin: -7px 0 4px; line-height: 1.55; }
+.loy-field { display: flex; flex-direction: column; gap: 7px; }
+.loy-field label { font-size: 12.5px; color: var(--muted, #9a958c); font-weight: 600; }
+.loy-field input {
+  width: 100%; padding: 14px; border-radius: var(--r-ctl, 13px); border: 1px solid var(--line, rgba(255, 255, 255, .14));
+  background: var(--surface, #15181d); color: var(--text, #eee); font-size: 16px; outline: none; transition: border-color .15s;
+}
+.loy-field input:focus-visible { border-color: var(--accent, #c79a54); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #c79a54) 22%, transparent); }
+.loy-field input.loy-code { text-align: center; letter-spacing: .55em; font-weight: 800; font-size: 24px; padding-inline-start: .55em; }
+.loy-btn {
+  width: 100%; padding: 14px; border-radius: var(--r-ctl, 13px); border: none; cursor: pointer;
+  background: var(--accent, #c79a54); color: var(--loy-ink); font-size: 15px; font-weight: 800; transition: filter .15s, transform .05s;
+}
+.loy-btn:hover:not(:disabled) { filter: brightness(1.06); }
+.loy-btn:active:not(:disabled) { transform: translateY(1px); }
+.loy-btn:disabled { opacity: .5; cursor: default; }
+.loy-link { background: none; border: none; color: var(--muted, #9a958c); font-size: 13px; cursor: pointer; align-self: center; padding: 6px; }
+.loy-link:hover { color: var(--text, #eee); text-decoration: underline; }
+
+.loy-empty { text-align: center; color: var(--muted, #9a958c); padding: 44px 24px; margin: auto 0; }
+.loy-empty .big { font-size: 40px; margin-bottom: 12px; }
+.loy-empty h3 { color: var(--text, #eee); font-size: 17px; margin: 0 0 6px; }
+.loy-empty p { font-size: 13.5px; line-height: 1.55; margin: 0; }
+
+/* ----------------------------------------------- compact strip (menu / track) */
+.loy-strip {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+  background: var(--surface, #15181d); border: 1px solid var(--line, rgba(255, 255, 255, .1));
+  cursor: pointer; -webkit-tap-highlight-color: transparent; transition: border-color .15s;
+}
+.loy-strip:hover { border-color: color-mix(in srgb, var(--accent, #c79a54) 50%, var(--line, #555)); }
+/* On the menu the strip is a direct child of the scroll area, so inset it to line up with the
+   item cards and the "your usual" banner (.c-usual uses the same 14/18 margin). */
+.loy-strip.on-menu { margin: 14px 18px 0; }
+.loy-strip.ready { border-color: color-mix(in srgb, var(--loy-gold) 50%, var(--line, #555));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--loy-gold) 14%, var(--surface, #15181d)), var(--surface, #15181d)); }
+.loy-strip .loy-spark { font-size: 18px; }
+.loy-strip-main { flex: 1; min-width: 0; }
+.loy-strip-main b { color: var(--text, #eee); font-size: 13.5px; display: block; }
+.loy-strip-main span { color: var(--muted, #9a958c); font-size: 12px; }
+.loy-mini { display: flex; gap: 4px; flex: none; }
+.loy-mini i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--text, #fff) 26%, transparent); display: block; }
+.loy-mini i.on { background: var(--accent, #c79a54); border-color: var(--accent, #c79a54); }
+.loy-strip.ready .loy-mini i.on { background: var(--loy-gold); border-color: var(--loy-gold); }
+.loy-go { color: var(--muted, #9a958c); font-size: 18px; flex: none; }
+
+/* ---------------------------------------------------- redeem card (checkout) */
+.loy-redeem {
+  display: flex; align-items: center; gap: 13px; margin-top: 14px; padding: 14px;
+  border-radius: 15px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--loy-gold) 55%, var(--line, #555));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--loy-gold) 18%, var(--surface, #15181d)), var(--surface, #15181d));
+}
+.loy-redeem .gift { font-size: 22px; flex: none; }
+.loy-redeem-main { flex: 1; min-width: 0; }
+.loy-redeem-main b { color: var(--text, #eee); font-size: 14px; display: block; }
+.loy-redeem-main span { color: var(--muted, #9a958c); font-size: 12px; }
+.loy-switch { position: relative; width: 46px; height: 27px; flex: none; }
+.loy-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.loy-switch .track { position: absolute; inset: 0; border-radius: 999px;
+  background: color-mix(in srgb, var(--text, #fff) 20%, transparent); transition: background .18s; pointer-events: none; }
+.loy-switch .track::before { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 21px; height: 21px;
+  border-radius: 50%; background: #fff; transition: transform .18s; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.loy-switch input:checked + .track { background: linear-gradient(135deg, var(--loy-gold), var(--loy-gold-2)); }
+.loy-switch input:checked + .track::before { transform: translateX(19px); }
+[dir='rtl'] .loy-switch input:checked + .track::before { transform: translateX(-19px); }
+.loy-switch input:focus-visible + .track { box-shadow: 0 0 0 3px color-mix(in srgb, var(--loy-gold) 35%, transparent); }
+
+/* loyalty discount row in an order's totals */
+.c-totals .row.loy-discount span:last-child,
+.row.loy-discount span:last-child { color: var(--loy-gold, #ecc04a); }
+
+/* ----------------------------------------- track-page post-order moment */
+.loy-earned {
+  display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 12px 14px; border-radius: 13px;
+  background: color-mix(in srgb, var(--accent, #c79a54) 14%, var(--surface, #15181d));
+  border: 1px solid color-mix(in srgb, var(--accent, #c79a54) 40%, var(--line, #555)); color: var(--text, #eee); font-size: 13px;
+}
+.loy-earned .ic { font-size: 18px; }
+
+/* (The café dashboard's Loyalty tab is styled in dashboard.css with the dashboard's own
+   tokens — it deliberately does NOT use the gold customer punch-card visual.) */
+
+/* ------------------------------------------------------------- a11y */
+@media (prefers-reduced-motion: reduce) {
+  .loy-dot, .loy-btn, .loy-switch .track, .loy-switch .track::before { transition: none; }
+  .loy-dot.pop { animation: none; }
+}
