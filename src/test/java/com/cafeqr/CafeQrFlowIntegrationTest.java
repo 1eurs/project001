@@ -134,23 +134,21 @@ class CafeQrFlowIntegrationTest {
                 .andExpect(jsonPath("$.data.content[0].status").value("PENDING"))
                 .andReturn(), "$.data.content[0].id");
 
-        // 12-15. Owner walks the order through the lifecycle.
+        // 12-14. Owner walks the order through the lifecycle.
         perform(authed(patch("/api/dashboard/orders/" + orderId + "/accept", Map.of("prepTimeMinutes", 10)), ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
-        perform(authed(patch("/api/dashboard/orders/" + orderId + "/preparing", null), ownerToken))
-                .andExpect(jsonPath("$.data.status").value("PREPARING"));
         perform(authed(patch("/api/dashboard/orders/" + orderId + "/ready", null), ownerToken))
                 .andExpect(jsonPath("$.data.status").value("READY"));
         perform(authed(patch("/api/dashboard/orders/" + orderId + "/complete", null), ownerToken))
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
 
-        // 16. Customer tracking shows the final status.
+        // 15. Customer tracking shows the final status.
         perform(get("/api/public/orders/" + trackingToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
 
-        // 17. The table can be deleted without deleting historical orders.
+        // 16. The table can be deleted without deleting historical orders.
         perform(authed(delete("/api/tables/" + tableId), ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));

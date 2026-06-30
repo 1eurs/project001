@@ -5,7 +5,8 @@ import { api, ApiError, consumePrimedMenu } from '../../lib/api';
 import type { OrderType, PublicMenu, PublicItem, ReturningCustomer, SelectedOption } from '../../lib/types';
 import { deviceToken } from '../../lib/customerProfile';
 import { track } from '../../lib/analytics';
-import { omr, discountPercent } from '../../lib/format';
+import { discountPercent } from '../../lib/format';
+import { Money } from '../../lib/Money';
 import { useI18n, useT, pick, LangToggle, type Dict } from '../../lib/i18n';
 import { useCartStore, useCart, qtyForItem, lineUnitPrice } from '../../lib/cart';
 import { useToast } from '../../lib/toast';
@@ -19,14 +20,16 @@ import './loyalty.css';
 const DICT: Dict = {
   ar: { table: 'طاولة', viewCart: 'عرض السلة', items: 'أصناف', cur: 'ر.ع', min: 'د', from: 'يبدأ من',
         soldout: 'غير متوفر', unavailable: 'القائمة غير متاحة حالياً', retry: 'إعادة المحاولة', car: 'طلب من السيارة', added: 'أُضيف ✓', menuOnly: 'القائمة',
+        ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'يمكنك تصفح القائمة، لكن هذا الفرع لا يستقبل طلبات جديدة حالياً.',
         browseHint: 'امسح رمز طاولتك أو رمز خدمة السيارة لإرسال طلب.',
         welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓',
-        loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'اعرض رموزك عند الكاشير' },
+        loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'استبدل مكافأتك المجانية عند الدفع', loyMinTag: 'الحد الأدنى' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min', from: 'from',
         soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
+        ordersPaused: 'Orders are paused', ordersPausedSub: 'You can browse the menu, but this branch is not accepting new orders right now.',
         browseHint: 'Scan your table’s QR or the car-service QR to place an order.',
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
-        loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Show your stamps at the counter' },
+        loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Redeem your free reward at checkout', loyMinTag: 'min order' },
 };
 
 const fallbackThumb = (it: PublicItem) => {
@@ -45,7 +48,7 @@ export default function MenuPage() {
   const orderType = orderTypeFromPath(token, pathname);
   // A bare branch/restaurant menu (no table, not the car route) is browse-only — there's no
   // takeaway flow, so the menu is viewable but ordering controls are hidden.
-  const orderable = orderType !== null;
+  const routeOrderable = orderType !== null;
 
   const url = menuUrlOf(slug, bId, token);
   // Two fast paths: the fetch index.html primed before the bundle loaded, and the
@@ -56,6 +59,8 @@ export default function MenuPage() {
     queryFn: () => consumePrimedMenu<PublicMenu>(url) ?? api.get<PublicMenu>(url, { auth: false }),
     placeholderData: cachedMenu,
   });
+  const acceptingOrders = data?.branch?.acceptingOrders ?? true;
+  const orderable = routeOrderable && acceptingOrders;
   useEffect(() => {
     if (data && !isPlaceholderData) writeMenuCache(url, data);
   }, [data, isPlaceholderData, url]);
@@ -114,11 +119,30 @@ export default function MenuPage() {
   const lastItems = useMemo(
     () => (returning?.lastOrder?.items ?? []).filter((i) => itemsById.get(i.menuItemId)?.available),
     [returning, itemsById]);
+  // An item with options (e.g. a required size) can't be added blind: the last order only
+  // stores the item + quantity, not the choices made, so it must go through the picker —
+  // otherwise it lands in the cart with no option selected and checkout blocks it with no
+  // way to fix. No-option items add straight to the cart; the first option item opens the picker.
+  const optionsOf = (id: number) => itemsById.get(id)?.optionGroups ?? [];
   const reorderLast = () => {
+    let added = false;
+    let toPick: PublicItem | null = null;
     lastItems.forEach((i) => {
-      useCartStore.getState().addWithQty(cartKey, i.menuItemId, [], i.quantity);
+      if (optionsOf(i.menuItemId).length > 0) {
+        if (!toPick) toPick = itemsById.get(i.menuItemId) ?? null;
+      } else {
+        useCartStore.getState().addWithQty(cartKey, i.menuItemId, [], i.quantity);
+        added = true;
+      }
     });
-    toast(t('lastAdded'));
+    if (added) toast(t('lastAdded'));
+    if (toPick) setOpenItem(toPick);
+  };
+  // "Your usual" quick-add: open the picker when the item needs a choice, else add directly.
+  const addUsual = (id: number) => {
+    const it = itemsById.get(id);
+    if (it && optionsOf(id).length > 0) { setOpenItem(it); return; }
+    addItem(id);
   };
 
   const count = cart.reduce((s, l) => s + l.qty, 0);
@@ -199,7 +223,9 @@ export default function MenuPage() {
         </div>
       </header>
 
-      {!orderable && <div className="c-browse-hint">{t('browseHint')}</div>}
+      {!acceptingOrders
+        ? <div className="c-closed-hint"><b>{t('ordersPaused')}</b><span>{t('ordersPausedSub')}</span></div>
+        : !routeOrderable && <div className="c-browse-hint">{t('browseHint')}</div>}
 
       <nav className="c-nav">
         {data.categories.map((c) => (
@@ -230,7 +256,7 @@ export default function MenuPage() {
               <span className="loy-spark">{ready ? '★' : '🎟️'}</span>
               <div className="loy-strip-main">
                 <b>{ready ? t('loyReady') : <><span className="num">{loy.stamps}</span> / <span className="num">{loy.stampsRequired}</span> {t('loyStamps')}</>}</b>
-                <span>{ready ? t('loyReadySub') : loy.rewardLabel}</span>
+                <span>{ready ? t('loyReadySub') : <>{loy.rewardLabel}{loy.minOrderAmount ? <> · {t('loyMinTag')} <Money value={loy.minOrderAmount} /></> : null}</>}</span>
               </div>
               <div className="loy-mini" aria-hidden="true">
                 {Array.from({ length: dots }).map((_, i) => (
@@ -241,7 +267,7 @@ export default function MenuPage() {
             </div>
           );
         })()}
-        {(usual || lastItems.length > 0) && (
+        {orderable && (usual || lastItems.length > 0) && (
           <div className="c-usual">
             <h3><span className="wave">👋</span>{t('welcome')}{returning?.customerName ? (lang === 'ar' ? '، ' : ', ') + returning.customerName : ''}</h3>
             {lastItems.length > 0 && (
@@ -258,7 +284,7 @@ export default function MenuPage() {
             )}
             <div className="row">
               {usual && (
-                <button className="btn-usual" onClick={() => addItem(usual.menuItemId)}>
+                <button className="btn-usual" onClick={() => addUsual(usual.menuItemId)}>
                   {t('addUsual')} {lang === 'ar' ? (usual.nameAr || usual.nameEn) : (usual.nameEn || usual.nameAr)}
                 </button>
               )}
@@ -303,10 +329,9 @@ export default function MenuPage() {
                       <div>
                         <div className="c-price">
                           {it.salePrice != null && (
-                            <span className="c-was num">{omr(it.price)}</span>
+                            <Money value={it.price} className="c-was num" />
                           )}
-                          <span className={'num' + (it.salePrice != null ? ' c-sale' : '')}>{omr(it.salePrice ?? it.price)}</span>
-                          <span className="cur">{t('cur')}</span>
+                          <Money value={it.salePrice ?? it.price} className={'num' + (it.salePrice != null ? ' c-sale' : '')} />
                           {it.salePrice != null && <span className="c-off">−{discountPercent(it.price, it.salePrice)}%</span>}
                           {hasOptions && <span className="c-from"> · {t('from')}</span>}
                         </div>
@@ -340,7 +365,7 @@ export default function MenuPage() {
       <div className={'c-cartbar' + (count > 0 && orderable ? ' show' : '')} onClick={() => nav('/cart')}>
         <div className="ico">🛒<span className="count">{count}</span></div>
         <div className="lbl"><b>{t('viewCart')}</b><span>{count} {t('items')}</span></div>
-        <div className="total"><span className="num">{omr(subtotal)}</span></div>
+        <Money value={subtotal} className="total num" />
         <div className="go">‹</div>
       </div>
 

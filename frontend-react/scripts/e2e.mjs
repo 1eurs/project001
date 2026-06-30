@@ -89,8 +89,6 @@ async function main() {
   const id = dineIn.data?.id ?? (await findOrderId(ownerTok, dineIn.data?.orderNumber));
   const accept = await call(`/api/dashboard/orders/${id}/accept`, { method: 'PATCH', token: ownerTok, body: { prepTimeMinutes: 7 } });
   ok('Accept (set prep mins)', accept.ok && accept.data?.status === 'ACCEPTED', 'prep=' + accept.data?.prepTimeMinutes);
-  const prep = await call(`/api/dashboard/orders/${id}/preparing`, { method: 'PATCH', token: ownerTok });
-  ok('→ Preparing', prep.ok && prep.data?.status === 'PREPARING');
   const ready = await call(`/api/dashboard/orders/${id}/ready`, { method: 'PATCH', token: ownerTok });
   ok('→ Ready', ready.ok && ready.data?.status === 'READY');
   const complete = await call(`/api/dashboard/orders/${id}/complete`, { method: 'PATCH', token: ownerTok });
@@ -108,7 +106,7 @@ async function main() {
   const fresh = await call('/api/public/orders', { method: 'POST', body: { restaurantSlug: SLUG, branchId: 1, orderType: 'TAKEAWAY', items: [{ menuItemId: firstItem.id, quantity: 1 }] } });
   const freshId = fresh.data?.id ?? (await findOrderId(ownerTok, fresh.data?.orderNumber));
   const decline = await call(`/api/dashboard/orders/${freshId}/decline`, { method: 'PATCH', token: ownerTok, body: { reason: 'اختبار' } });
-  ok('Decline order', decline.ok && decline.data?.status === 'DECLINED');
+  ok('Decline order', decline.ok && decline.data?.status === 'CANCELLED');
 
   // ---------------- TABLES / QR ----------------
   section('Tables & QR');

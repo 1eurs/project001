@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import { omr } from '../../lib/format';
+import { Money } from '../../lib/Money';
 import { carColorOf, carColorLabel } from '../../lib/carColors';
 import type { OrderSummaryResponse, PageResponse, OrderResponse, OrderStatus } from '../../lib/types';
 import InvoicePrint from './InvoicePrint';
@@ -77,7 +77,7 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
                     <td className="hide-sm">{orderTypeLabel(o, t)}</td>
                     <td><span className="chip" style={{ color: COLOR[o.status] }}><span className="d" style={{ background: COLOR[o.status] }} />{t('st_' + o.status)}</span></td>
                     <td className="hide-sm"><span className={'chip' + (o.paymentStatus === 'PAID' ? ' ok' : '')}><span className="d" />{o.paymentStatus === 'PAID' ? t('paid') : t('unpaid')}</span></td>
-                    <td><span className="num">{omr(o.total)} {t('cur')}</span></td>
+                    <td><Money value={o.total} className="num" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -143,12 +143,12 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
           {o.items.map((i, n) => (
             <div className="kv" key={n}>
               <span className="k"><span className="num">{i.quantity}×</span> {lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}{i.note ? ` · ${i.note}` : ''}</span>
-              <span className="v num">{omr(i.lineTotal)}</span>
+              <Money value={i.lineTotal} className="v num" />
             </div>
           ))}
-          <div className="kv"><span className="k">{t('subtotal')}</span><span className="v num">{omr(o.subtotal)} {t('cur')}</span></div>
-          <div className="kv"><span className="k">{t('vat')}</span><span className="v num">{omr(o.vatAmount)} {t('cur')}</span></div>
-          <div className="kv"><span className="k" style={{ fontWeight: 700, color: 'var(--text)' }}>{t('total')}</span><span className="v num" style={{ color: 'var(--accent-text)', fontSize: 16 }}>{omr(o.total)} {t('cur')}</span></div>
+          <div className="kv"><span className="k">{t('subtotal')}</span><Money value={o.subtotal} className="v num" /></div>
+          <div className="kv"><span className="k">{t('vat')}</span><Money value={o.vatAmount} className="v num" /></div>
+          <div className="kv"><span className="k" style={{ fontWeight: 700, color: 'var(--text)' }}>{t('total')}</span><Money value={o.total} className="v num" style={{ color: 'var(--accent-text)', fontSize: 16 }} /></div>
         </div>
         <div className="sect"><h4>{t('timeline')}</h4>
           {TS.filter((k) => o[k]).map((k) => (

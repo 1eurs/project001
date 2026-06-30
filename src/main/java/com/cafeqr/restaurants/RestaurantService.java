@@ -90,6 +90,9 @@ public class RestaurantService {
         if (request.vatRate() != null) {
             restaurant.setVatRate(request.vatRate());
         }
+        if (request.paymentMethodSelectionEnabled() != null) {
+            restaurant.setPaymentMethodSelectionEnabled(request.paymentMethodSelectionEnabled());
+        }
         return RestaurantResponse.from(restaurant);
     }
 

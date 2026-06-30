@@ -15,8 +15,8 @@ import './site.css';
    utilities can leak onto the customer / dashboard / admin apps.
    ───────────────────────────────────────────────────────────────────────── */
 
-// ⚠️ TODO: replace with Serva's real WhatsApp number — international format, digits only, no "+".
-const WHATSAPP_NUMBER = '96890000000';
+const WHATSAPP_NUMBERS = ['96896603044', '96895237735'] as const;
+const WHATSAPP_NUMBER = WHATSAPP_NUMBERS[Math.floor(Math.random() * WHATSAPP_NUMBERS.length)];
 const waLink = (msg: string) => `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
 
 /* ── parallel AR / EN content ────────────────────────────────────────────── */

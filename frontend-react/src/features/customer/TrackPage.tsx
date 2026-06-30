@@ -21,16 +21,16 @@ const DICT: Dict = {
         sorry_DECLINED: 'نعتذر منك، لم يتمكن المقهى من استلام هذا الطلب', sorry_CANCELLED: 'نعتذر منك، أُلغي هذا الطلب من المقهى',
         maybeWhy: 'يحدث هذا عادةً عند ضغط الطلبات أو إغلاق المقهى مؤقتاً.',
         sorrySub: 'لم يُحتسب عليك أي مبلغ، ويسعدنا خدمتك في طلب جديد ☕', reasonLbl: 'سبب الاعتذار', orderAgain: 'اطلب من جديد',
-        loyReward: 'مكافأة الولاء', loyEarned: 'أُضيف ختم إلى بطاقتك ✓', loyCard: 'بطاقة أختامك', viewRewards: 'عرض كل مكافآتي',
-        of: 'من', moreOne: 'ختم واحد على', moreN: 'أختام على', counter: 'اعرضها عند الكاشير', ready: 'مكافأة جاهزة', readyN: 'مكافآت جاهزة' },
+        loyReward: 'مكافأة الولاء', loyEarned: 'أُضيف ختم إلى بطاقتك ✓', loyMinA: 'تُحتسب الأختام للطلبات فوق', loyCard: 'بطاقة أختامك', viewRewards: 'عرض كل مكافآتي',
+        of: 'من', moreOne: 'ختم واحد على', moreN: 'أختام على', counter: 'استبدل مكافأتك المجانية عند الدفع', ready: 'مكافأة جاهزة', readyN: 'مكافآت جاهزة' },
   en: { title: 'Track order', orderNo: 'Order', cur: 'OMR', min: 'min', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', back: 'Back to menu', estPrep: 'Estimated', thanks: 'Thank you',
         head_PENDING: 'Sent — waiting for the cafe', head_ACCEPTED: 'Being prepared', head_PREPARING: 'Being prepared', head_READY: 'Ready to serve', head_COMPLETED: 'Completed', head_DECLINED: 'Order declined', head_CANCELLED: 'Order cancelled',
         st_PENDING: 'Order sent', st_ACCEPTED: 'Being prepared', st_PREPARING: 'Being prepared', st_READY: 'Ready!',
         sorry_DECLINED: "We're sorry — the cafe couldn't take this order", sorry_CANCELLED: "We're sorry — this order was cancelled by the cafe",
         maybeWhy: 'This usually happens when the cafe is very busy or temporarily closed.',
         sorrySub: "You haven't been charged — we'd love to serve you on a fresh order ☕", reasonLbl: 'Reason', orderAgain: 'Order again',
-        loyReward: 'Loyalty reward', loyEarned: 'A stamp was added to your card ✓', loyCard: 'Your stamp card', viewRewards: 'View all my rewards',
-        of: 'of', moreOne: 'more stamp for', moreN: 'more stamps for', counter: 'Show this at the counter', ready: 'Reward ready', readyN: 'rewards ready' },
+        loyReward: 'Loyalty reward', loyEarned: 'A stamp was added to your card ✓', loyMinA: 'Stamps count on orders over', loyCard: 'Your stamp card', viewRewards: 'View all my rewards',
+        of: 'of', moreOne: 'more stamp for', moreN: 'more stamps for', counter: 'Redeem your free reward at checkout', ready: 'Reward ready', readyN: 'rewards ready' },
 };
 
 export default function TrackPage() {
@@ -103,7 +103,7 @@ export default function TrackPage() {
           <div className="c-sorry">
             <div className="big">🙏</div>
             <h3>{t('sorry_' + o.status)}</h3>
-            {o.status === 'DECLINED' && o.declineReason
+            {o.declineReason
               ? <p className="why">{t('reasonLbl')}: {o.declineReason}</p>
               : <p className="why">{t('maybeWhy')}</p>}
             <p className="next">{t('sorrySub')}</p>
@@ -143,7 +143,12 @@ export default function TrackPage() {
 
         {!bad && o.loyalty?.enabled && (
           <div style={{ marginTop: 16 }}>
-            {o.status === 'COMPLETED' && <div className="loy-earned"><span className="ic">🎟️</span> {t('loyEarned')}</div>}
+            {o.status === 'COMPLETED' && o.stampEarned && (
+              <div className="loy-earned"><span className="ic">🎟️</span> {t('loyEarned')}</div>
+            )}
+            {o.status === 'COMPLETED' && !o.stampEarned && o.loyalty.minOrderAmount && (
+              <div className="loy-note"><span className="ic">🎟️</span> {t('loyMinA')} <b className="num">{omr(o.loyalty.minOrderAmount)}</b> {t('cur')}</div>
+            )}
             <div style={{ marginTop: o.status === 'COMPLETED' ? 12 : 0, cursor: 'pointer' }}
               onClick={() => nav('/loyalty', { state: { from: loc.pathname } })} role="button" tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: loc.pathname } })}>

@@ -5,11 +5,24 @@ PI_USER="${PI_USER:-pi}"
 PI_HOST="${PI_HOST:-192.168.1.52}"
 PI_DIR="${PI_DIR:-~/cafeqr}"
 BASE_PATH="${BASE_PATH:-/}"
+BACKEND_IMAGE="${BACKEND_IMAGE:-cafeqr-backend:deploy}"
+RUN_SEED="${RUN_SEED:-false}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cafeqr-deploy.XXXXXX")"
+IMAGE_ARCHIVE="$BUILD_DIR/backend-image.tar.gz"
+trap 'rm -rf "$BUILD_DIR"' EXIT
 
 echo "==> Building frontend with base: $BASE_PATH"
 cd "$ROOT/frontend-react"
 VITE_BASE_PATH="$BASE_PATH" npm run build
+
+echo ""
+echo "==> Building ARM64 backend image locally: $BACKEND_IMAGE"
+docker build --platform linux/arm64 -t "$BACKEND_IMAGE" "$ROOT"
+
+echo ""
+echo "==> Packing backend image for transfer"
+docker save "$BACKEND_IMAGE" | gzip -1 > "$IMAGE_ARCHIVE"
 
 echo ""
 echo "==> Generating .env from local environment"
@@ -39,17 +52,14 @@ APP_BILLING_IBAN=${APP_BILLING_IBAN:-CHANGE_ME}
 EOF
 
 echo ""
-echo "==> Syncing project to $PI_USER@$PI_HOST:$PI_DIR"
-rsync -avz --delete \
-  --exclude '.git' \
-  --exclude 'docker-compose.override.yml' \
-  --exclude 'target/' \
-  --exclude '.DS_Store' \
-  --exclude '.claude/' \
-  --exclude 'node_modules/' \
-  --exclude 'frontend-react/node_modules/' \
-  --exclude 'frontend-react/src/' \
-  ../ pi@192.168.1.52:~/cafeqr/
+echo "==> Syncing deployment artifacts to $PI_USER@$PI_HOST:$PI_DIR"
+ssh "$PI_USER@$PI_HOST" "mkdir -p $PI_DIR/frontend-react/dist"
+rsync -avz --delete "$ROOT/frontend-react/dist/" \
+  "$PI_USER@$PI_HOST:$PI_DIR/frontend-react/dist/"
+rsync -avz "$ROOT/docker-compose.yml" "$ROOT/.env" \
+  "$PI_USER@$PI_HOST:$PI_DIR/"
+rsync -avz "$IMAGE_ARCHIVE" \
+  "$PI_USER@$PI_HOST:$PI_DIR/backend-image.tar.gz"
 
 echo ""
 echo "==> Fixing permissions for nginx read access"
@@ -192,26 +202,42 @@ echo "==> Reloading nginx"
 ssh "$PI_USER@$PI_HOST" "sudo systemctl reload nginx"
 
 echo ""
-echo "==> Rebuilding and restarting Docker containers"
-ssh "$PI_USER@$PI_HOST" "cd $PI_DIR && docker compose up -d --build"
+echo "==> Loading locally built backend image and restarting containers"
+ssh "$PI_USER@$PI_HOST" \
+  "cd $PI_DIR && gzip -dc backend-image.tar.gz | docker load && rm -f backend-image.tar.gz && docker compose up -d --no-build"
 
 echo ""
 echo "==> Waiting for backend health..."
 sleep 10
+healthy=false
 for i in $(seq 1 12); do
   status=$(ssh "$PI_USER@$PI_HOST" "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/actuator/health" 2>/dev/null || true)
   if [ "$status" = "200" ]; then
     echo "Backend is UP (HTTP 200)"
+    healthy=true
     break
   fi
   echo "  attempt $i/12 — waiting..."
   sleep 5
 done
+if [ "$healthy" != "true" ]; then
+  echo "Backend failed its health check; recent logs:" >&2
+  ssh "$PI_USER@$PI_HOST" "cd $PI_DIR && docker compose logs --tail=100 backend" >&2 || true
+  exit 1
+fi
 
 echo ""
-echo "==> Seeding demo data..."
-cd "$ROOT/frontend-react"
-API_BASE="http://$PI_HOST:8080" node scripts/seed.mjs
+echo "==> Removing superseded images and obsolete build cache"
+# Run cleanup only after the replacement backend is healthy. Deliberately avoid
+# system/volume pruning: database and upload volumes must never be touched.
+ssh "$PI_USER@$PI_HOST" "docker image prune -f && docker builder prune -af"
+
+if [ "$RUN_SEED" = "true" ]; then
+  echo ""
+  echo "==> Seeding demo data..."
+  cd "$ROOT/frontend-react"
+  API_BASE="http://$PI_HOST:8080" node scripts/seed.mjs
+fi
 
 echo ""
 echo "==> Done! Deployed at https://serva.om (and https://m7m2od.com/serva)"

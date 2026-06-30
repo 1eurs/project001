@@ -112,6 +112,7 @@ public class OrderService {
         Restaurant restaurant = restaurantService.getActiveBySlug(request.restaurantSlug());
         Branch branch = branchService.getEntityInRestaurant(restaurant.getId(), request.branchId());
         branchService.requireActive(branch);
+        branchService.requireAcceptingOrders(branch);
 
         Long tableId = resolveTable(restaurant, branch, request);
 
@@ -201,10 +202,9 @@ public class OrderService {
             order.setTableId(table.getId());
         }
         if (request.orderType() == OrderType.CAR) {
-            if (request.carPlate() == null || request.carPlate().isBlank()) {
-                throw new BadRequestException("Car plate is required for outdoor car orders");
+            if (request.carPlate() != null && !request.carPlate().isBlank()) {
+                order.setCarPlate(request.carPlate().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT));
             }
-            order.setCarPlate(request.carPlate().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT));
             if (request.carColor() != null && !request.carColor().isBlank()) {
                 order.setCarColor(request.carColor().trim().toLowerCase(Locale.ROOT));
             }
@@ -240,7 +240,8 @@ public class OrderService {
         // The customer reached this page by placing the order, so it's safe to show their own
         // stamp progress here — closes the loop after a stamp is earned / reward redeemed.
         return OrderTrackingResponse.from(order,
-                loyaltyService.summaryForRestaurant(order.getRestaurantId(), order.getCustomerPhone()));
+                loyaltyService.summaryForRestaurant(order.getRestaurantId(), order.getCustomerPhone()),
+                loyaltyService.orderEarnedStamp(order.getId()));
     }
 
     @Transactional(readOnly = true)
@@ -303,16 +304,6 @@ public class OrderService {
         eventLogService.recordOrderEvent(order, OrderStatus.CANCELLED, trimmed);
         notifyAndStream(order, NotificationType.ORDER_DECLINED, "order.declined",
                 "Order " + order.getOrderNumber() + " declined" + (trimmed != null ? ": " + trimmed : ""));
-        return OrderResponse.from(order);
-    }
-
-    @Transactional
-    public OrderResponse markPreparing(Long orderId) {
-        Order order = loadGuarded(orderId);
-        transition(order, OrderStatus.PREPARING);
-        order.setPreparingAt(Instant.now());
-        eventLogService.recordOrderEvent(order, OrderStatus.PREPARING, null);
-        streamOnly(order, "order.preparing");
         return OrderResponse.from(order);
     }
 
@@ -389,7 +380,7 @@ public class OrderService {
             return null;
         }
         if (request.carPlate() == null || request.carPlate().isBlank()) {
-            throw new BadRequestException("Car plate is required for outdoor car orders");
+            return null;
         }
         return request.carPlate().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
     }

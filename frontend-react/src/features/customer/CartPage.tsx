@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType, LoyaltySummary } from '../../lib/types';
-import { omr, estimateVat } from '../../lib/format';
+import { omr, estimateVat, round3 } from '../../lib/format';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useCartStore, useCart, lineUnitPrice } from '../../lib/cart';
@@ -17,8 +17,9 @@ import './loyalty.css';
 
 const DICT: Dict = {
   ar: { title: 'سلّتك', cur: 'ر.ع', empty: 'سلّتك فارغة', emptySub: 'أضف ما يطيب لك من القائمة.', back: 'العودة للقائمة',
-        carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب', carPlateRequired: 'أدخل رقم لوحة السيارة',
-        carPlateHint: 'اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
+        ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'هذا الفرع لا يستقبل طلبات جديدة حالياً. يمكنك العودة لتصفح القائمة.', closedStamp: 'مغلق',
+        carPlate: 'رقم لوحة السيارة العُمانية', carPlatePh: 'مثال: 1234 أ ب',
+        carPlateHint: 'اختياري — اكتب الأرقام ثم الرمز', plateNum: 'الأرقام', plateCode: 'الرمز', carColor: 'لون السيارة',
         name: 'الاسم (اختياري)', nameReq: 'الاسم', nameRequired: 'الاسم مطلوب لطلبات السيارة',
         phoneRequired: 'الجوال مطلوب',
         phone: 'الجوال', myCars: 'سياراتك المحفوظة', myPhones: 'أرقامك المحفوظة',
@@ -28,8 +29,9 @@ const DICT: Dict = {
         loyStamps: 'أختام', redeemTitle: 'استخدم مكافأتك', redeemSub: 'هذا الصنف مجاناً',
         loyDiscount: 'مكافأة الولاء', myRewards: 'مكافآتي' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
-        carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB', carPlateRequired: 'Enter the car plate',
-        carPlateHint: 'Numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
+        ordersPaused: 'Orders are paused', ordersPausedSub: 'This branch is not accepting new orders right now. You can return to browse the menu.', closedStamp: 'Closed',
+        carPlate: 'Oman car plate', carPlatePh: 'e.g. 1234 AB',
+        carPlateHint: 'Optional — numbers, then the letter code', plateNum: 'Numbers', plateCode: 'Code', carColor: 'Car color',
         name: 'Name (optional)', nameReq: 'Name', nameRequired: 'Name is required for car orders',
         phoneRequired: 'Phone is required',
         phone: 'Phone', myCars: 'Your saved cars', myPhones: 'Your saved numbers',
@@ -50,6 +52,7 @@ export default function CartPage() {
   const nav = useNavigate();
   const loc = useLocation();
   const toast = useToast();
+  const qc = useQueryClient();
   const { slug, branchId, tableToken, restaurant, orderType: venueOrderType } = useVenue();
   const orderType: OrderType = venueOrderType ?? (tableToken ? 'DINE_IN' : 'CAR');
 
@@ -94,13 +97,13 @@ export default function CartPage() {
   const savedCars = saved?.cars ?? [];
 
 
-  const subtotal = cart.reduce((s, l) => {
+  const subtotal = round3(cart.reduce((s, l) => {
       const it = itemsById.get(l.id);
       return s + (it ? lineUnitPrice(it, l.selectedOptions) : 0) * l.qty;
-    }, 0);
+    }, 0));
   const vatEnabled = restaurant?.vatEnabled ?? false;
-  const vat = estimateVat(subtotal, restaurant?.vatRate ?? 0, vatEnabled);
-  const total = subtotal + vat;
+  const vat = round3(estimateVat(subtotal, restaurant?.vatRate ?? 0, vatEnabled));
+  const total = round3(subtotal + vat);
 
   // Loyalty: once a phone is entered, fetch this café's stamp progress for it.
   const phoneDigits = phone.replace(/\D/g, '');
@@ -120,8 +123,11 @@ export default function CartPage() {
   useEffect(() => { if (!canRedeem) setRedeem(false); }, [canRedeem]);
   const rewardItem = rewardLine ? itemsById.get(rewardLine.id) : undefined;
   const rewardDiscount = redeem && rewardItem && rewardLine
-    ? lineUnitPrice(rewardItem, rewardLine.selectedOptions) : 0;
-  const grandTotal = Math.max(0, total - rewardDiscount);
+    ? round3(lineUnitPrice(rewardItem, rewardLine.selectedOptions)) : 0;
+  // A redeemed reward waives the item's price AND its VAT, so a "free drink" is truly free.
+  const rewardVat = redeem ? round3(estimateVat(rewardDiscount, restaurant?.vatRate ?? 0, vatEnabled)) : 0;
+  const vatCharged = round3(vat - rewardVat);
+  const grandTotal = Math.max(0, round3(total - rewardDiscount - rewardVat));
 
   const place = useMutation({
     mutationFn: () => {
@@ -129,7 +135,7 @@ export default function CartPage() {
       const payload: CreateOrderPayload = {
         restaurantSlug: slug!, branchId: branchId!, tableToken: orderType === 'DINE_IN' ? tableToken : null,
         orderType, customerName: name || null, customerPhone: phone || null,
-        carPlate: orderType === 'CAR' ? normalizedPlate : null,
+        carPlate: orderType === 'CAR' ? normalizedPlate || null : null,
         carColor: orderType === 'CAR' ? (carColor || null) : null, customerNote: note || null,
         deviceToken: deviceToken(true),
         phoneToken: null,
@@ -146,17 +152,41 @@ export default function CartPage() {
       clear(cartKey);
       saveStoredProfile({ name, phone, plateNum, plateCode, carColor });
       localStorage.setItem('cafeqr_lastOrder', order.trackingToken);
+      // The order just consumed/earned stamps; drop the cached summary so a follow-up order
+      // doesn't re-offer an already-spent reward (which the server would reject, failing the order).
+      qc.invalidateQueries({ queryKey: ['loyalty-summary'] });
       nav(`/order/${order.trackingToken}`);
     },
-    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+    onError: (e) => toast(
+      e instanceof ApiError && e.errorCode === 'BRANCH_NOT_ACCEPTING_ORDERS'
+        ? t('ordersPaused')
+        : e instanceof ApiError ? e.message : 'Error',
+    ),
   });
-  const missingCarPlate = orderType === 'CAR' && !plateNum.trim();
   const submit = () => {
-    if (missingCarPlate) { toast(t('carPlateRequired')); return; }
     if (orderType === 'CAR' && !name.trim()) { toast(t('nameRequired')); return; }
     if (!phone.trim()) { toast(t('phoneRequired')); return; }
     place.mutate();
   };
+
+  if (data?.branch?.acceptingOrders === false) {
+    return (
+      <CustomerFrame>
+        <header className="c-vhdr">
+          <button className="c-back" onClick={() => nav(menuPath)} aria-label="back"><span className="arr">›</span></button>
+          <h2>{t('title')}</h2>
+        </header>
+        <div className="c-vbody">
+          <div className="c-closed-card">
+            <span className="c-closed-sign" aria-hidden="true">{t('closedStamp')}</span>
+            <h3>{t('ordersPaused')}</h3>
+            <p>{t('ordersPausedSub')}</p>
+            <button className="btn ghost" onClick={() => nav(menuPath)}>{t('back')}</button>
+          </div>
+        </div>
+      </CustomerFrame>
+    );
+  }
 
   return (
     <CustomerFrame>
@@ -316,7 +346,7 @@ export default function CartPage() {
 
             <div className="c-totals">
               <div className="row"><span>{t('subtotal')}</span><span className="num">{omr(subtotal)} {t('cur')}</span></div>
-              {vatEnabled && <div className="row"><span>{t('vat')} ({restaurant?.vatRate}%)</span><span className="num">{omr(vat)} {t('cur')}</span></div>}
+              {vatEnabled && <div className="row"><span>{t('vat')} ({restaurant?.vatRate}%)</span><span className="num">{omr(vatCharged)} {t('cur')}</span></div>}
               {rewardDiscount > 0 && (
                 <div className="row loy-discount"><span>🎁 {t('loyDiscount')}</span><span className="num">−{omr(rewardDiscount)} {t('cur')}</span></div>
               )}
@@ -326,7 +356,7 @@ export default function CartPage() {
           </div>
 
           <div className="c-foot-bar">
-            <button className="btn full" disabled={place.isPending || missingCarPlate} onClick={submit}>
+            <button className="btn full" disabled={place.isPending} onClick={submit}>
               {place.isPending ? t('placing') : <>{t('place')} · <span className="num">{omr(grandTotal)}</span></>}
             </button>
           </div>

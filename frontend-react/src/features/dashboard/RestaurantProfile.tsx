@@ -9,8 +9,14 @@ import type { Restaurant, Subscription, BranchResponse } from '../../lib/types';
 const DICT: Dict = {
   ar: {
     title: 'ملف المطعم', sub: 'البيانات التي تظهر في قائمة العملاء والفواتير.',
+    detailsTitle: 'بيانات المطعم', detailsSub: 'معلومات التواصل والهوية التي يراها عملاؤك.',
+    operationsTitle: 'الطلبات والضريبة', operationsSub: 'إعدادات التشغيل التي تؤثر على التحصيل والفواتير.',
+    branchTitle: 'الفرع ورابط القائمة', branchSub: 'إدارة اسم الفرع الحالي وعنوان القائمة العامة.',
+    vatHelp: 'أظهر ضريبة القيمة المضافة في الطلبات والفواتير.',
+    menuLinkHelp: 'هذا هو الرابط العام الذي يفتحه عملاؤك.',
     name: 'اسم المطعم', phone: 'الهاتف', email: 'البريد', instagram: 'إنستجرام',
     currency: 'العملة', vatEnabled: 'تفعيل الضريبة', vatRate: 'نسبة الضريبة', logo: 'شعار المطعم',
+    paymentSelection: 'اختيار طريقة الدفع عند التحصيل', paymentSelectionSub: 'عند التفعيل، يختار الموظف نقداً أو بطاقة قبل إنهاء الطلب. عند الإيقاف، تُسجّل البطاقة افتراضياً.',
     uploadLogo: 'رفع الشعار', uploading: 'جارٍ الرفع...', save: 'حفظ الملف', saved: 'تم الحفظ', openMenu: 'فتح القائمة',
     slug: 'رابط القائمة', active: 'نشط',
     subscription: 'الاشتراك', plan: 'الباقة', sstatus: 'الحالة', renews: 'يتجدد', ended: 'انتهى',
@@ -21,8 +27,14 @@ const DICT: Dict = {
   },
   en: {
     title: 'Restaurant profile', sub: 'Details shown on the customer menu and receipts.',
+    detailsTitle: 'Restaurant details', detailsSub: 'Customer-facing identity and contact information.',
+    operationsTitle: 'Orders and tax', operationsSub: 'Operational settings that affect collection and receipts.',
+    branchTitle: 'Branch and menu link', branchSub: 'Manage the current branch name and its public menu address.',
+    vatHelp: 'Show VAT on customer orders and receipts.',
+    menuLinkHelp: 'This is the public address your customers open.',
     name: 'Restaurant name', phone: 'Phone', email: 'Email', instagram: 'Instagram',
     currency: 'Currency', vatEnabled: 'Enable VAT', vatRate: 'VAT rate', logo: 'Restaurant logo',
+    paymentSelection: 'Choose payment method at collection', paymentSelectionSub: 'When enabled, staff choose Cash or Card before completing an order. When off, Card is recorded by default.',
     uploadLogo: 'Upload logo', uploading: 'Uploading...', save: 'Save profile', saved: 'Saved', openMenu: 'Open menu',
     slug: 'Menu link', active: 'Active',
     subscription: 'Subscription', plan: 'Plan', sstatus: 'Status', renews: 'Renews', ended: 'Ended',
@@ -52,6 +64,7 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
     currency: 'OMR',
     vatEnabled: true,
     vatRate: '5',
+    paymentMethodSelectionEnabled: false,
   });
 
   const restaurantQ = useQuery({
@@ -100,6 +113,7 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
       currency: r.currency ?? 'OMR',
       vatEnabled: r.vatEnabled,
       vatRate: String(r.vatRate ?? 5),
+      paymentMethodSelectionEnabled: r.paymentMethodSelectionEnabled ?? false,
     });
   }, [restaurantQ.data?.id]);
 
@@ -113,6 +127,7 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
       currency: form.currency.trim().toUpperCase() || 'OMR',
       vatEnabled: form.vatEnabled,
       vatRate: Number(form.vatRate) || 0,
+      paymentMethodSelectionEnabled: form.paymentMethodSelectionEnabled,
     }),
     onSuccess: (r) => {
       qc.setQueryData(['restaurant', rid], r);
@@ -141,59 +156,118 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
 
   return (
     <div className="tables-wrap profile-page">
-      <section className="profile-hero">
-        <button className="profile-logo" type="button" onClick={() => fileRef.current?.click()} style={form.logoUrl ? { backgroundImage: `url('${form.logoUrl}')` } : undefined}>
-          {!form.logoUrl && <span>{form.name.charAt(0) || 'S'}</span>}
-          {uploading && <em>{t('uploading')}</em>}
-        </button>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onLogoFile} />
-        <div className="profile-title">
-          <span>{t('logo')}</span>
-          <h3>{form.name || t('title')}</h3>
-          <p>{t('sub')}</p>
+      <div className="profile-frame">
+        <header className="profile-hero">
+          <div className="profile-identity">
+            <button className="profile-logo" type="button" aria-label={t('uploadLogo')}
+              onClick={() => fileRef.current?.click()}
+              style={form.logoUrl ? { backgroundImage: `url('${form.logoUrl}')` } : undefined}>
+              {!form.logoUrl && <span>{form.name.charAt(0) || 'S'}</span>}
+              <i>{t('uploadLogo')}</i>
+              {uploading && <em>{t('uploading')}</em>}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onLogoFile} />
+            <div className="profile-title">
+              <div className={'profile-state' + (restaurantQ.data?.active ? ' on' : '')}>
+                <span />{t('active')}
+              </div>
+              <h3>{form.name || t('title')}</h3>
+              <p>{t('sub')}</p>
+            </div>
+          </div>
           <div className="profile-actions">
             <button className="btn sm ghost" type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>{t('uploadLogo')}</button>
-            <button className="btn sm ghost" type="button" disabled={!publicUrl} onClick={() => publicUrl && window.open(publicUrl, '_blank', 'noopener,noreferrer')}>↗ {t('openMenu')}</button>
-            <button className="btn sm" type="button" disabled={!form.name.trim() || save.isPending || uploading} onClick={() => save.mutate()}>{t('save')}</button>
+            <button className="btn sm ghost" type="button" disabled={!publicUrl}
+              onClick={() => publicUrl && window.open(publicUrl, '_blank', 'noopener,noreferrer')}>↗ {t('openMenu')}</button>
+            <button className="btn sm" type="button" disabled={!form.name.trim() || save.isPending || uploading}
+              onClick={() => save.mutate()}>{t('save')}</button>
           </div>
-        </div>
-        <div className="profile-status">
-          <span>{t('active')}</span>
-          <b>{restaurantQ.data?.active ? '✓' : '-'}</b>
-        </div>
-      </section>
+        </header>
 
-      {sub && (
-        <section className="profile-sub">
-          <div className="psub-item"><span>{t('plan')}</span><b>{isOneTime ? t('oneTime') : sub.planName}</b></div>
-          <div className="psub-item"><span>{t('sstatus')}</span><b className={'sub-pill st-' + sub.status}>{t('st_' + sub.status)}</b></div>
-          <div className="psub-item">
-            <span>{isOneTime ? t('access') : sub.status === 'EXPIRED' ? t('ended') : t('renews')}</span>
-            <b>{isOneTime ? t('lifetime') : fmtDate(sub.endDate)}</b>
-          </div>
-        </section>
-      )}
+        <div className="profile-layout">
+          <main className="profile-main">
+            <section className="profile-section">
+              <div className="profile-section-head">
+                <span className="profile-section-no">01</span>
+                <div><h4>{t('detailsTitle')}</h4><p>{t('detailsSub')}</p></div>
+              </div>
+              <div className="profile-fields">
+                <label className="field"><span>{t('name')}</span><input value={form.name} onChange={(e) => set('name', e.target.value)} /></label>
+                <label className="field"><span>{t('phone')}</span><input value={form.phone} onChange={(e) => set('phone', e.target.value)} /></label>
+                <label className="field"><span>{t('email')}</span><input value={form.email} onChange={(e) => set('email', e.target.value)} /></label>
+                <label className="field"><span>{t('instagram')}</span><input value={form.instagramUrl} onChange={(e) => set('instagramUrl', e.target.value)} /></label>
+                <label className="field profile-currency"><span>{t('currency')}</span><input value={form.currency} maxLength={3} onChange={(e) => set('currency', e.target.value.toUpperCase())} /></label>
+              </div>
+            </section>
 
-      <section className="profile-grid">
-        <label className="field"><span>{t('name')}</span><input value={form.name} onChange={(e) => set('name', e.target.value)} /></label>
-        <label className="field"><span>{t('phone')}</span><input value={form.phone} onChange={(e) => set('phone', e.target.value)} /></label>
-        <label className="field"><span>{t('email')}</span><input value={form.email} onChange={(e) => set('email', e.target.value)} /></label>
-        <label className="field"><span>{t('instagram')}</span><input value={form.instagramUrl} onChange={(e) => set('instagramUrl', e.target.value)} /></label>
-        <label className="field"><span>{t('currency')}</span><input value={form.currency} maxLength={3} onChange={(e) => set('currency', e.target.value.toUpperCase())} /></label>
-        <label className="field"><span>{t('vatRate')}</span><input className="num" type="number" min="0" max="100" step="0.1" value={form.vatRate} onChange={(e) => set('vatRate', e.target.value)} /></label>
-        <label className="checkrow profile-check"><input type="checkbox" checked={form.vatEnabled} onChange={(e) => set('vatEnabled', e.target.checked)} /> {t('vatEnabled')}</label>
-        {branch && can(user, 'BRANCHES') && (
-          <label className="field"><span>{t('branchName')}</span>
-            <div className="branch-row">
-              <input value={branchName} onChange={(e) => setBranchName(e.target.value)} />
-              <button className="btn sm ghost" type="button"
-                disabled={!branchName.trim() || branchName.trim() === branch.name || branchSave.isPending}
-                onClick={() => branchSave.mutate()}>{t('saveBranch')}</button>
-            </div>
-          </label>
-        )}
-        <label className="field"><span>{t('slug')}</span><input value={restaurantQ.data?.slug ?? ''} disabled /></label>
-      </section>
+            <section className="profile-section">
+              <div className="profile-section-head">
+                <span className="profile-section-no">02</span>
+                <div><h4>{t('operationsTitle')}</h4><p>{t('operationsSub')}</p></div>
+              </div>
+              <div className="profile-settings">
+                <div className="profile-setting">
+                  <div><b>{t('vatEnabled')}</b><span>{t('vatHelp')}</span></div>
+                  <button type="button" className={'switch' + (form.vatEnabled ? ' on' : '')}
+                    role="switch" aria-checked={form.vatEnabled} aria-label={t('vatEnabled')}
+                    onClick={() => set('vatEnabled', !form.vatEnabled)}><span /></button>
+                </div>
+                <label className={'field profile-vat-rate' + (!form.vatEnabled ? ' disabled' : '')}>
+                  <span>{t('vatRate')}</span>
+                  <div className="profile-number-input"><input className="num" type="number" min="0" max="100" step="0.1"
+                    disabled={!form.vatEnabled} value={form.vatRate} onChange={(e) => set('vatRate', e.target.value)} /><i>%</i></div>
+                </label>
+                <div className="profile-setting profile-payment-setting">
+                  <div><b>{t('paymentSelection')}</b><span>{t('paymentSelectionSub')}</span></div>
+                  <button type="button" className={'switch' + (form.paymentMethodSelectionEnabled ? ' on' : '')}
+                    role="switch" aria-checked={form.paymentMethodSelectionEnabled} aria-label={t('paymentSelection')}
+                    onClick={() => set('paymentMethodSelectionEnabled', !form.paymentMethodSelectionEnabled)}><span /></button>
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-section">
+              <div className="profile-section-head">
+                <span className="profile-section-no">03</span>
+                <div><h4>{t('branchTitle')}</h4><p>{t('branchSub')}</p></div>
+              </div>
+              <div className="profile-fields">
+                {branch && can(user, 'BRANCHES') && (
+                  <label className="field"><span>{t('branchName')}</span>
+                    <div className="branch-row">
+                      <input value={branchName} onChange={(e) => setBranchName(e.target.value)} />
+                      <button className="btn sm ghost" type="button"
+                        disabled={!branchName.trim() || branchName.trim() === branch.name || branchSave.isPending}
+                        onClick={() => branchSave.mutate()}>{t('saveBranch')}</button>
+                    </div>
+                  </label>
+                )}
+                <label className="field"><span>{t('slug')}</span><input className="num" value={restaurantQ.data?.slug ?? ''} disabled /></label>
+              </div>
+            </section>
+          </main>
+
+          <aside className="profile-aside">
+            {sub && (
+              <section className="profile-plan-card">
+                <span className="profile-side-label">{t('subscription')}</span>
+                <div className="profile-plan-name">{isOneTime ? t('oneTime') : sub.planName}</div>
+                <b className={'sub-pill st-' + sub.status}>{t('st_' + sub.status)}</b>
+                <dl>
+                  <div><dt>{isOneTime ? t('access') : sub.status === 'EXPIRED' ? t('ended') : t('renews')}</dt><dd>{isOneTime ? t('lifetime') : fmtDate(sub.endDate)}</dd></div>
+                </dl>
+              </section>
+            )}
+            <section className="profile-menu-card">
+              <span className="profile-side-label">{t('slug')}</span>
+              <code dir="ltr">{restaurantQ.data?.slug ?? '—'}</code>
+              <p>{t('menuLinkHelp')}</p>
+              <button className="btn sm ghost" type="button" disabled={!publicUrl}
+                onClick={() => publicUrl && window.open(publicUrl, '_blank', 'noopener,noreferrer')}>↗ {t('openMenu')}</button>
+            </section>
+          </aside>
+        </div>
+      </div>
     </div>
   );
 }

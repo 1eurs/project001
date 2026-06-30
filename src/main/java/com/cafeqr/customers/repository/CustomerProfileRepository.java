@@ -4,6 +4,8 @@ import com.cafeqr.customers.domain.CustomerProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
@@ -12,6 +14,63 @@ import java.util.Optional;
 public interface CustomerProfileRepository extends JpaRepository<CustomerProfile, Long> {
 
     Optional<CustomerProfile> findByRestaurantIdAndDeviceToken(Long restaurantId, String deviceToken);
+
+    @Query(value = """
+            SELECT o.customer_phone,
+                   MAX(COALESCE(NULLIF(o.customer_name, ''), '—')) AS customer_name,
+                   COUNT(DISTINCT o.id)                            AS order_count,
+                   MAX(o.created_at)                               AS last_order_at
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+              AND (:search = '' OR LOWER(COALESCE(o.customer_name, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR o.customer_phone LIKE CONCAT('%', :search, '%'))
+            GROUP BY o.customer_phone
+            ORDER BY last_order_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(DISTINCT o.customer_phone)
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+              AND (:search = '' OR LOWER(COALESCE(o.customer_name, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR o.customer_phone LIKE CONCAT('%', :search, '%'))
+            """, nativeQuery = true)
+    Page<Object[]> customerDirectory(@Param("restaurantId") Long restaurantId,
+                                     @Param("search") String search,
+                                     Pageable pageable);
+
+    @Query(value = """
+            SELECT o.customer_phone,
+                   MAX(COALESCE(NULLIF(o.customer_name, ''), '—')) AS customer_name,
+                   COUNT(DISTINCT o.id)                            AS order_count,
+                   MAX(o.created_at)                               AS last_order_at
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.branch_id = :branchId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+              AND (:search = '' OR LOWER(COALESCE(o.customer_name, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR o.customer_phone LIKE CONCAT('%', :search, '%'))
+            GROUP BY o.customer_phone
+            ORDER BY last_order_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(DISTINCT o.customer_phone)
+            FROM orders o
+            WHERE o.restaurant_id = :restaurantId
+              AND o.branch_id = :branchId
+              AND o.customer_phone IS NOT NULL
+              AND o.status NOT IN ('DECLINED', 'CANCELLED')
+              AND (:search = '' OR LOWER(COALESCE(o.customer_name, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR o.customer_phone LIKE CONCAT('%', :search, '%'))
+            """, nativeQuery = true)
+    Page<Object[]> customerDirectoryByBranch(@Param("restaurantId") Long restaurantId,
+                                             @Param("branchId") Long branchId,
+                                             @Param("search") String search,
+                                             Pageable pageable);
 
     /**
      * Time-decayed personal item frequency ("your usual"), the TIFU-style scoring that simple

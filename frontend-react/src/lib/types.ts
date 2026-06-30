@@ -46,7 +46,10 @@ export interface PublicRestaurant {
   theme?: string | null; // menu look chosen by the café owner (see menuThemes.ts); optional
   themeCustomJson?: string | null;
 }
-export interface PublicBranch { id: number; name: string; address?: string | null; phone?: string | null; openingHours?: string | null; }
+export interface PublicBranch {
+  id: number; name: string; address?: string | null; phone?: string | null;
+  openingHours?: string | null; acceptingOrders: boolean;
+}
 export interface PublicTable { id: number; tableNumber: string; qrCodeToken: string; }
 export interface PublicOption {
   id: number; nameEn: string; nameAr: string; priceDelta: number; displayOrder: number;
@@ -78,7 +81,7 @@ export interface OrderTracking {
   orderNumber: string; trackingToken: string; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
   customerName?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
-  loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null; loyalty?: LoyaltySummary | null; items: OrderItem[];
+  loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null; loyalty?: LoyaltySummary | null; stampEarned?: boolean | null; items: OrderItem[];
   createdAt: string; acceptedAt?: string | null; preparingAt?: string | null; readyAt?: string | null;
   completedAt?: string | null; cancelledAt?: string | null; declinedAt?: string | null;
 }
@@ -95,7 +98,7 @@ export interface OrderResponse {
 
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; createdAt?: string;
+  openingHours?: string | null; active: boolean; acceptingOrders: boolean; createdAt?: string;
 }
 export interface TableResponse {
   id: number; restaurantId: number; branchId: number; tableNumber: string; qrCodeToken: string;
@@ -166,7 +169,7 @@ export interface LoyaltyProgram {
 // One café's stamp progress for a phone (menu/checkout) — mirrors LoyaltySummaryResponse.java.
 export interface LoyaltySummary {
   enabled: boolean; stampsRequired: number; rewardLabel?: string | null;
-  rewardItemId?: number | null; stamps: number; availableRewards: number;
+  rewardItemId?: number | null; stamps: number; availableRewards: number; minOrderAmount?: number | null;
 }
 // A café's member row (dashboard) — mirrors LoyaltyMemberResponse.java.
 export interface LoyaltyMemberRow {
@@ -199,6 +202,7 @@ export interface PricingPlan {
 export interface Restaurant {
   id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null; email?: string | null; instagramUrl?: string | null;
   currency: string; vatEnabled: boolean; vatRate: number; theme?: string | null; themeCustomJson?: string | null;
+  paymentMethodSelectionEnabled: boolean;
   active: boolean; premiumLook?: boolean; plan?: Plan; createdAt?: string;
 }
 export type BillingCycle = 'ONE_TIME' | 'MONTHLY' | 'YEARLY';
@@ -223,5 +227,5 @@ export interface QrActivity {
 /* ---- branch management (admin drawer) ---- */
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; createdAt?: string;
+  openingHours?: string | null; active: boolean; acceptingOrders: boolean; createdAt?: string;
 }

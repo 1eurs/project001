@@ -2,6 +2,7 @@ package com.cafeqr.analytics;
 
 import com.cafeqr.analytics.dto.BenchmarkResponse;
 import com.cafeqr.analytics.dto.CustomerBaseResponse;
+import com.cafeqr.analytics.dto.CustomerDirectoryResponse;
 import com.cafeqr.analytics.dto.CustomerInsightResponse;
 import com.cafeqr.analytics.dto.CustomersInsightResponse;
 import com.cafeqr.analytics.dto.ForecastSlotResponse;
@@ -21,6 +22,8 @@ import com.cafeqr.orders.repository.OrderItemRepository;
 import com.cafeqr.orders.repository.OrderRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -211,6 +214,19 @@ public class ProAnalyticsService {
     public CustomersInsightResponse customers(Long branchId) {
         Long restaurantId = accessGuard.scopedRestaurantId();
         return customers(restaurantId, resolveBranchScope(branchId));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CustomerDirectoryResponse> customerDirectory(Long branchId, String search, int page, int size) {
+        Long restaurantId = accessGuard.scopedRestaurantId();
+        Long branchScope = resolveBranchScope(branchId);
+        String term = search == null ? "" : search.trim();
+        PageRequest pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)));
+        Page<Object[]> rows = branchScope == null
+                ? customerProfileRepository.customerDirectory(restaurantId, term, pageable)
+                : customerProfileRepository.customerDirectoryByBranch(restaurantId, branchScope, term, pageable);
+        return rows.map(r -> new CustomerDirectoryResponse(
+                (String) r[0], (String) r[1], ((Number) r[2]).longValue(), toInstant(r[3])));
     }
 
     /** Explicit-restaurant overload — used by the weekly email job. */

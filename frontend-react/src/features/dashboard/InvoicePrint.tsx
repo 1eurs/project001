@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { omr } from '../../lib/format';
+import { Money } from '../../lib/Money';
 import { carColorOf } from '../../lib/carColors';
 import type { OrderResponse, Restaurant, TableResponse } from '../../lib/types';
 
@@ -70,19 +70,17 @@ export default function InvoicePrint({ order, onDone }: { order: OrderResponse; 
           <div className="inv-row">
             <span><span className="num">{i.quantity}×</span> {i.nameAr || i.nameEn}
               {i.nameAr && i.nameEn && i.nameAr !== i.nameEn && <span className="inv-en"> {i.nameEn}</span>}</span>
-            <span className="amt">{omr(i.lineTotal)}</span>
+            <Money value={i.lineTotal} className="amt" />
           </div>
           {i.note && <div className="inv-note">↳ {i.note}</div>}
         </div>
       ))}
       <div className="inv-hr" />
-      <div className="inv-row"><span>المجموع / Subtotal</span><span className="amt">{omr(order.subtotal)} OMR</span></div>
+      <div className="inv-row"><span>المجموع / Subtotal</span><Money value={order.subtotal} className="amt" /></div>
       {showVat && (
-        <div className="inv-row"><span>الضريبة / VAT{r?.vatRate ? ` ${r.vatRate}%` : ''}</span><span className="amt">{omr(order.vatAmount)} OMR</span></div>
+        <div className="inv-row"><span>الضريبة / VAT{r?.vatRate ? ` ${r.vatRate}%` : ''}</span><Money value={order.vatAmount} className="amt" /></div>
       )}
-      <div className="inv-row inv-total"><span>الإجمالي / Total</span><span className="amt">{omr(order.total)} OMR</span></div>
-      <div className="inv-row"><span>الدفع / Payment</span>
-        <span>{order.paymentStatus === 'PAID' ? `مدفوع / Paid${order.paymentMethod ? ` · ${order.paymentMethod}` : ''}` : 'غير مدفوع / Unpaid'}</span></div>
+      <div className="inv-row inv-total"><span>الإجمالي / Total</span><Money value={order.total} className="amt" /></div>
       <div className="inv-hr" />
       <div className="inv-thanks">شكراً لزيارتكم / Thank you</div>
       <div className="inv-brand">Serva.</div>

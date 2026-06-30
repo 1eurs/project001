@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { track } from '../../lib/analytics';
-import { omr, discountPercent } from '../../lib/format';
+import { discountPercent } from '../../lib/format';
+import { Money } from '../../lib/Money';
 import { effectiveBasePrice } from '../../lib/cart';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import type { PublicItem, SelectedOption } from '../../lib/types';
@@ -136,8 +137,8 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
             {description && <p className="c-modal-desc">{description}</p>}
             <div className="c-modal-pricerow">
               <span className="c-modal-unit">
-                {item.salePrice != null && <span className="c-was num">{omr(item.price)}</span>}
-                <span className={'num' + (item.salePrice != null ? ' c-sale' : '')}>{omr(unitPrice)}</span> <span className="cur">{t('cur')}</span>
+                {item.salePrice != null && <Money value={item.price} className="c-was num" />}
+                <Money value={unitPrice} className={'num' + (item.salePrice != null ? ' c-sale' : '')} />
                 {item.salePrice != null && <span className="c-off">−{discountPercent(item.price, item.salePrice)}%</span>}
               </span>
               {item.preparationTimeMinutes ? <span className="c-modal-prep">⏱ {item.preparationTimeMinutes} {t('min')}</span> : null}
@@ -165,7 +166,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
                         <span className="c-opt-mark">{g.selectionType === 'SINGLE' ? '○' : '☐'}</span>
                         <span className="c-opt-name">{pick(o, 'name', lang)}</span>
                         {o.priceDelta !== 0 && (
-                          <span className="c-opt-delta">{o.priceDelta > 0 ? '+' : ''}{omr(o.priceDelta)}</span>
+                          <Money value={o.priceDelta} className="c-opt-delta" showPlus />
                         )}
                       </button>
                     );
@@ -186,7 +187,7 @@ export function ItemDetailModal({ item, restaurantSlug, branchId, qrTableToken, 
             <button className="btn c-modal-add" disabled={!canAdd} onClick={submit}>
               {!item.available ? t('soldout')
                 : missingRequired ? t('choose')
-                : <>{t('add')} · <span className="num">{omr(lineTotal)}</span></>}
+                : <>{t('add')} · <Money value={lineTotal} className="num" /></>}
             </button>
           </div>
         )}

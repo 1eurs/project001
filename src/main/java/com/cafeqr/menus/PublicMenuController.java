@@ -17,11 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class PublicMenuController {
 
     /**
-     * Menus change a few times a day at most; letting browsers and the Cloudflare edge
-     * serve them for 30s (and a stale copy for 5min while revalidating) takes the
-     * Pi-origin round trip off the customer's critical path.
+     * Keep the edge cache brief so a branch's pause/resume status reaches customers quickly.
+     * The order endpoint remains the authoritative enforcement point during that short window.
      */
-    private static final String MENU_CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=300";
+    private static final String MENU_CACHE_CONTROL = "public, max-age=10, must-revalidate";
 
     private final PublicMenuService publicMenuService;
 

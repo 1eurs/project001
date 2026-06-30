@@ -34,6 +34,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const confirm = useCallback<ConfirmFn>((o) => {
+    // Settle any dialog still in flight as cancelled, so its awaiting promise never hangs
+    // if confirm() is called again before the previous one was answered.
+    resolver.current?.(false);
     setOpts(o);
     return new Promise<boolean>((resolve) => { resolver.current = resolve; });
   }, []);

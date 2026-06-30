@@ -5,6 +5,11 @@
 export const omr = (n: number | string | null | undefined): string =>
   Number(n ?? 0).toFixed(3);
 
+/** Round to OMR's 3 decimals (mils) using half-up, mirroring the backend's BigDecimal(scale=3, HALF_UP).
+ *  Use it on every client money figure before deriving another from it, so the subtotal / VAT / discount /
+ *  total lines always reconcile instead of drifting apart by a fil through raw float arithmetic. */
+export const round3 = (n: number): number => Math.round((n + Number.EPSILON) * 1000) / 1000;
+
 /** vatRate from the API is a percent (e.g. 5 = 5%). */
 export const estimateVat = (subtotal: number, vatRatePercent: number, enabled: boolean): number =>
   enabled ? subtotal * (vatRatePercent / 100) : 0;

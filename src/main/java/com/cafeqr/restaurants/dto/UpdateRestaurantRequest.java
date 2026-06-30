@@ -16,5 +16,6 @@ public record UpdateRestaurantRequest(
         @Size(max = 300) String instagramUrl,
         @Size(min = 3, max = 3) String currency,
         Boolean vatEnabled,
-        @DecimalMin("0.0") @DecimalMax("100.0") BigDecimal vatRate
+        @DecimalMin("0.0") @DecimalMax("100.0") BigDecimal vatRate,
+        Boolean paymentMethodSelectionEnabled
 ) {}

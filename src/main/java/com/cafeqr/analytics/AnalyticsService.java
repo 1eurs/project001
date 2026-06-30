@@ -5,6 +5,7 @@ import com.cafeqr.analytics.dto.BestSellingItem;
 import com.cafeqr.analytics.dto.DailyPoint;
 import com.cafeqr.analytics.dto.DaypartPoint;
 import com.cafeqr.analytics.dto.HourlyCount;
+import com.cafeqr.analytics.dto.PaymentMethodRevenueResponse;
 import com.cafeqr.analytics.dto.RestaurantStatsResponse;
 import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.branches.BranchService;
@@ -15,6 +16,7 @@ import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.repository.OrderItemRepository;
 import com.cafeqr.orders.repository.OrderRepository;
+import com.cafeqr.payments.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,19 +47,34 @@ public class AnalyticsService {
     private final BranchService branchService;
     private final MenuItemRepository menuItemRepository;
     private final AccessGuard accessGuard;
+    private final PaymentRepository paymentRepository;
 
     public AnalyticsService(OrderRepository orderRepository,
                             OrderItemRepository orderItemRepository,
                             BranchRepository branchRepository,
                             BranchService branchService,
                             MenuItemRepository menuItemRepository,
-                            AccessGuard accessGuard) {
+                            AccessGuard accessGuard,
+                            PaymentRepository paymentRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.branchRepository = branchRepository;
         this.branchService = branchService;
         this.menuItemRepository = menuItemRepository;
         this.accessGuard = accessGuard;
+        this.paymentRepository = paymentRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentMethodRevenueResponse> paymentMethodRevenue(Instant from, Instant to, Long branchId) {
+        Long restaurantId = accessGuard.scopedRestaurantId();
+        Long branchScope = resolveBranchScope(branchId);
+        return paymentRepository.revenueByMethod(restaurantId, branchScope, from, to).stream()
+                .map(row -> new PaymentMethodRevenueResponse(
+                        String.valueOf(row[0]),
+                        ((Number) row[1]).longValue(),
+                        (BigDecimal) row[2]))
+                .toList();
     }
 
     /**

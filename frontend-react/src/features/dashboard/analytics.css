@@ -18,7 +18,9 @@
 .an-branch-sel:focus-visible{outline:none;box-shadow:3px 3px 0 var(--lime)}
 
 /* ---- section tabs (Overview / Menu / Team / Customers) ---- */
-.an-tabs{display:flex;gap:2px;border-bottom:2px solid var(--ink);overflow-x:auto;scrollbar-width:none}
+/* Wrap (never horizontal-scroll-hide): an off-screen scroll with a hidden scrollbar
+   silently swallowed the Team/Customers tabs whenever they didn't fit the width. */
+.an-tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:2px solid var(--ink)}
 .an-tabs::-webkit-scrollbar{display:none}
 .an-tabs button{position:relative;border:0;background:transparent;color:var(--muted);font-family:var(--bold);font-weight:800;font-size:13.5px;
   padding:9px 16px 11px;cursor:pointer;white-space:nowrap;transition:color .15s;display:inline-flex;align-items:center}
@@ -84,7 +86,7 @@
 /* =====================================================================
    Card grid
    ===================================================================== */
-.an-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.an-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:12px}
 .an-card{background:var(--bg-2);border:2px solid var(--ink);border-radius:7px;box-shadow:var(--hard-sm);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0;transition:box-shadow .14s,transform .14s}
 .an-card:hover{box-shadow:var(--hard);transform:translate(-2px,-2px)}
 .an-card h3{font-family:var(--bold);font-size:13px;font-weight:800;color:var(--ink);margin:0;display:flex;align-items:baseline;gap:8px;text-transform:uppercase;letter-spacing:.02em}
@@ -159,6 +161,27 @@ html[dir="rtl"] .an-fn-fill{transform-origin:right center}
 .an-people .an-li-val{font-size:11px}
 .an-av{flex:0 0 auto;width:24px;height:24px;border:1.5px solid var(--ink);border-radius:6px;background:var(--lime);color:var(--ink);font-family:var(--bold);font-weight:900;font-size:12px;display:grid;place-items:center;text-transform:uppercase}
 .an-av.quiet{background:var(--surface-2);color:var(--muted)}
+.an-customer-actions{display:flex;justify-content:flex-end}
+.an-directory-btn,.an-directory-back{border:2px solid var(--ink);border-radius:6px;background:var(--lime);color:var(--ink);font-family:var(--bold);font-size:12px;font-weight:900;padding:8px 12px;cursor:pointer;box-shadow:var(--hard-sm)}
+.an-directory-btn{display:inline-flex;align-items:center;gap:7px}.an-directory-btn:hover,.an-directory-back:hover{transform:translate(-1px,-1px);box-shadow:var(--hard)}
+.an-directory{gap:14px}.an-directory:hover{transform:none;box-shadow:var(--hard-sm)}
+.an-directory-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.an-directory-head>div>small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+.an-directory-back{background:var(--paper);box-shadow:none}
+.an-directory-search{display:flex;gap:8px}.an-directory-search input{flex:1;min-width:0;border:2px solid var(--ink);border-radius:6px;background:var(--paper);color:var(--ink);padding:9px 11px;font-family:var(--font-ar);font-size:13px}
+.an-directory-search input:focus{outline:none;box-shadow:3px 3px 0 var(--lime)}.an-directory-search button{border:2px solid var(--ink);border-radius:6px;background:var(--lime);padding:8px 14px;font-family:var(--bold);font-weight:900;cursor:pointer}
+.an-directory-table-wrap{overflow-x:auto;border:2px solid var(--ink);border-radius:7px}.an-directory-table{width:100%;border-collapse:collapse;min-width:620px}
+.an-directory-table th{text-align:start;background:var(--surface-2);padding:9px 12px;border-bottom:2px solid var(--ink);font-family:var(--bold);font-size:11px;text-transform:uppercase}
+.an-directory-table td{padding:10px 12px;border-bottom:1px solid var(--line-2);font-size:12.5px}.an-directory-table tbody tr:last-child td{border-bottom:0}.an-directory-table tbody tr:hover{background:color-mix(in srgb,var(--lime) 7%,transparent)}
+.an-directory-table a{color:var(--accent-text);font-family:var(--font-mono);font-weight:800;text-decoration:none}.an-directory-table a:hover{text-decoration:underline}
+.an-customer-name{display:flex;align-items:center;gap:8px;font-weight:700}.an-customer-name i{display:grid;place-items:center;width:25px;height:25px;border:1.5px solid var(--ink);border-radius:5px;background:var(--lime);font-style:normal;font-family:var(--bold);font-weight:900;text-transform:uppercase}
+.an-directory-pager{display:flex;align-items:center;justify-content:center;gap:10px}.an-directory-pager button{width:34px;height:30px;border:2px solid var(--ink);border-radius:5px;background:var(--paper);font-size:17px;font-weight:900;cursor:pointer}.an-directory-pager button:disabled{opacity:.35;cursor:not-allowed}
+
+/* ---- recorded cash/card revenue ---- */
+.an-paymix{display:flex;flex-direction:column;gap:10px}.an-paymix-bar{display:flex;height:18px;border:2px solid var(--ink);border-radius:6px;overflow:hidden;box-shadow:var(--hard-sm)}
+.an-paymix-hint{margin:0;color:var(--muted);font-size:11px;line-height:1.4}
+.an-paymix-bar .cash,.an-paymix-key.cash{background:#f3c94f}.an-paymix-bar .card,.an-paymix-key.card{background:var(--lime)}.an-paymix-bar .card{border-inline-start:2px solid var(--ink)}
+.an-paymix-row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px}.an-paymix-key{width:12px;height:12px;border:1.5px solid var(--ink);border-radius:3px}
+.an-paymix-row span:nth-child(2){display:flex;flex-direction:column}.an-paymix-row b{font-size:12.5px}.an-paymix-row small{color:var(--muted);font-size:10px}.an-paymix-row strong{font-family:var(--font-mono);font-size:12px}.an-paymix-row em{width:38px;text-align:end;color:var(--muted);font-family:var(--font-mono);font-size:11px;font-style:normal;font-weight:800}
 
 /* ---- chart ---- */
 .an-chart{width:100%;height:200px}
@@ -238,6 +261,17 @@ html[dir="rtl"] .an-fn-fill{transform-origin:right center}
   .an-heat{grid-template-columns:30px repeat(7,1fr);gap:2px}
   .an-heat-cell{height:18px}
   .an-lock{flex-direction:column;align-items:flex-start}
+  /* Section tabs: a single scroll row with a hidden scrollbar pushed Team/Customers
+     off the right edge on phones. Wrap them into full-width pills so all four always
+     show (and the active one reads as filled instead of an underline that's now off). */
+  .an-tabs{flex-wrap:wrap;gap:6px;border-bottom:0;overflow:visible}
+  .an-tabs button{flex:1 1 auto;justify-content:center;min-width:0;
+    border:2px solid var(--ink);border-radius:6px;background:var(--bg-2);padding:8px 10px;font-size:12.5px}
+  .an-tabs button.on{background:var(--lime);color:var(--ink)}
+  .an-tabs button.on::after{display:none}
+  /* Tighten the range presets so all five fit without overflowing a narrow screen. */
+  .an-seg button{padding:7px 9px}
+  .an-directory-head{align-items:flex-start;flex-direction:column}.an-directory-back{width:100%}
 }
 
 /* meter rows — shared by daypart breakdown + kitchen timing */

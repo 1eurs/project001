@@ -20,7 +20,7 @@ public interface OrderEventLogRepository extends JpaRepository<OrderEventLog, Lo
             SELECT oe.actor_user_id,
                    MAX(oe.actor_name) AS actor_name,
                    COUNT(*) FILTER (WHERE oe.event_type = 'ACCEPTED')  AS accepted,
-                   COUNT(*) FILTER (WHERE oe.event_type = 'DECLINED')  AS declined,
+                   COUNT(*) FILTER (WHERE oe.event_type IN ('DECLINED', 'CANCELLED')) AS declined,
                    COUNT(*) FILTER (WHERE oe.event_type = 'COMPLETED') AS completed,
                    AVG(EXTRACT(EPOCH FROM (oe.created_at - o.created_at)))
                        FILTER (WHERE oe.event_type = 'ACCEPTED')       AS avg_accept_seconds

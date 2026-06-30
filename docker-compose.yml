@@ -20,6 +20,7 @@ services:
       - cafeqr-net
 
   backend:
+    image: cafeqr-backend:deploy
     build: .
     container_name: cafeqr-backend
     restart: unless-stopped
@@ -35,12 +36,26 @@ services:
       SPRING_DATASOURCE_PASSWORD: cafeqr
       APP_PUBLIC_BASE_URL: "https://serva.om"
       APP_CORS_ORIGINS: "https://serva.om,https://www.serva.om,https://m7m2od.com,https://www.m7m2od.com,http://localhost:3000,http://localhost:5173"
+      # Cap the JVM heap explicitly. Docker mem_limit is ignored on this Pi
+      # (cgroup memory controller is disabled in /boot/cmdline.txt), so an
+      # explicit -Xmx is what actually bounds memory and protects Postgres
+      # from an OOM-kill under a heap spike. ~768m heap + non-heap leaves
+      # plenty of the Pi's 3.7GB for the DB and OS.
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m"
     ports:
       - "8080:8080"
     volumes:
       - cafeqr-uploads:/app/uploads
     networks:
       - cafeqr-net
+    # Restart the container if the app hangs (process alive but unresponsive).
+    # 'restart: unless-stopped' alone only catches a crashed process, not a hang.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
 networks:
   cafeqr-net:

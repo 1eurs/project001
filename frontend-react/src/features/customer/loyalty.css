@@ -191,6 +191,14 @@
   border: 1px solid color-mix(in srgb, var(--accent, #c79a54) 40%, var(--line, #555)); color: var(--text, #eee); font-size: 13px;
 }
 .loy-earned .ic { font-size: 18px; }
+/* muted, non-celebratory note — shown when a completed order didn't earn a stamp (below min order). */
+.loy-note {
+  display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 12px 14px; border-radius: 13px;
+  background: var(--surface, #15181d); border: 1px solid var(--line, rgba(255, 255, 255, .1));
+  color: var(--muted, #9a958c); font-size: 13px;
+}
+.loy-note .ic { font-size: 18px; }
+.loy-note b { color: var(--text, #eee); }
 
 /* (The café dashboard's Loyalty tab is styled in dashboard.css with the dashboard's own
    tokens — it deliberately does NOT use the gold customer punch-card visual.) */

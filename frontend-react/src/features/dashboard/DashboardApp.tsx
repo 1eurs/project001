@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,9 +9,10 @@ import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useConfirm } from '../../lib/confirm';
 import { useOrderStream, type StreamStatus } from '../../lib/sse';
-import { useOrderSound, SoundToggle, notify } from '../../lib/alerts';
+import { useOrderSound, SoundToggle, notify, closeNotify } from '../../lib/alerts';
 import { useWakeLock } from '../../lib/wakeLock';
-import { omr, fmtElapsed } from '../../lib/format';
+import { fmtElapsed } from '../../lib/format';
+import { Money } from '../../lib/Money';
 import { carColorOf } from '../../lib/carColors';
 import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem } from '../../lib/types';
 import { BRAND } from '../../lib/brand';
@@ -27,15 +28,17 @@ const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
 import OrderPad from './OrderPad';
 import InvoicePrint from './InvoicePrint';
 import LoyaltyPage from './LoyaltyPage';
+import LoyaltySetup from './LoyaltySetup';
 import './dashboard.css';
 
 const DICT: Dict = {
   ar: { title: 'شاشة المطبخ', live: 'مباشر', logoutT: 'خروج', cur: 'ر.ع', min: 'د', empty: 'لا طلبات',
-        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء',
+        nav_board: 'الطلبات المباشرة', nav_tables: 'الطاولات ورموز QR', nav_orders: 'سجل الطلبات', nav_menu: 'إدارة القائمة', nav_look: 'شكل قائمة العملاء', nav_team: 'الفريق', nav_analytics: 'التحليلات', nav_neworder: 'طلب جديد', nav_profile: 'ملف المطعم', nav_loyalty: 'الولاء', nav_loyaltySetup: 'إعدادات الولاء', more: 'المزيد',
         col_PENDING: 'جديد', col_ACCEPTED: 'قيد التنفيذ', col_PREPARING: 'قيد التحضير', col_READY: 'جاهز',
         table: 'طاولة', car: 'خدمة السيارة', note: 'ملاحظة', loyaltyReward: 'مكافأة ولاء',
+        paymentTitle: 'كيف دفع العميل؟', paymentSub: 'اختر طريقة الدفع قبل إنهاء الطلب.', paymentCash: 'نقداً', paymentCard: 'بطاقة / فيزا',
         accept: 'قبول', decline: 'رفض', startPrep: 'بدء التحضير', ready: 'جاهز', complete: 'اكتمل', cancel: 'إلغاء',
-        collect: 'حصّل', done: 'تم', doneUnpaid: 'تم دون دفع', undo: 'تراجع', finishing: 'يُنهى…',
+        collect: 'حصّل', done: 'تم', doneUnpaid: 'تم دون دفع',
         unpaid: 'تحديد كمدفوع', paid: 'مدفوع', confirm: 'تأكيد', back: 'رجوع',
         acceptT: 'قبول الطلب', acceptP: 'كم دقيقة للتحضير؟', declineT: 'رفض الطلب', declineP: 'سبب الرفض (اختياري، يظهر للعميل)',
         cancelT: 'إلغاء الطلب', cancelP: 'سبب الإلغاء (اختياري)', reason: 'السبب',
@@ -48,6 +51,9 @@ const DICT: Dict = {
         qaLive: 'سلات نشطة', qaViewing: 'يتصفح', qaOrdering: 'في السلة الآن', qaCart: 'الأصناف',
         qaCartHint: 'محتوى السلة الآن — قد يتغير قبل إرسال الطلب',
         account: 'الحساب', email: 'البريد', language: 'اللغة', branch: 'الفرع', arabic: 'العربية', english: 'English', changePassword: 'تغيير كلمة المرور', changeEmail: 'تغيير البريد الإلكتروني',
+        ordersOpen: 'يستقبل الطلبات', ordersPaused: 'الطلبات متوقفة', pauseOrders: 'إيقاف الطلبات', resumeOrders: 'استئناف الطلبات',
+        pauseTitle: 'إيقاف طلبات العملاء؟', pauseMessage: 'سيتمكن العملاء من تصفح القائمة، لكن لن يتمكنوا من إضافة أصناف أو إرسال طلب جديد لهذا الفرع.', pauseConfirm: 'إيقاف الطلبات',
+        ordersPausedToast: 'تم إيقاف طلبات العملاء', ordersResumedToast: 'تم استئناف طلبات العملاء',
         changePwSub: 'أدخل كلمة المرور الحالية ثم الجديدة.', currentPw: 'كلمة المرور الحالية',
         changeEmailSub: 'أدخل كلمة المرور الحالية والبريد الجديد.', newEmail: 'البريد الجديد',
         newPw: 'كلمة المرور الجديدة', confirmPw: 'تأكيد كلمة المرور', save: 'حفظ',
@@ -55,11 +61,12 @@ const DICT: Dict = {
         emailChanged: 'تم تغيير البريد الإلكتروني', emailInvalid: 'أدخل بريدًا صحيحًا',
         role_owner: 'مالك المطعم', role_staff: 'موظف' },
   en: { title: 'Kitchen Display', live: 'Live', logoutT: 'Logout', cur: 'OMR', min: 'min', empty: 'No orders',
-        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty',
+        nav_board: 'Live orders', nav_tables: 'Tables & QR', nav_orders: 'Order history', nav_menu: 'Menu', nav_look: 'Customer menu look', nav_team: 'Team', nav_analytics: 'Analytics', nav_neworder: 'New order', nav_profile: 'Restaurant profile', nav_loyalty: 'Loyalty', nav_loyaltySetup: 'Loyalty settings', more: 'More',
         col_PENDING: 'New', col_ACCEPTED: 'In progress', col_PREPARING: 'Preparing', col_READY: 'Ready',
         table: 'Table', car: 'Outdoor car', note: 'Note', loyaltyReward: 'Loyalty reward',
+        paymentTitle: 'How did the customer pay?', paymentSub: 'Choose the payment method before completing the order.', paymentCash: 'Cash', paymentCard: 'Card / Visa',
         accept: 'Accept', decline: 'Decline', startPrep: 'Start preparing', ready: 'Ready', complete: 'Complete', cancel: 'Cancel',
-        collect: 'Collect', done: 'Done', doneUnpaid: 'Done, unpaid', undo: 'Undo', finishing: 'Finishing…',
+        collect: 'Collect', done: 'Done', doneUnpaid: 'Done, unpaid',
         unpaid: 'Mark paid', paid: 'Paid', confirm: 'Confirm', back: 'Back',
         acceptT: 'Accept order', acceptP: 'How many minutes to prepare?', declineT: 'Decline order', declineP: 'Reason (optional, shown to customer)',
         cancelT: 'Cancel order', cancelP: 'Cancel reason (optional)', reason: 'Reason',
@@ -72,6 +79,9 @@ const DICT: Dict = {
         qaLive: 'Active carts', qaViewing: 'Viewing', qaOrdering: 'in cart now', qaCart: 'Items',
         qaCartHint: 'In their cart right now — may change before the order is placed',
         account: 'Account', email: 'Email', language: 'Language', branch: 'Branch', arabic: 'Arabic', english: 'English', changePassword: 'Change password', changeEmail: 'Change email',
+        ordersOpen: 'Accepting orders', ordersPaused: 'Orders paused', pauseOrders: 'Pause orders', resumeOrders: 'Resume orders',
+        pauseTitle: 'Pause customer orders?', pauseMessage: 'Customers can still browse the menu, but they cannot add items or submit a new order for this branch.', pauseConfirm: 'Pause orders',
+        ordersPausedToast: 'Customer orders paused', ordersResumedToast: 'Customer orders resumed',
         changePwSub: 'Enter your current password, then a new one.', currentPw: 'Current password',
         changeEmailSub: 'Enter your current password and new email.', newEmail: 'New email',
         newPw: 'New password', confirmPw: 'Confirm new password', save: 'Save',
@@ -101,7 +111,7 @@ export default function DashboardApp() {
   return <Shell />;
 }
 
-type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'look' | 'team' | 'analytics' | 'profile' | 'tables' | 'loyalty';
+type Page = 'board' | 'neworder' | 'orders' | 'menu' | 'look' | 'team' | 'analytics' | 'profile' | 'tables' | 'loyalty' | 'loyaltySetup';
 
 function LivePill({ stream, t }: { stream: StreamStatus; t: (k: string) => string }) {
   if (stream === 'open') {
@@ -123,6 +133,98 @@ function useCalmStream(stream: StreamStatus, delayMs = 5_000): StreamStatus {
     return () => window.clearTimeout(id);
   }, [stream, delayMs]);
   return shown;
+}
+
+/* The live order stream + new-order alerts live at the Shell level — NOT inside the
+   board — so a new order rings, buzzes and notifies on EVERY tab (menu, analytics,
+   team…), not only while the kitchen display happens to be open. The board just reads
+   the same react-query cache this stream keeps warm.
+   Returns the connection status (for the live pill), the unacknowledged count (for the
+   shell banner) and a clear(). */
+function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (k: string) => string) {
+  const qc = useQueryClient();
+  const liveKey = ['live', branchId ?? 'all'];
+  const [stream, setStream] = useState<StreamStatus>('connecting');
+  const [unacked, setUnacked] = useState(0);
+  const lastFallbackRefresh = useRef(0);
+  const prevStreamStatus = useRef<StreamStatus | null>(null);
+
+  // EventSource bakes the JWT into its URL and can't change it on auto-reconnect, so when
+  // the token rotates (or expires mid-stream) we rebuild the URL and the effect reconnects.
+  const [streamToken, setStreamToken] = useState(accessTokenValue);
+  useEffect(() => onAuthChange(() => setStreamToken(accessTokenValue())), []);
+  const streamUrl = branchId && streamToken
+    ? `/api/dashboard/orders/stream?branchId=${branchId}&access_token=${encodeURIComponent(streamToken)}`
+    : null;
+
+  const handleStreamStatus = (status: StreamStatus) => {
+    setStream(status);
+    const prev = prevStreamStatus.current;
+    prevStreamStatus.current = status;
+    if (status === 'open') {
+      // Back after a real drop → resync once; events from the gap never replay on their own.
+      if (prev === 'reconnecting') qc.invalidateQueries({ queryKey: liveKey });
+      return;
+    }
+    const now = Date.now();
+    if (now - lastFallbackRefresh.current > 5_000) {
+      lastFallbackRefresh.current = now;
+      qc.invalidateQueries({ queryKey: liveKey });
+      // An expired JWT is the other common drop cause — swap in a fresh one if needed.
+      freshStreamToken().then((tk) => { if (tk) setStreamToken((p) => (tk !== p ? tk : p)); });
+    }
+  };
+
+  useOrderStream(
+    streamUrl,
+    (name, data) => {
+      // Apply the payload straight to the cache so the board (when open) updates instantly.
+      const o = data as OrderResponse | null;
+      if (o && typeof o.id === 'number') {
+        const updated = qc.setQueryData<OrderResponse[]>(liveKey, (prev = []) => {
+          const rest = prev.filter((x) => x.id !== o.id);
+          if (!LIVE_SET.has(o.status)) return rest; // moved to a terminal status → drop
+          return [...rest, o].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+        });
+        // If an order left the live set and nothing is left pending, clear the badge.
+        if (!LIVE_SET.has(o.status) && (updated?.length ?? 0) === 0) setUnacked(0);
+      } else {
+        qc.invalidateQueries({ queryKey: liveKey });
+      }
+      if (name === 'order.created') {
+        ping();
+        setUnacked((n) => n + 1);
+        notify(t('newOrder'), o?.orderNumber ? `#${o.orderNumber}` : '');
+      }
+    },
+    handleStreamStatus,
+  );
+
+  // flash the tab title with the unread count when the dashboard is in the background
+  useEffect(() => {
+    document.title = unacked > 0 ? `(${unacked}) ${t('newOrder')} — Serva.` : 'Serva.';
+    return () => { document.title = 'Serva.'; };
+  }, [unacked, t]);
+  useEffect(() => { if (unacked === 0) closeNotify(); }, [unacked]);
+  useEffect(() => {
+    const onVis = () => { if (!document.hidden) setUnacked(0); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // Keep ringing every ~12s while new orders sit unacknowledged (staff stepped away),
+  // stopping the moment they're acknowledged / the tab refocuses — capped so it never nags forever.
+  useEffect(() => {
+    if (unacked <= 0) return;
+    let rings = 0;
+    const id = setInterval(() => {
+      if (++rings > 5) { clearInterval(id); return; }
+      ping();
+    }, 12_000);
+    return () => clearInterval(id);
+  }, [unacked > 0, ping]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { stream, unacked, clear: useCallback(() => setUnacked(0), []) };
 }
 
 /* Monochrome line icons (Lucide-style) for the rail. Drawn inline so we add no
@@ -148,15 +250,19 @@ const IcTables = () => <Ico><rect width="5" height="5" x="3" y="3" rx="1" /><rec
 const IcTeam = () => <Ico><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Ico>;
 const IcPower = () => <Ico><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.77.04" /></Ico>;
 const IcLoyalty = () => <Ico><path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.6 8.8l6.5-.9z" /></Ico>;
+const IcMore = () => <Ico><rect width="7" height="7" x="3" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="14" rx="1.5" /><rect width="7" height="7" x="3" y="14" rx="1.5" /></Ico>;
 
 function Shell() {
   const { user } = useAuth();
   const t = useT(DICT);
+  const toast = useToast();
+  const confirm = useConfirm();
   const [page, setPage] = useState<Page>('board');
+  // bumped on a banner tap so the (already-mounted) board jumps to the New column
+  const [focusBoard, setFocusBoard] = useState(0);
+  const [moreOpen, setMoreOpen] = useState(false);
   const sound = useOrderSound();
-  const [stream, setStream] = useState<StreamStatus>('connecting');
-  const calmStream = useCalmStream(stream);
-  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), team: t('nav_team'), analytics: t('nav_analytics'), profile: t('nav_profile'), tables: t('tablesTitle'), loyalty: t('nav_loyalty') };
+  const titles: Record<string, string> = { board: t('title'), neworder: t('nav_neworder'), orders: t('nav_orders'), menu: t('nav_menu'), look: t('nav_look'), team: t('nav_team'), analytics: t('nav_analytics'), profile: t('nav_profile'), tables: t('tablesTitle'), loyalty: t('nav_loyalty'), loyaltySetup: t('nav_loyaltySetup') };
 
   // Ordered by daily workflow: run the floor (live → new → history), read the
   // numbers (analytics), then set things up (menu → look → tables → team).
@@ -171,6 +277,14 @@ function Shell() {
     { key: 'tables', icon: <IcTables />, label: t('nav_tables'), show: can(user, 'QR_TABLES') },
     { key: 'team', icon: <IcTeam />, label: t('nav_team'), show: can(user, 'TEAM') },
   ] as { key: Page; icon: ReactNode; label: string; show: boolean }[]).filter((i) => i.show);
+
+  // Phone bottom bar holds at most 5 items; anything past that moves into a "More" sheet so
+  // touch targets stay big and nothing hides off-screen. Few-permission staff keep all tabs.
+  const BOTTOM_MAX = 5;
+  const hasOverflow = navItems.length > BOTTOM_MAX;
+  const primaryNav = hasOverflow ? navItems.slice(0, BOTTOM_MAX - 1) : navItems;
+  const overflowNav = hasOverflow ? navItems.slice(BOTTOM_MAX - 1) : [];
+  const moreActive = overflowNav.some((i) => i.key === page);
 
   // Land on the first screen the user can actually open (e.g. a kitchen-only or menu-only member).
   const navKeys = navItems.map((i) => i.key).join(',');
@@ -198,6 +312,46 @@ function Shell() {
     if (branchId == null || !activeBranches.some((b) => b.id === branchId)) setBranchId(activeBranches[0].id);
   }, [activeBranches]); // eslint-disable-line
 
+  const selectedBranchQ = useQuery({
+    queryKey: ['branch', branchId],
+    queryFn: () => api.get<BranchResponse>(`/api/branches/${branchId}`),
+    enabled: branchId != null,
+  });
+  const selectedBranch = selectedBranchQ.data ?? activeBranches.find((b) => b.id === branchId);
+  const orderingStatus = useMutation({
+    mutationFn: ({ id, acceptingOrders }: { id: number; acceptingOrders: boolean }) =>
+      api.patch<BranchResponse>(`/api/branches/${id}/ordering-status`, { acceptingOrders }),
+    onSuccess: (updated) => {
+      qc.setQueryData(['branch', updated.id], updated);
+      qc.setQueryData(['branches', user!.restaurantId], (previous: any) => {
+        if (Array.isArray(previous)) {
+          return previous.map((branch) => branch.id === updated.id ? updated : branch);
+        }
+        if (Array.isArray(previous?.content)) {
+          return { ...previous, content: previous.content.map((branch: BranchResponse) => branch.id === updated.id ? updated : branch) };
+        }
+        return previous;
+      });
+      toast(t(updated.acceptingOrders ? 'ordersResumedToast' : 'ordersPausedToast'));
+    },
+    onError: (error) => toast(error instanceof ApiError ? error.message : 'Error'),
+  });
+  const toggleOrdering = async () => {
+    if (!selectedBranch || orderingStatus.isPending) return;
+    const next = !selectedBranch.acceptingOrders;
+    if (!next) {
+      const accepted = await confirm({
+        title: t('pauseTitle'),
+        message: t('pauseMessage'),
+        confirmLabel: t('pauseConfirm'),
+        cancelLabel: t('back'),
+        danger: true,
+      });
+      if (!accepted) return;
+    }
+    orderingStatus.mutate({ id: selectedBranch.id, acceptingOrders: next });
+  };
+
   // Self-heal: a café onboarded before branches were auto-created has none — and without one
   // the Tables & QR page is dead. When an owner lands here with zero branches, provision a
   // default branch (named after the café) so QR codes work immediately.
@@ -221,6 +375,10 @@ function Shell() {
     madeBranchRef.current = true;
     makeBranch.mutate(restaurantQ.data.name);
   }, [needsBranch, restaurantQ.data]); // eslint-disable-line
+
+  // Shell-level so order alerts fire on every tab, not just the live board.
+  const alerts = useLiveOrderAlerts(branchId, sound.ping, t);
+  const calmStream = useCalmStream(alerts.stream);
 
   return (
     <div className="dash">
@@ -250,13 +408,26 @@ function Shell() {
             showProfile={can(user, 'PROFILE')}
             profileActive={page === 'profile'}
             onProfile={() => setPage('profile')}
+            showLoyaltySetup={can(user, 'PROFILE')}
+            loyaltySetupActive={page === 'loyaltySetup'}
+            onLoyaltySetup={() => setPage('loyaltySetup')}
             branches={isManager(user) ? activeBranches : []}
             branchId={branchId}
             onBranch={setBranchId}
+            branch={selectedBranch}
+            canManageOrdering={can(user, 'ORDERS')}
+            orderingPending={orderingStatus.isPending}
+            onToggleOrdering={toggleOrdering}
           />
         </div>
 
-        {page === 'board' && <KdsBoard branchId={branchId} ping={sound.ping} onStatus={setStream} />}
+        {alerts.unacked > 0 && (
+          <button className="newbanner" onClick={() => { alerts.clear(); setFocusBoard((n) => n + 1); setPage('board'); }}>
+            <span className="nb-dot" />
+            <b>{alerts.unacked}</b> {t('newOrders')} · {t('tapView')}
+          </button>
+        )}
+        {page === 'board' && <KdsBoard branchId={branchId} focusSignal={focusBoard} />}
         {page === 'neworder' && <OrderPad branchId={branchId} onPlaced={() => setPage('board')} />}
         {page === 'orders' && <OrdersPage branchId={branchId} />}
         {page === 'menu' && <MenuManager />}
@@ -265,16 +436,39 @@ function Shell() {
         {page === 'analytics' && <Suspense fallback={<div className="an-msg">…</div>}><AnalyticsPage branches={isManager(user) ? activeBranches : []} /></Suspense>}
         {page === 'profile' && <RestaurantProfile branchId={branchId} />}
         {page === 'tables' && <TablesPage branchId={branchId} />}
-        {page === 'loyalty' && <LoyaltyPage />}
+        {page === 'loyalty' && <LoyaltyPage onOpenSetup={() => setPage('loyaltySetup')} />}
+        {page === 'loyaltySetup' && <LoyaltySetup />}
       </div>
 
       <nav className="dnav-bottom">
-        {navItems.map((it) => (
+        {primaryNav.map((it) => (
           <button key={it.key} className={page === it.key ? 'on' : ''} onClick={() => setPage(it.key)}>
             <span className="ic">{it.icon}</span><span className="lb">{it.label}</span>
           </button>
         ))}
+        {overflowNav.length > 0 && (
+          <button className={'dnav-more' + (moreActive ? ' on' : '')} onClick={() => setMoreOpen(true)}
+            aria-haspopup="menu" aria-expanded={moreOpen}>
+            <span className="ic"><IcMore /></span><span className="lb">{t('more')}</span>
+          </button>
+        )}
       </nav>
+
+      {moreOpen && (
+        <div className="more-sheet-bg" onClick={(e) => { if (e.target === e.currentTarget) setMoreOpen(false); }}>
+          <div className="more-sheet" role="menu">
+            <div className="more-sheet-grip" />
+            <div className="more-grid">
+              {overflowNav.map((it) => (
+                <button key={it.key} role="menuitem" className={'more-item' + (page === it.key ? ' on' : '')}
+                  onClick={() => { setPage(it.key); setMoreOpen(false); }}>
+                  <span className="more-ic">{it.icon}</span><span className="more-lb">{it.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -285,17 +479,31 @@ function AccountMenu({
   showProfile,
   profileActive,
   onProfile,
+  showLoyaltySetup,
+  loyaltySetupActive,
+  onLoyaltySetup,
   branches,
   branchId,
   onBranch,
+  branch,
+  canManageOrdering,
+  orderingPending,
+  onToggleOrdering,
 }: {
   t: (k: string) => string;
   showProfile: boolean;
   profileActive: boolean;
   onProfile: () => void;
+  showLoyaltySetup: boolean;
+  loyaltySetupActive: boolean;
+  onLoyaltySetup: () => void;
   branches: BranchResponse[];
   branchId?: number;
   onBranch: (id: number) => void;
+  branch?: BranchResponse;
+  canManageOrdering: boolean;
+  orderingPending: boolean;
+  onToggleOrdering: () => void;
 }) {
   const { user } = useAuth();
   const { lang, setLang } = useI18n();
@@ -333,9 +541,29 @@ function AccountMenu({
             </div>
           </div>
           <div className="acct-sep" />
+          {canManageOrdering && branch && (
+            <button
+              className={'acct-item order-toggle ' + (branch.acceptingOrders ? 'pause' : 'resume')}
+              role="menuitem"
+              disabled={orderingPending}
+              onClick={() => { setOpen(false); onToggleOrdering(); }}
+            >
+              <span className="ai-ic"><span className="status-dot" /></span>
+              <span className="order-toggle-copy">
+                <b>{t(branch.acceptingOrders ? 'pauseOrders' : 'resumeOrders')}</b>
+                <small>{t(branch.acceptingOrders ? 'ordersOpen' : 'ordersPaused')}</small>
+              </span>
+            </button>
+          )}
+          {canManageOrdering && branch && <div className="acct-sep" />}
           {showProfile && (
             <button className={'acct-item' + (profileActive ? ' on' : '')} role="menuitem" onClick={() => { onProfile(); setOpen(false); }}>
               <span className="ai-ic">🏪</span>{t('nav_profile')}
+            </button>
+          )}
+          {showLoyaltySetup && (
+            <button className={'acct-item' + (loyaltySetupActive ? ' on' : '')} role="menuitem" onClick={() => { onLoyaltySetup(); setOpen(false); }}>
+              <span className="ai-ic">🎟️</span>{t('nav_loyaltySetup')}
             </button>
           )}
           <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setPwOpen(true); }}>
@@ -535,7 +763,7 @@ function LiveActivityStrip({ activity, tokenToTable, t, lang }: {
   );
 }
 
-function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () => void; onStatus: (s: StreamStatus) => void }) {
+function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: number }) {
   const { user } = useAuth();
   const { lang } = useI18n();
   const t = useT(DICT);
@@ -544,6 +772,12 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
 
   // keep the screen awake while the live board is open (counter phone / tablet)
   useWakeLock(true);
+
+  const restaurantQ = useQuery({
+    queryKey: ['restaurant', user!.restaurantId],
+    queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
+    enabled: !!user!.restaurantId,
+  });
 
   const { data: tablesRaw } = useQuery({
     queryKey: ['tables', branchId],
@@ -568,82 +802,11 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
     refetchInterval: 15_000,
   });
 
-  const [unacked, setUnacked] = useState(0);
   const [mobileCol, setMobileCol] = useState<OrderStatus>('PENDING');
-  const lastStreamFallbackRefresh = useRef(0);
-  const prevStreamStatus = useRef<StreamStatus | null>(null);
-
-  // EventSource bakes the JWT into its URL and can't change it on auto-reconnect, so when
-  // the token rotates (or expires mid-stream) we rebuild the URL ourselves and the effect
-  // reconnects with fresh credentials.
-  const [streamToken, setStreamToken] = useState(accessTokenValue);
-  useEffect(() => onAuthChange(() => setStreamToken(accessTokenValue())), []);
-
-  const streamUrl = branchId && streamToken ? `/api/dashboard/orders/stream?branchId=${branchId}&access_token=${encodeURIComponent(streamToken)}` : null;
-  const handleStreamStatus = (status: StreamStatus) => {
-    onStatus(status);
-    const prev = prevStreamStatus.current;
-    prevStreamStatus.current = status;
-    if (status === 'open') {
-      // Back after a real drop → resync once; events from the gap never replay on their own.
-      if (prev === 'reconnecting') qc.invalidateQueries({ queryKey: liveKey });
-      return;
-    }
-    const now = Date.now();
-    if (now - lastStreamFallbackRefresh.current > 5_000) {
-      lastStreamFallbackRefresh.current = now;
-      qc.invalidateQueries({ queryKey: liveKey });
-      // An expired JWT is the other common drop cause — swap in a fresh one if needed.
-      freshStreamToken().then((tk) => { if (tk) setStreamToken((p) => (tk !== p ? tk : p)); });
-    }
-  };
-  useOrderStream(
-    streamUrl,
-    (name, data) => {
-      // Apply the event payload straight to the cache → the board updates instantly,
-      // with no refetch round-trip and no read-after-write race against the order's
-      // own DB commit. (The 15s poll + reconnect refetch stay as a safety net.)
-      const o = data as OrderResponse | null;
-      if (o && typeof o.id === 'number') {
-        qc.setQueryData<OrderResponse[]>(liveKey, (prev = []) => {
-          const rest = prev.filter((x) => x.id !== o.id);
-          if (!LIVE_SET.has(o.status)) return rest; // moved to a terminal status → drop
-          return [...rest, o].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
-        });
-      } else {
-        qc.invalidateQueries({ queryKey: liveKey });
-      }
-      if (name === 'order.created') {
-        ping();
-        setUnacked((n) => n + 1);
-        notify(t('newOrder'), o?.orderNumber ? `#${o.orderNumber}` : '');
-      }
-    },
-    handleStreamStatus,
-  );
-
-  // flash the tab title with the unread count when the dashboard is in the background
-  useEffect(() => {
-    document.title = unacked > 0 ? `(${unacked}) ${t('newOrder')} — Serva.` : 'Serva.';
-    return () => { document.title = 'Serva.'; };
-  }, [unacked, t]);
-  useEffect(() => {
-    const onVis = () => { if (!document.hidden) setUnacked(0); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, []);
-
-  // Keep ringing every ~12s while new orders sit unacknowledged (staff stepped away),
-  // stopping the moment the banner is tapped / tab refocused — capped so it never nags forever.
-  useEffect(() => {
-    if (unacked <= 0) return;
-    let rings = 0;
-    const id = setInterval(() => {
-      if (++rings > 5) { clearInterval(id); return; }
-      ping();
-    }, 12_000);
-    return () => clearInterval(id);
-  }, [unacked > 0, ping]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The stream + alerts now live in the Shell (useLiveOrderAlerts) so they fire on every
+  // tab; the board just renders the cache that stream keeps warm. Tapping the shell's
+  // new-order banner bumps focusSignal — jump the mobile board back to the New column.
+  useEffect(() => { if (focusSignal) setMobileCol('PENDING'); }, [focusSignal]);
 
   const [, setTick] = useState(0);
   useEffect(() => { const i = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(i); }, []);
@@ -651,6 +814,7 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
   const [modal, setModal] = useState<Modal>(null);
   const [field, setField] = useState('');
   const [invoice, setInvoice] = useState<OrderResponse | null>(null);
+  const [paymentPrompt, setPaymentPrompt] = useState<{ order: OrderResponse; completeAfter: boolean } | null>(null);
 
   const act = useMutation({
     mutationFn: ({ path, body }: { path: string; body?: unknown }) => api.patch<OrderResponse>(path, body),
@@ -658,26 +822,38 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
   const pay = useMutation({
-    mutationFn: (id: number) => api.post(`/api/payments/orders/${id}/mark-paid`, { method: 'CARD' }),
+    mutationFn: ({ orderId, method }: { orderId: number; method: 'CASH' | 'CARD' }) =>
+      api.post(`/api/payments/orders/${orderId}/mark-paid`, { method }),
     onSuccess: () => qc.invalidateQueries({ queryKey: liveKey }),
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  // Finishing an order (Done / Collect & done) is the one un-confirmed, irreversible tap, so we
-  // hold the API call for a few seconds and dim the card with an Undo — instant-feeling but forgiving.
-  const [finishing, setFinishing] = useState<number | null>(null);
-  const finishTimer = useRef<number>();
-  const finishRun = useRef<(() => void) | null>(null);
-  const deferFinish = (o: OrderResponse, collect: boolean) => {
-    if (finishRun.current) { clearTimeout(finishTimer.current); finishRun.current(); }   // flush any prior so it's never lost
-    const run = () => { if (collect) pay.mutate(o.id); act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` }); };
-    finishRun.current = run;
-    setFinishing(o.id);
-    clearTimeout(finishTimer.current);
-    finishTimer.current = window.setTimeout(() => { finishRun.current = null; setFinishing(null); run(); }, 5000);
+  const finishOrder = (o: OrderResponse, collect: boolean) => {
+    const complete = () => act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` });
+    if (collect) requestPayment(o, true);
+    else complete();
   };
-  const undoFinish = () => { clearTimeout(finishTimer.current); finishRun.current = null; setFinishing(null); };
-  useEffect(() => () => { clearTimeout(finishTimer.current); finishRun.current?.(); }, []);
+  const requestPayment = (order: OrderResponse, completeAfter: boolean) => {
+    if (restaurantQ.data?.paymentMethodSelectionEnabled) {
+      setPaymentPrompt({ order, completeAfter });
+      return;
+    }
+    pay.mutate({ orderId: order.id, method: 'CARD' }, {
+      onSuccess: () => {
+        if (completeAfter) act.mutate({ path: `/api/dashboard/orders/${order.id}/complete` });
+      },
+    });
+  };
+  const recordPayment = (method: 'CASH' | 'CARD') => {
+    if (!paymentPrompt) return;
+    const { order, completeAfter } = paymentPrompt;
+    pay.mutate({ orderId: order.id, method }, {
+      onSuccess: () => {
+        setPaymentPrompt(null);
+        if (completeAfter) act.mutate({ path: `/api/dashboard/orders/${order.id}/complete` });
+      },
+    });
+  };
 
   const openModal = (type: NonNullable<Modal>['type'], order: OrderResponse) => { setField(type === 'accept' ? '6' : ''); setModal({ type, order }); };
   const confirmModal = () => {
@@ -694,13 +870,6 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
 
   return (
     <>
-      {unacked > 0 && (
-        <button className="newbanner" onClick={() => { setUnacked(0); setMobileCol('PENDING'); }}>
-          <span className="nb-dot" />
-          <b>{unacked}</b> {t('newOrders')} · {t('tapView')}
-        </button>
-      )}
-
       <LiveActivityStrip activity={activity} tokenToTable={tokenToTable} t={t} lang={lang} />
 
       <div className="board-tabs">
@@ -722,11 +891,11 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
               <div className="col-head"><span className="dot" style={{ background: c.color }} /><h3>{t('col_' + c.st)}</h3><span className="cnt" style={{ background: c.color }}>{list.length}</span></div>
               <div className="col-body">
                 {list.length === 0 ? <div className="col-empty">{t('empty')}</div> : list.map((o) => (
-                  <OrderCard key={o.id} o={o} tableNo={tableNo} t={t} lang={lang} canAccept={canAccept} canPay={canPay} finishing={finishing === o.id}
+                  <OrderCard key={o.id} o={o} tableNo={tableNo} t={t} lang={lang} canAccept={canAccept} canPay={canPay}
                     onAccept={() => openModal('accept', o)} onDecline={() => openModal('decline', o)} onCancel={() => openModal('cancel', o)}
                     onReady={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/ready` })}
-                    onComplete={() => deferFinish(o, false)} onCollect={() => deferFinish(o, true)} onUndo={undoFinish}
-                    onPay={() => pay.mutate(o.id)} onPrint={() => setInvoice(o)} />
+                    onComplete={() => finishOrder(o, false)} onCollect={() => finishOrder(o, true)}
+                    onPay={() => requestPayment(o, false)} onPrint={() => setInvoice(o)} />
                 ))}
               </div>
             </div>
@@ -752,6 +921,27 @@ function KdsBoard({ branchId, ping, onStatus }: { branchId?: number; ping: () =>
           </div>
         </div>
       )}
+
+      {paymentPrompt && (
+        <div className="modal-bg" onClick={(e) => {
+          if (e.target === e.currentTarget && !pay.isPending) setPaymentPrompt(null);
+        }}>
+          <div className="modal-card payment-method-modal" role="dialog" aria-modal="true" aria-labelledby="payment-method-title">
+            <h3 id="payment-method-title">{t('paymentTitle')}</h3>
+            <div className="ph">{t('paymentSub')} · {paymentPrompt.order.orderNumber}</div>
+            <Money value={paymentPrompt.order.total} className="payment-method-total num" />
+            <div className="payment-method-grid">
+              <button className="payment-method cash" disabled={pay.isPending} onClick={() => recordPayment('CASH')}>
+                <span aria-hidden="true">💵</span><b>{t('paymentCash')}</b>
+              </button>
+              <button className="payment-method card" disabled={pay.isPending} onClick={() => recordPayment('CARD')}>
+                <span aria-hidden="true">▣</span><b>{t('paymentCard')}</b>
+              </button>
+            </div>
+            <button className="btn ghost payment-cancel" disabled={pay.isPending} onClick={() => setPaymentPrompt(null)}>{t('back')}</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -762,14 +952,14 @@ function CarColorTag({ color, lang }: { color?: string | null; lang: string }) {
   return <span className="carcol"><span className="cc-dot" style={{ background: cc.hex }} />{lang === 'ar' ? cc.ar : cc.en}</span>;
 }
 
-function OrderCard({ o, tableNo, t, lang, canAccept, canPay, finishing, onAccept, onDecline, onCancel, onReady, onComplete, onCollect, onUndo, onPay, onPrint }: any) {
+function OrderCard({ o, tableNo, t, lang, canAccept, canPay, onAccept, onDecline, onCancel, onReady, onComplete, onCollect, onPay, onPrint }: any) {
   const el = fmtElapsed(o.createdAt);
   const mins = (Date.now() - new Date(o.createdAt).getTime()) / 60000;
   const where = o.orderType === 'DINE_IN'
     ? <span className="where">🪑 <span className="tg">{t('table')} {o.tableId ? (tableNo.get(o.tableId) ?? o.tableId) : ''}</span></span>
     : <span className="where">🚗 <span className="tg">{t('car')}{o.carPlate ? ` · ${o.carPlate}` : ''}</span><CarColorTag color={o.carColor} lang={lang} /></span>;
   return (
-    <div className={'ocard' + (finishing ? ' finishing' : '')}>
+    <div className="ocard">
       <div className="ocard-top"><span className="ordno">{o.orderNumber}</span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
         <button className="oprint" title={t('printInv')} aria-label={t('printInv')} onClick={onPrint}>🖨</button></div>
       {where}
@@ -780,35 +970,27 @@ function OrderCard({ o, tableNo, t, lang, canAccept, canPay, finishing, onAccept
             <span>{lang === 'ar' ? (i.nameAr || i.nameEn) : (i.nameEn || i.nameAr)}{i.note ? <span className="nt">↳ {i.note}</span> : null}</span></div>
         ))}
       </div>
-      {o.loyaltyRewardLabel && <div className="oreward"><b>🎁 {t('loyaltyReward')}</b> {o.loyaltyRewardLabel}{o.loyaltyRewardDiscount ? <span className="num"> · −{omr(o.loyaltyRewardDiscount)} {t('cur')}</span> : null}</div>}
+      {o.loyaltyRewardLabel && <div className="oreward"><b>🎁 {t('loyaltyReward')}</b> {o.loyaltyRewardLabel}{o.loyaltyRewardDiscount ? <> · <Money value={-o.loyaltyRewardDiscount} className="num" /></> : null}</div>}
       {o.customerNote && <div className="onote"><b>{t('note')}:</b> {o.customerNote}{o.customerName ? ` — ${o.customerName}` : ''}</div>}
       <div className="ocard-foot">
-        <span className="ototal num">{omr(o.total)} <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cur')}</span></span>
+        <Money value={o.total} className="ototal num" />
         {o.paymentStatus === 'PAID' ? <span className="pay paid">✓ {t('paid')}</span>
           : canPay ? <span className="pay unpaid" onClick={onPay}>{t('unpaid')}</span>
           : <span className="pay unpaid static">{t('unpaid')}</span>}
       </div>
       {/* Kitchen-only staff (no ORDERS) advance tickets (Start preparing / Ready) but can't accept,
           cancel or complete — those stay gated to ORDERS so the buttons never 403. */}
-      <div className={'oactions' + (finishing ? ' is-finishing' : '')}>
-        {finishing
-          ? <><span className="finishing-lbl">{t('finishing')}</span><button className="btn sm undo-btn" onClick={onUndo}>↩ {t('undo')}</button></>
-          : <>
-              {o.status === 'PENDING' && canAccept && <><button className="btn sm" onClick={onAccept}>{t('accept')}</button><button className="btn sm ghost" onClick={onDecline}>{t('decline')}</button></>}
-              {(o.status === 'ACCEPTED' || o.status === 'PREPARING') && <><button className="btn sm" onClick={onReady}>{t('ready')}</button>{canAccept && <button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button>}</>}
-              {o.status === 'READY' && canAccept && (
-                o.paymentStatus !== 'PAID' && canPay
-                  ? <>
-                      <button className="btn collect-btn" onClick={onCollect}>✓ {t('collect')} <span className="num">{omr(o.total)}</span> · {t('done')}</button>
-                      <button className="btn sm ghost" onClick={onComplete}>{t('doneUnpaid')}</button>
-                      <button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button>
-                    </>
-                  : <>
-                      <button className="btn sm" onClick={onComplete}>✓ {t('done')}</button>
-                      <button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button>
-                    </>
-              )}
-            </>}
+      <div className="oactions">
+        {o.status === 'PENDING' && canAccept && <><button className="btn sm" onClick={onAccept}>{t('accept')}</button><button className="btn sm ghost" onClick={onDecline}>{t('decline')}</button></>}
+        {(o.status === 'ACCEPTED' || o.status === 'PREPARING') && <><button className="btn sm" onClick={onReady}>{t('ready')}</button>{canAccept && <button className="btn sm danger" onClick={onCancel}>{t('cancel')}</button>}</>}
+        {o.status === 'READY' && canAccept && (
+          o.paymentStatus !== 'PAID' && canPay
+            ? <>
+                <button className="btn collect-btn" onClick={onCollect}>✓ {t('collect')} <Money value={o.total} className="num" /> · {t('done')}</button>
+                <button className="btn sm ghost" onClick={onComplete}>{t('doneUnpaid')}</button>
+              </>
+            : <button className="btn sm" onClick={onComplete}>✓ {t('done')}</button>
+        )}
       </div>
     </div>
   );
@@ -943,7 +1125,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
       <div className="qa-row">
         <div className="qa-row-top">
           {live && live.ordering > 0 && !cartText && <span className="qa-live" title={t('qaNow')}><b>{live.ordering}</b> {t('qaOrdering')}</span>}
-          <span className="qa-today">{t('qaToday')}: {day?.orders ?? 0} {t('qaOrders')} · <span className="num">{omr(day?.revenue ?? 0)}</span> {t('cur')}</span>
+          <span className="qa-today">{t('qaToday')}: {day?.orders ?? 0} {t('qaOrders')} · <Money value={day?.revenue ?? 0} className="num" /></span>
         </div>
         {cartText && <div className="qa-cart" title={t('qaCartHint')}><b>{cartText}</b></div>}
       </div>

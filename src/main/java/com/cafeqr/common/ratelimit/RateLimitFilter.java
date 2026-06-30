@@ -21,6 +21,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/public/onboarding", "/api/public/leads",
             "/api/public/otp/send", "/api/public/otp/verify");
+    // Unauthenticated GETs worth throttling so they can't be used to enumerate data by
+    // varying a query param (e.g. probing arbitrary phones for loyalty stamp balances).
+    private static final Set<String> PUBLIC_GET_PATHS = Set.of(
+            "/api/public/loyalty/summary");
     private static final int WINDOW_SECONDS = 60;
 
     private final RateLimiter limiter;
@@ -38,15 +42,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if (enabled && "POST".equalsIgnoreCase(request.getMethod())) {
+        if (enabled) {
+            boolean post = "POST".equalsIgnoreCase(request.getMethod());
+            boolean get = "GET".equalsIgnoreCase(request.getMethod());
             String path = request.getRequestURI();
             // Note: keep these as separate ifs — a mixed int/Integer ternary would unbox null → NPE.
             Integer limit = null;
             String bucket = null;
-            if (AUTH_PATHS.contains(path)) {
+            if (post && AUTH_PATHS.contains(path)) {
                 limit = authPerMinute;
                 bucket = "auth";
-            } else if (PUBLIC_PATHS.contains(path)) {
+            } else if (post && PUBLIC_PATHS.contains(path)) {
+                limit = publicPerMinute;
+                bucket = "public";
+            } else if (get && PUBLIC_GET_PATHS.contains(path)) {
                 limit = publicPerMinute;
                 bucket = "public";
             }

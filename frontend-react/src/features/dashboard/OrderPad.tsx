@@ -25,7 +25,7 @@ const DICT: Dict = {
     p_place: 'إرسال للمطبخ', p_placing: 'جارٍ…', p_sent: 'تم إرسال الطلب', p_clear: 'تفريغ',
     p_addOpts: 'اختر الخيارات', p_add: 'إضافة', p_required: 'مطلوب', p_qty: 'الكمية',
     p_search: 'بحث في القائمة…', p_all: 'الكل', p_noItems: 'لا أصناف متاحة', p_loading: 'جارٍ التحميل…',
-    p_needPlate: 'رقم اللوحة مطلوب لطلبات السيارة', p_close: 'إغلاق',
+    p_close: 'إغلاق',
   },
   en: {
     p_type: 'Order type', p_dinein: 'Dine-in', p_car: 'Car',
@@ -36,7 +36,7 @@ const DICT: Dict = {
     p_place: 'Send to kitchen', p_placing: 'Sending…', p_sent: 'Order sent', p_clear: 'Clear',
     p_addOpts: 'Choose options', p_add: 'Add', p_required: 'required', p_qty: 'Qty',
     p_search: 'Search the menu…', p_all: 'All', p_noItems: 'No available items', p_loading: 'Loading…',
-    p_needPlate: 'Plate number is required for car orders', p_close: 'Close',
+    p_close: 'Close',
   },
 };
 
@@ -152,7 +152,7 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  const canPlace = lines.length > 0 && !!branchId && !(orderType === 'CAR' && !carPlate.trim());
+  const canPlace = lines.length > 0 && !!branchId;
 
   if (!branchId) return <div className="pad-msg">—</div>;
 
@@ -209,7 +209,7 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
         )}
         {orderType === 'CAR' && (
           <>
-            <input className="pad-field" placeholder={t('p_plate')} value={carPlate} onChange={(e) => setCarPlate(e.target.value)} />
+            <input className="pad-field" placeholder={`${t('p_plate')} (${t('p_optional')})`} value={carPlate} onChange={(e) => setCarPlate(e.target.value)} />
             <div className="pad-colors">
               {CAR_COLORS.map((c) => (
                 <button key={c.key} type="button" title={carColorLabel(c.key, lang)}

@@ -46,13 +46,15 @@ public record PublicMenuResponse(
             String name,
             String address,
             String phone,
-            String openingHours
+            String openingHours,
+            boolean acceptingOrders
     ) {
         public static PublicBranch from(Branch b) {
             if (b == null) {
                 return null;
             }
-            return new PublicBranch(b.getId(), b.getName(), b.getAddress(), b.getPhone(), b.getOpeningHours());
+            return new PublicBranch(b.getId(), b.getName(), b.getAddress(), b.getPhone(),
+                    b.getOpeningHours(), b.isAcceptingOrders());
         }
     }
 

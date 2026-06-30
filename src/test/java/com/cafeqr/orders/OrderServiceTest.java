@@ -173,6 +173,27 @@ class OrderServiceTest {
     }
 
     @Test
+    void rejectsCustomerOrderWhenBranchIsNotAcceptingOrders() {
+        Restaurant restaurant = restaurant();
+        Branch branch = branch();
+        when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant);
+        when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch);
+        org.mockito.Mockito.doThrow(new BadRequestException(
+                        ErrorCode.BRANCH_NOT_ACCEPTING_ORDERS,
+                        "This branch is not accepting orders right now"))
+                .when(branchService).requireAcceptingOrders(branch);
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "demo", 5L, null, OrderType.CAR, "Ali", "9999", null, null, null, null, "ptok",
+                false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
+
+        assertThatThrownBy(() -> orderService.createOrder(request))
+                .isInstanceOf(BadRequestException.class)
+                .satisfies(ex -> assertThat(((BadRequestException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.BRANCH_NOT_ACCEPTING_ORDERS));
+    }
+
+    @Test
     void dineInRequiresPhone() {
         when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
@@ -244,17 +265,25 @@ class OrderServiceTest {
     }
 
     @Test
-    void carOrderRequiresPlate() {
+    void createsCarOrderWithoutPlate() {
         when(restaurantService.getActiveBySlug("demo")).thenReturn(restaurant());
         when(branchService.getEntityInRestaurant(1L, 5L)).thenReturn(branch());
+        when(menuService.getOrderableItem(1L, 5L, 100L)).thenReturn(menuItem());
+        when(orderRepository.nextOrderNumber()).thenReturn(1003L);
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(3L);
+            return o;
+        });
 
         CreateOrderRequest request = new CreateOrderRequest(
                 "demo", 5L, null, OrderType.CAR, "Sara", "9999", " ", null, null, null, "ptok",
                 false, List.of(new CreateOrderRequest.Item(100L, 1, null, null)));
 
-        assertThatThrownBy(() -> orderService.createOrder(request))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Car plate");
+        OrderTrackingResponse response = orderService.createOrder(request);
+
+        assertThat(response.orderType()).isEqualTo(OrderType.CAR);
+        assertThat(response.carPlate()).isNull();
     }
 
     @Test

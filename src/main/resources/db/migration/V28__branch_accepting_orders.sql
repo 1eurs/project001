@@ -1,0 +1,2 @@
+ALTER TABLE branches
+    ADD COLUMN accepting_orders BOOLEAN NOT NULL DEFAULT TRUE;

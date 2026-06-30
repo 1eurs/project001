@@ -40,6 +40,9 @@ public class Restaurant extends BaseEntity {
     @Column(name = "vat_rate", nullable = false)
     private BigDecimal vatRate = new BigDecimal("5");
 
+    @Column(name = "payment_method_selection_enabled", nullable = false)
+    private boolean paymentMethodSelectionEnabled = false;
+
     @Column(name = "menu_theme", nullable = false, length = 40)
     private String theme = "onyx";
 
@@ -128,6 +131,14 @@ public class Restaurant extends BaseEntity {
 
     public void setVatRate(BigDecimal vatRate) {
         this.vatRate = vatRate;
+    }
+
+    public boolean isPaymentMethodSelectionEnabled() {
+        return paymentMethodSelectionEnabled;
+    }
+
+    public void setPaymentMethodSelectionEnabled(boolean paymentMethodSelectionEnabled) {
+        this.paymentMethodSelectionEnabled = paymentMethodSelectionEnabled;
     }
 
     public String getTheme() {

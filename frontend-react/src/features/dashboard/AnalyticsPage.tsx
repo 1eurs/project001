@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { omr, omanDate } from '../../lib/format';
 import { isPlanRequiredError, isProPlan } from '../../lib/plan';
-import type { Restaurant, BranchResponse } from '../../lib/types';
+import type { Restaurant, BranchResponse, PageResponse } from '../../lib/types';
 import './analytics.css';
 
 /* ---- API shapes ---- */
@@ -31,6 +31,8 @@ interface CustomerBase {
   totalCustomers: number; repeatCustomers: number; repeatRatePercent: number;
   avgOrdersPerCustomer: number; newCustomers: number; activeCustomers: number; repeatOrderSharePercent: number;
 }
+interface CustomerDirectoryRow { phone: string; name: string; orderCount: number; lastOrderAt: string | null }
+interface PaymentMethodRevenue { method: 'CASH' | 'CARD'; paymentCount: number; revenue: string }
 interface Benchmark {
   yourAov: string; medianAov: string; aovPercentile: number;
   yourAcceptSeconds: number | null; medianAcceptSeconds: number | null; acceptPercentile: number;
@@ -72,6 +74,9 @@ const DICT: Dict = {
     a_staff: 'أداء الفريق', a_avgAccept: 'متوسط القبول',
     a_forecast: 'إيقاع الأسبوع', a_expected: 'متوقّع', a_rhythmHint: 'متوسط الطلبات لكل ساعة · آخر ٤ أسابيع',
     a_customers: 'العملاء', a_regulars: 'الأكثر ولاءً', a_atrisk: 'بدأوا يبتعدون', a_ordersN: 'طلبات', a_daysN: 'يوم', a_never: '—',
+    a_allCustomers: 'عرض كل العملاء', a_customerDirectory: 'دليل العملاء', a_backInsights: 'العودة إلى تحليلات العملاء',
+    a_searchCustomers: 'ابحث بالاسم أو رقم الهاتف', a_search: 'بحث', a_name: 'الاسم', a_phone: 'رقم الهاتف', a_lastOrder: 'آخر طلب',
+    a_paymentSplit: 'الإيرادات حسب الدفع', a_paymentHint: 'حسب طريقة الدفع المسجّلة عند التحصيل.', a_cash: 'نقداً', a_card: 'بطاقة / فيزا', a_transactions: 'دفعات',
     a_cbase: 'قاعدة العملاء', a_cb_repeat: 'نسبة العائدين', a_cb_repeatSub: '{r} من {n} عميلًا يعيدون الطلب',
     a_cb_avg: 'متوسط الطلبات/عميل', a_cb_new: 'جدد هذا الشهر', a_cb_active: 'نشطون (٣٠ يومًا)', a_cb_repeatShare: 'حصة الطلبات المتكررة',
     a_cb_newOrders: 'أوائل', a_cb_returningOrders: 'متكررة',
@@ -111,6 +116,9 @@ const DICT: Dict = {
     a_staff: 'Staff performance', a_avgAccept: 'Avg accept',
     a_forecast: 'Weekly rhythm', a_expected: 'expected', a_rhythmHint: 'avg orders per hour · last 4 weeks',
     a_customers: 'Customers', a_regulars: 'Top regulars', a_atrisk: 'Going quiet', a_ordersN: 'orders', a_daysN: 'days', a_never: '—',
+    a_allCustomers: 'View all customers', a_customerDirectory: 'Customer directory', a_backInsights: 'Back to customer insights',
+    a_searchCustomers: 'Search name or phone number', a_search: 'Search', a_name: 'Name', a_phone: 'Phone number', a_lastOrder: 'Last order',
+    a_paymentSplit: 'Revenue by payment', a_paymentHint: 'Based on the payment method recorded at collection.', a_cash: 'Cash', a_card: 'Card / Visa', a_transactions: 'payments',
     a_cbase: 'Customer base', a_cb_repeat: 'Repeat rate', a_cb_repeatSub: '{r} of {n} customers reorder',
     a_cb_avg: 'Avg orders/customer', a_cb_new: 'New this month', a_cb_active: 'Active (30d)', a_cb_repeatShare: 'Repeat-order share',
     a_cb_newOrders: 'First-time', a_cb_returningOrders: 'Repeat',
@@ -162,6 +170,10 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   const reduce = useReducedMotion();
   const [range, setRange] = useState<Range>('today');
   const [section, setSection] = useState<Section>('overview');
+  const [customerDirectoryOpen, setCustomerDirectoryOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerPage, setCustomerPage] = useState(0);
   const todayD = omanDate();
   const [customFrom, setCustomFrom] = useState(omanDate(new Date(Date.now() - 29 * DAY)));
   const [customTo, setCustomTo] = useState(todayD);
@@ -207,6 +219,7 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
     if (!planReady || isPro) return;
     if (range === '30d' || range === '90d' || range === 'custom') setRange('7d');
   }, [planReady, isPro, range]);
+  useEffect(() => { setCustomerPage(0); }, [branchFilter]);
 
   const summaryQ = useQuery({
     queryKey: ['analytics-summary', queryRange, from, to, branchFilter],
@@ -247,6 +260,18 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
   const forecastQ = useQuery({ queryKey: ['an-forecast', branchFilter], enabled: planReady && isPro, queryFn: () => api.get<ForecastSlot[]>(`/api/dashboard/analytics/pro/forecast?weeks=4${branchQs}`) });
   const customersQ = useQuery({ queryKey: ['an-customers', branchFilter], enabled: planReady && isPro, queryFn: () => api.get<Customers>(`/api/dashboard/analytics/pro/customers${branchQs ? `?${branchQs.slice(1)}` : ''}`) });
   const customerBaseQ = useQuery({ queryKey: ['an-customer-base', branchFilter], enabled: planReady && isPro, queryFn: () => api.get<CustomerBase>(`/api/dashboard/analytics/pro/customer-base${branchQs ? `?${branchQs.slice(1)}` : ''}`) });
+  const paymentMethodsQ = useQuery({
+    queryKey: ['an-payment-methods', queryRange, from, to, branchFilter],
+    enabled: planReady,
+    queryFn: () => api.get<PaymentMethodRevenue[]>(`/api/dashboard/analytics/payment-methods?${rangeQs}${branchQs}`),
+  });
+  const customerDirectoryQ = useQuery({
+    queryKey: ['an-customer-directory', branchFilter, customerPage, customerSearchTerm],
+    enabled: planReady && isPro && customerDirectoryOpen,
+    queryFn: () => api.get<PageResponse<CustomerDirectoryRow>>(
+      `/api/dashboard/analytics/pro/customer-directory?page=${customerPage}&size=50&search=${encodeURIComponent(customerSearchTerm)}${branchQs}`,
+    ),
+  });
   // Benchmark temporarily disabled — see commented card below. Re-enable when reworked.
   // const benchmarkQ = useQuery({ queryKey: ['an-benchmark'], enabled: isPro, queryFn: () => api.get<Benchmark>('/api/dashboard/analytics/pro/benchmark') });
 
@@ -398,6 +423,12 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
                       <DaypartCard rows={daypartQ.data} t={t} />
                     </section>
                   )}
+                  {paymentMethodsQ.data && (
+                    <section className="an-card">
+                      <h3>{t('a_paymentSplit')}</h3>
+                      <PaymentSplitCard rows={paymentMethodsQ.data} t={t} />
+                    </section>
+                  )}
                   {/* Benchmark card temporarily disabled — needs rework (small-sample UX,
                       per-café volume floor, like-for-like cohort). Re-enable benchmarkQ above to restore.
                   {isPro && benchmarkQ.data && (
@@ -531,8 +562,26 @@ export default function AnalyticsPage({ branches }: { branches: BranchResponse[]
           {/* ---------- CUSTOMERS ---------- */}
           {section === 'customers' && (
             !isPro ? <ProUpsell desc={t('a_lockCustomers')} tags={[t('a_regulars'), t('a_atrisk')]} t={t} /> :
-            customersQ.isLoading ? <Skeleton cards={2} /> : (
+            customerDirectoryOpen ? (
+              <CustomerDirectoryTable
+                data={customerDirectoryQ.data}
+                loading={customerDirectoryQ.isLoading}
+                search={customerSearch}
+                page={customerPage}
+                lang={lang}
+                t={t}
+                onSearch={setCustomerSearch}
+                onSubmit={() => { setCustomerSearchTerm(customerSearch.trim()); setCustomerPage(0); }}
+                onPage={setCustomerPage}
+                onBack={() => setCustomerDirectoryOpen(false)}
+              />
+            ) : customersQ.isLoading ? <Skeleton cards={2} /> : (
               <>
+                <div className="an-customer-actions">
+                  <button className="an-directory-btn" onClick={() => setCustomerDirectoryOpen(true)}>
+                    <span aria-hidden="true">☷</span>{t('a_allCustomers')}
+                  </button>
+                </div>
                 {customerBaseQ.data && customerBaseQ.data.totalCustomers > 0 && (
                   <section className="an-card">
                     <h3>{t('a_cbase')}</h3>
@@ -944,6 +993,79 @@ function KitchenCard({ d, t }: { d: KitchenTiming; t: T }) {
       </div>
       <p className="an-kt-sample">{t('a_kt_sample').replace('{n}', String(d.sampleOrders))}</p>
     </>
+  );
+}
+
+/* ---- Paid revenue by recorded staff payment method ---- */
+function PaymentSplitCard({ rows, t }: { rows: PaymentMethodRevenue[]; t: T }) {
+  const cash = rows.find((r) => r.method === 'CASH');
+  const card = rows.find((r) => r.method === 'CARD');
+  const cashRevenue = Number(cash?.revenue ?? 0);
+  const cardRevenue = Number(card?.revenue ?? 0);
+  const total = cashRevenue + cardRevenue;
+  if (total <= 0) return <p className="an-empty">{t('a_noData')}</p>;
+  const cashPct = Math.round((cashRevenue / total) * 100);
+  return (
+    <div className="an-paymix">
+      <p className="an-paymix-hint">{t('a_paymentHint')}</p>
+      <div className="an-paymix-bar" aria-label={`${t('a_cash')} ${cashPct}%`}>
+        <span className="cash" style={{ width: `${cashPct}%` }} />
+        <span className="card" style={{ width: `${100 - cashPct}%` }} />
+      </div>
+      <div className="an-paymix-row">
+        <span className="an-paymix-key cash" /><span><b>{t('a_cash')}</b><small>{cash?.paymentCount ?? 0} {t('a_transactions')}</small></span>
+        <strong>{omr(cashRevenue)}</strong><em>{cashPct}%</em>
+      </div>
+      <div className="an-paymix-row">
+        <span className="an-paymix-key card" /><span><b>{t('a_card')}</b><small>{card?.paymentCount ?? 0} {t('a_transactions')}</small></span>
+        <strong>{omr(cardRevenue)}</strong><em>{100 - cashPct}%</em>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Searchable, paged customer directory ---- */
+function CustomerDirectoryTable({ data, loading, search, page, lang, t, onSearch, onSubmit, onPage, onBack }: {
+  data?: PageResponse<CustomerDirectoryRow>; loading: boolean; search: string; page: number; lang: string; t: T;
+  onSearch: (value: string) => void; onSubmit: () => void; onPage: (page: number) => void; onBack: () => void;
+}) {
+  return (
+    <section className="an-card an-directory">
+      <div className="an-directory-head">
+        <div><h3>{t('a_customerDirectory')}</h3><small>{data?.totalElements ?? 0} {t('a_customers')}</small></div>
+        <button className="an-directory-back" onClick={onBack}>← {t('a_backInsights')}</button>
+      </div>
+      <form className="an-directory-search" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+        <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder={t('a_searchCustomers')} />
+        <button type="submit">{t('a_search')}</button>
+      </form>
+      {loading ? <div className="an-skel card" /> : !data?.content.length ? <p className="an-empty">{t('a_noData')}</p> : (
+        <>
+          <div className="an-directory-table-wrap">
+            <table className="an-directory-table">
+              <thead><tr><th>{t('a_name')}</th><th>{t('a_phone')}</th><th>{t('a_orders')}</th><th>{t('a_lastOrder')}</th></tr></thead>
+              <tbody>
+                {data.content.map((customer) => (
+                  <tr key={customer.phone}>
+                    <td><span className="an-customer-name"><i>{(customer.name || customer.phone).slice(0, 1)}</i>{customer.name || '—'}</span></td>
+                    <td><a href={`tel:${customer.phone}`} dir="ltr">{customer.phone}</a></td>
+                    <td className="num">{customer.orderCount}</td>
+                    <td>{customer.lastOrderAt
+                      ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(customer.lastOrderAt))
+                      : t('a_never')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="an-directory-pager">
+            <button disabled={page === 0} onClick={() => onPage(page - 1)}>‹</button>
+            <span className="num">{page + 1} / {Math.max(1, data.totalPages)}</span>
+            <button disabled={data.last} onClick={() => onPage(page + 1)}>›</button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

@@ -37,13 +37,21 @@ public record OrderTrackingResponse(
         Instant readyAt,
         Instant completedAt,
         Instant cancelledAt,
-        Instant declinedAt
+        Instant declinedAt,
+        /** True when this order actually earned a stamp on completion; false when it didn't qualify
+         *  (below the café's minimum-order floor, or no member/phone); null before completion. Drives
+         *  the post-order "a stamp was added" confirmation so it never lies about earning a stamp. */
+        Boolean stampEarned
 ) {
     public static OrderTrackingResponse from(Order o) {
-        return from(o, null);
+        return from(o, null, null);
     }
 
     public static OrderTrackingResponse from(Order o, LoyaltySummaryResponse loyalty) {
+        return from(o, loyalty, null);
+    }
+
+    public static OrderTrackingResponse from(Order o, LoyaltySummaryResponse loyalty, Boolean stampEarned) {
         return new OrderTrackingResponse(
                 o.getOrderNumber(), o.getTrackingToken(), o.getOrderType(), o.getStatus(), o.getPaymentStatus(),
                 o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(), o.getDeclineReason(),
@@ -51,6 +59,6 @@ public record OrderTrackingResponse(
                 o.getLoyaltyRewardLabel(), o.getLoyaltyRewardDiscount(), loyalty,
                 o.getItems().stream().map(OrderItemResponse::from).toList(),
                 o.getCreatedAt(), o.getAcceptedAt(), o.getPreparingAt(), o.getReadyAt(),
-                o.getCompletedAt(), o.getCancelledAt(), o.getDeclinedAt());
+                o.getCompletedAt(), o.getCancelledAt(), o.getDeclinedAt(), stampEarned);
     }
 }

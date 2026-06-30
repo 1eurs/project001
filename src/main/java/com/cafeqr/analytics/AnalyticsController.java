@@ -4,6 +4,7 @@ import com.cafeqr.analytics.dto.AnalyticsSummaryResponse;
 import com.cafeqr.analytics.dto.BestSellingItem;
 import com.cafeqr.analytics.dto.DailyPoint;
 import com.cafeqr.analytics.dto.DaypartPoint;
+import com.cafeqr.analytics.dto.PaymentMethodRevenueResponse;
 import com.cafeqr.common.api.ApiResponse;
 import com.cafeqr.common.exception.PlanRequiredException;
 import com.cafeqr.common.util.TimeZones;
@@ -123,6 +124,24 @@ public class AnalyticsController {
             }
         }
         return ApiResponse.ok(analyticsService.daypartBreakdown(startOfDay(from), startOfDay(to.plusDays(1)), branchId));
+    }
+
+    @Operation(summary = "Paid revenue split by Cash and Card")
+    @GetMapping("/payment-methods")
+    public ApiResponse<List<PaymentMethodRevenueResponse>> paymentMethods(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long branchId) {
+        if (!entitlements.isPro()) {
+            long days = java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1;
+            if (days > STANDARD_RANGE_DAYS) {
+                throw new PlanRequiredException(
+                        "Your plan covers the last " + STANDARD_RANGE_DAYS + " days. "
+                                + "Upgrade to Pro to query any date range.");
+            }
+        }
+        return ApiResponse.ok(analyticsService.paymentMethodRevenue(
+                startOfDay(from), startOfDay(to.plusDays(1)), branchId));
     }
 
     private static Instant startOfDay(LocalDate date) {

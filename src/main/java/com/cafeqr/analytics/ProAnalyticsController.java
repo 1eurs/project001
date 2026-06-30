@@ -2,6 +2,7 @@ package com.cafeqr.analytics;
 
 import com.cafeqr.analytics.dto.BenchmarkResponse;
 import com.cafeqr.analytics.dto.CustomerBaseResponse;
+import com.cafeqr.analytics.dto.CustomerDirectoryResponse;
 import com.cafeqr.analytics.dto.CustomersInsightResponse;
 import com.cafeqr.analytics.dto.ForecastSlotResponse;
 import com.cafeqr.analytics.dto.FunnelResponse;
@@ -10,6 +11,8 @@ import com.cafeqr.analytics.dto.ItemConversionResponse;
 import com.cafeqr.analytics.dto.KitchenTimingResponse;
 import com.cafeqr.analytics.dto.StaffPerformanceResponse;
 import com.cafeqr.common.api.ApiResponse;
+import com.cafeqr.common.api.PageResponse;
+import jakarta.validation.constraints.Size;
 import com.cafeqr.common.util.TimeZones;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -38,6 +42,7 @@ import java.util.List;
 @RequestMapping("/api/dashboard/analytics/pro")
 @Tag(name = "Dashboard analytics — Pro")
 @PreAuthorize("hasAuthority('ANALYTICS')")
+@Validated
 public class ProAnalyticsController {
 
     private final ProAnalyticsService proService;
@@ -122,6 +127,18 @@ public class ProAnalyticsController {
             @RequestParam(required = false) Long branchId) {
         entitlements.requirePro();
         return ApiResponse.ok(proService.customerBase(branchId));
+    }
+
+    @Operation(summary = "Pro · Searchable customer directory")
+    @GetMapping("/customer-directory")
+    public ApiResponse<PageResponse<CustomerDirectoryResponse>> customerDirectory(
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(defaultValue = "") @Size(max = 100) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        entitlements.requirePro();
+        return ApiResponse.ok(PageResponse.from(
+                proService.customerDirectory(branchId, search, page, size)));
     }
 
     @Operation(summary = "Pro · Anonymous benchmark — your café vs the Serva median")

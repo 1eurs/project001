@@ -18,25 +18,45 @@ export function unlockAudio() {
   } catch { /* audio unsupported — fail silently */ }
 }
 
-/** A bright three-note arpeggio so staff notice a new order across the room. */
-export function playChime() {
+/**
+ * A bright arpeggio so staff notice a new order across the room. Routed through a
+ * master gain + limiter so we can push the volume hard (triangle waves carry further
+ * than sine) without clipping into harsh distortion. `repeats` plays it as a
+ * double/triple ring for extra urgency on a new order.
+ */
+export function playChime(opts?: { repeats?: number; gain?: number }) {
   if (!audioCtx) { unlockAudio(); }
   const ctx = audioCtx;
   if (!ctx || ctx.state !== 'running') return;
-  const now = ctx.currentTime;
+  const repeats = Math.max(1, opts?.repeats ?? 1);
+  const peak = opts?.gain ?? 0.55;
+
+  // Brick-wall-ish limiter keeps the loud signal clean instead of clipping.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -6; limiter.knee.value = 0; limiter.ratio.value = 20;
+  limiter.attack.value = 0.002; limiter.release.value = 0.12;
+  const master = ctx.createGain();
+  master.gain.value = 0.95;
+  master.connect(limiter); limiter.connect(ctx.destination);
+
   const notes = [660, 880, 1175]; // E5 · A5 · D6
-  notes.forEach((freq, i) => {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.connect(g); g.connect(ctx.destination);
-    o.type = 'sine';
-    o.frequency.value = freq;
-    const t = now + i * 0.12;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
-    o.start(t); o.stop(t + 0.36);
-  });
+  const span = notes.length * 0.12 + 0.28;     // length of one arpeggio
+  const now = ctx.currentTime;
+  for (let r = 0; r < repeats; r++) {
+    const base = now + r * span;
+    notes.forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(master);
+      o.type = 'triangle';
+      o.frequency.value = freq;
+      const t = base + i * 0.12;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+      o.start(t); o.stop(t + 0.36);
+    });
+  }
 }
 
 export function vibrate(pattern: number | number[]) {
@@ -51,14 +71,23 @@ export function requestNotify() {
   } catch { /* ignore */ }
 }
 
+let _lastNotif: Notification | null = null;
+
 /** Best-effort system notification — only when granted and the tab is hidden. */
 export function notify(title: string, body: string) {
   try {
     if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+      _lastNotif?.close();
       const n = new Notification(title, { body, tag: 'serva-order', silent: true });
-      setTimeout(() => n.close(), 6000);
+      _lastNotif = n;
+      setTimeout(() => { n.close(); if (_lastNotif === n) _lastNotif = null; }, 6000);
     }
   } catch { /* ignore */ }
+}
+
+/** Dismiss the pending order notification (e.g. when the badge is cleared). */
+export function closeNotify() {
+  try { _lastNotif?.close(); _lastNotif = null; } catch { /* ignore */ }
 }
 
 /**
@@ -106,8 +135,8 @@ export function useOrderSound() {
 
   const ping = useCallback(() => {
     if (!soundOn) return;
-    playChime();
-    vibrate([60, 70, 60]);
+    playChime({ repeats: 2, gain: 0.72 });       // louder double-ring for a new order
+    vibrate([120, 90, 120, 90, 220]);
   }, [soundOn]);
 
   return { soundOn, toggle, ping };

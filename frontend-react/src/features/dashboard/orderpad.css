@@ -75,6 +75,12 @@ input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--
 .pad-sheet-ft{display:flex;align-items:center;gap:10px;padding:13px 16px;border-top:1px solid var(--line)}
 
 @media (max-width:860px){
-  .pad{grid-template-columns:1fr;overflow-y:auto}
-  .pad-items{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  /* Single column: let the whole pad scroll as one page instead of trapping the
+     menu grid and cart lines in their own collapsing flex/scroll regions. */
+  .pad{grid-template-columns:1fr;overflow-y:auto;align-content:start;padding:14px;gap:12px}
+  .pad-menu,.pad-cart{min-height:auto}
+  .pad-items{flex:none;overflow:visible;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  .pad-lines{flex:none;overflow:visible}
+  /* Keep the place-order row easy to reach with a thumb on phones. */
+  .pad-actions{position:sticky;bottom:0;background:var(--surface);padding-top:8px;margin:0 -2px;z-index:1}
 }

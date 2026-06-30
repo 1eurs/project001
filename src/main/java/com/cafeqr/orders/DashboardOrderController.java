@@ -86,13 +86,7 @@ public class DashboardOrderController {
         return ApiResponse.ok("Order declined", orderService.decline(orderId, reason));
     }
 
-    @Operation(summary = "Move an accepted order to preparing")
-    @PatchMapping("/{orderId}/preparing")
-    public ApiResponse<OrderResponse> preparing(@PathVariable Long orderId) {
-        return ApiResponse.ok("Order is now preparing", orderService.markPreparing(orderId));
-    }
-
-    @Operation(summary = "Mark a preparing order as ready")
+    @Operation(summary = "Mark an accepted order as ready")
     @PatchMapping("/{orderId}/ready")
     public ApiResponse<OrderResponse> ready(@PathVariable Long orderId) {
         return ApiResponse.ok("Order is ready", orderService.markReady(orderId));

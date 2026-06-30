@@ -42,6 +42,7 @@ public class BranchService {
         branch.setPhone(request.phone());
         branch.setOpeningHours(request.openingHours());
         branch.setActive(true);
+        branch.setAcceptingOrders(true);
         return BranchResponse.from(branchRepository.save(branch));
     }
 
@@ -86,6 +87,14 @@ public class BranchService {
         return BranchResponse.from(branch);
     }
 
+    @Transactional
+    public BranchResponse setAcceptingOrders(Long branchId, boolean acceptingOrders) {
+        Branch branch = getEntity(branchId);
+        accessGuard.requireBranchAccess(branch.getRestaurantId(), branch.getId());
+        branch.setAcceptingOrders(acceptingOrders);
+        return BranchResponse.from(branch);
+    }
+
     // ---- helpers shared with other modules ----
 
     @Transactional(readOnly = true)
@@ -107,6 +116,13 @@ public class BranchService {
     public void requireActive(Branch branch) {
         if (!branch.isActive()) {
             throw new BadRequestException(ErrorCode.BRANCH_INACTIVE, "Branch is not active");
+        }
+    }
+
+    public void requireAcceptingOrders(Branch branch) {
+        if (!branch.isAcceptingOrders()) {
+            throw new BadRequestException(ErrorCode.BRANCH_NOT_ACCEPTING_ORDERS,
+                    "This branch is not accepting orders right now");
         }
     }
 }
