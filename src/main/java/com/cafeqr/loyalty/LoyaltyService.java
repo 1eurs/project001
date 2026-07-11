@@ -16,6 +16,8 @@ import com.cafeqr.loyalty.dto.LoyaltySummaryResponse;
 import com.cafeqr.loyalty.repository.LoyaltyMemberRepository;
 import com.cafeqr.loyalty.repository.LoyaltyProgramRepository;
 import com.cafeqr.loyalty.repository.LoyaltyTransactionRepository;
+import com.cafeqr.menus.domain.MenuItem;
+import com.cafeqr.menus.repository.MenuItemRepository;
 import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderItem;
 import com.cafeqr.restaurants.RestaurantService;
@@ -26,7 +28,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Stamp-card loyalty: café configuration, per-(restaurant, phone) balances, and the order-flow
@@ -38,21 +44,29 @@ import java.util.List;
 public class LoyaltyService {
 
     private static final int MONEY_SCALE = 3;
+    private static final String DEFAULT_STAMP_ICON = "★";
+    private static final Pattern HEX_COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
+    /** Mirror of the customer app's MOTIF_OPTIONS (menuThemes.ts) minus 'none' (stored as null). */
+    private static final Set<String> CARD_MOTIFS =
+            Set.of("bean", "cup", "palm", "star", "crescent", "leaf", "drop", "geo");
 
     private final LoyaltyProgramRepository programRepository;
     private final LoyaltyMemberRepository memberRepository;
     private final LoyaltyTransactionRepository txnRepository;
+    private final MenuItemRepository menuItemRepository;
     private final RestaurantService restaurantService;
     private final AccessGuard accessGuard;
 
     public LoyaltyService(LoyaltyProgramRepository programRepository,
                           LoyaltyMemberRepository memberRepository,
                           LoyaltyTransactionRepository txnRepository,
+                          MenuItemRepository menuItemRepository,
                           RestaurantService restaurantService,
                           AccessGuard accessGuard) {
         this.programRepository = programRepository;
         this.memberRepository = memberRepository;
         this.txnRepository = txnRepository;
+        this.menuItemRepository = menuItemRepository;
         this.restaurantService = restaurantService;
         this.accessGuard = accessGuard;
     }
@@ -64,15 +78,19 @@ public class LoyaltyService {
         Long restaurantId = requireCafeScope();
         return programRepository.findByRestaurantId(restaurantId)
                 .map(LoyaltyProgramResponse::from)
-                .orElseGet(() -> new LoyaltyProgramResponse(false, 8, "", null, null));
+                .orElseGet(() -> new LoyaltyProgramResponse(false, 8, "", List.of(), null,
+                        null, null, DEFAULT_STAMP_ICON, null));
     }
 
     @Transactional
     public LoyaltyProgramResponse updateProgram(LoyaltyProgramRequest req) {
         Long restaurantId = requireCafeScope();
-        if (req.enabled() && req.rewardItemId() == null) {
-            throw new BadRequestException("Choose the free reward item before enabling loyalty.");
+        Set<Long> rewardItemIds = req.rewardItemIds() == null
+                ? new LinkedHashSet<>() : new LinkedHashSet<>(req.rewardItemIds());
+        if (req.enabled() && rewardItemIds.isEmpty()) {
+            throw new BadRequestException("Choose at least one free reward item before enabling loyalty.");
         }
+        requireOwnMenuItems(restaurantId, rewardItemIds);
         LoyaltyProgram program = programRepository.findByRestaurantId(restaurantId)
                 .orElseGet(() -> {
                     LoyaltyProgram p = new LoyaltyProgram();
@@ -82,9 +100,44 @@ public class LoyaltyService {
         program.setEnabled(req.enabled());
         program.setStampsRequired(req.stampsRequired());
         program.setRewardLabel(req.rewardLabel().trim());
-        program.setRewardItemId(req.rewardItemId());
+        program.setRewardItemIds(rewardItemIds);
         program.setMinOrderAmount(req.minOrderAmount());
+        applyCardStyle(program, req);
         return LoyaltyProgramResponse.from(programRepository.save(program));
+    }
+
+    /** Card-studio fields: normalize blanks to defaults and reject values the card can't render. */
+    private void applyCardStyle(LoyaltyProgram program, LoyaltyProgramRequest req) {
+        String color = req.cardColor() == null ? "" : req.cardColor().trim();
+        if (!color.isEmpty() && !HEX_COLOR.matcher(color).matches()) {
+            throw new BadRequestException("Card color must be a #RRGGBB hex value.");
+        }
+        String bg = req.cardBg() == null ? "" : req.cardBg().trim();
+        if (!bg.isEmpty() && !HEX_COLOR.matcher(bg).matches()) {
+            throw new BadRequestException("Card background must be a #RRGGBB hex value.");
+        }
+        String motif = req.cardMotif() == null ? "" : req.cardMotif().trim();
+        if (!motif.isEmpty() && !CARD_MOTIFS.contains(motif)) {
+            throw new BadRequestException("Unknown card pattern.");
+        }
+        String icon = req.stampIcon() == null ? "" : req.stampIcon().trim();
+        program.setCardColor(color.isEmpty() ? null : color);
+        program.setCardBg(bg.isEmpty() ? null : bg);
+        program.setCardMotif(motif.isEmpty() ? null : motif);
+        program.setStampIcon(icon.isEmpty() ? DEFAULT_STAMP_ICON : icon);
+    }
+
+    /** Rejects reward item ids that don't exist or belong to another restaurant's menu. */
+    private void requireOwnMenuItems(Long restaurantId, Set<Long> itemIds) {
+        if (itemIds.isEmpty()) {
+            return;
+        }
+        List<MenuItem> found = menuItemRepository.findAllById(itemIds);
+        boolean allOwn = found.size() == itemIds.size()
+                && found.stream().allMatch(i -> restaurantId.equals(i.getRestaurantId()));
+        if (!allOwn) {
+            throw new BadRequestException("Reward items must be items from your own menu.");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -130,10 +183,15 @@ public class LoyaltyService {
                 continue; // café turned loyalty off — hide it from the portal
             }
             Restaurant r = restaurantService.getEntity(m.getRestaurantId());
+            List<LoyaltyPortalEntryResponse.RewardItemName> rewardItems =
+                    menuItemRepository.findAllById(program.getRewardItemIds()).stream()
+                            .map(i -> new LoyaltyPortalEntryResponse.RewardItemName(i.getNameEn(), i.getNameAr()))
+                            .toList();
             out.add(new LoyaltyPortalEntryResponse(
                     r.getSlug(), r.getName(), r.getLogoUrl(),
-                    program.getStampsRequired(), program.getRewardLabel(),
-                    m.getStamps(), m.getAvailableRewards(), m.getUpdatedAt()));
+                    program.getStampsRequired(), program.getRewardLabel(), rewardItems,
+                    m.getStamps(), m.getAvailableRewards(), m.getUpdatedAt(),
+                    program.getCardColor(), program.getCardBg(), program.getStampIcon(), program.getCardMotif()));
         }
         return out;
     }
@@ -142,13 +200,15 @@ public class LoyaltyService {
 
     /**
      * Reserves a reward redemption on a freshly saved order: validates the customer has a reward
-     * and the free item is in the cart, consumes one available reward, writes a PENDING REDEEM
-     * ledger row, and applies the discount (one priced unit of the reward item) to the order total.
-     * No-op when {@code redeemRequested} is false. Throws when requested but not satisfiable so the
-     * order is not created with an unbacked discount.
+     * and an eligible free item is in the cart, consumes one available reward, writes a PENDING
+     * REDEEM ledger row, and applies the discount (one priced unit of the chosen item) to the order
+     * total. {@code redeemItemId} is the customer's pick among the program's eligible items; when
+     * null (legacy clients) the cheapest eligible line is given free. No-op when
+     * {@code redeemRequested} is false. Throws when requested but not satisfiable so the order is
+     * not created with an unbacked discount.
      */
     @Transactional
-    public void applyRedemption(Order order, boolean redeemRequested) {
+    public void applyRedemption(Order order, boolean redeemRequested, Long redeemItemId) {
         if (!redeemRequested) {
             return;
         }
@@ -159,14 +219,20 @@ public class LoyaltyService {
         LoyaltyProgram program = programRepository.findByRestaurantId(order.getRestaurantId())
                 .filter(LoyaltyProgram::isEnabled)
                 .orElseThrow(() -> new BadRequestException("This café has no active loyalty program."));
-        if (program.getRewardItemId() == null) {
+        Set<Long> rewardIds = program.getRewardItemIds();
+        if (rewardIds.isEmpty()) {
             throw new BadRequestException("This café's loyalty reward is not set up yet.");
         }
+        if (redeemItemId != null && !rewardIds.contains(redeemItemId)) {
+            throw new BadRequestException("That item is not part of this café's loyalty reward.");
+        }
         OrderItem rewardLine = order.getItems().stream()
-                .filter(i -> program.getRewardItemId().equals(i.getMenuItemId()))
-                .findFirst()
+                .filter(i -> i.getMenuItemId() != null && rewardIds.contains(i.getMenuItemId()))
+                .filter(i -> redeemItemId == null || redeemItemId.equals(i.getMenuItemId()))
+                // no explicit pick (legacy client): the cheapest eligible line is the free one
+                .min(Comparator.comparing(OrderItem::getPriceSnapshot))
                 .orElseThrow(() -> new BadRequestException(
-                        "Add the reward item to your cart to redeem your reward."));
+                        "Add one of the reward items to your cart to redeem your reward."));
         LoyaltyMember member = memberRepository
                 .lockByRestaurantIdAndPhone(order.getRestaurantId(), phone)
                 .orElse(null);

@@ -140,7 +140,7 @@ export interface CreateOrderItem {
 export interface CreateOrderPayload {
   restaurantSlug: string; branchId: number; tableToken?: string | null; orderType: OrderType;
   customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
-  deviceToken?: string | null; phoneToken?: string | null; redeemReward?: boolean; items: CreateOrderItem[];
+  deviceToken?: string | null; phoneToken?: string | null; redeemReward?: boolean; redeemItemId?: number | null; items: CreateOrderItem[];
 }
 // Manual order taken by staff from the dashboard order pad — mirrors CreateStaffOrderRequest.java.
 export interface CreateStaffOrderPayload {
@@ -164,12 +164,14 @@ export interface ReturningCustomer {
 // Café configuration (dashboard) — mirrors LoyaltyProgramResponse.java.
 export interface LoyaltyProgram {
   enabled: boolean; stampsRequired: number; rewardLabel: string;
-  rewardItemId?: number | null; minOrderAmount?: number | null;
+  rewardItemIds: number[]; minOrderAmount?: number | null;
+  cardColor?: string | null; cardBg?: string | null; stampIcon?: string | null; cardMotif?: string | null;
 }
 // One café's stamp progress for a phone (menu/checkout) — mirrors LoyaltySummaryResponse.java.
 export interface LoyaltySummary {
   enabled: boolean; stampsRequired: number; rewardLabel?: string | null;
-  rewardItemId?: number | null; stamps: number; availableRewards: number; minOrderAmount?: number | null;
+  rewardItemIds: number[]; stamps: number; availableRewards: number; minOrderAmount?: number | null;
+  cardColor?: string | null; cardBg?: string | null; stampIcon?: string | null; cardMotif?: string | null;
 }
 // A café's member row (dashboard) — mirrors LoyaltyMemberResponse.java.
 export interface LoyaltyMemberRow {
@@ -179,7 +181,9 @@ export interface LoyaltyMemberRow {
 // One café's stamp card in the cross-café portal — mirrors LoyaltyPortalEntryResponse.java.
 export interface LoyaltyPortalEntry {
   restaurantSlug: string; restaurantName: string; logoUrl?: string | null;
-  stampsRequired: number; rewardLabel: string; stamps: number; availableRewards: number; updatedAt: string;
+  stampsRequired: number; rewardLabel: string; rewardItems: { nameEn?: string | null; nameAr?: string | null }[];
+  stamps: number; availableRewards: number; updatedAt: string;
+  cardColor?: string | null; cardBg?: string | null; stampIcon?: string | null; cardMotif?: string | null;
 }
 
 /* ---- platform admin: per-restaurant stats ---- */

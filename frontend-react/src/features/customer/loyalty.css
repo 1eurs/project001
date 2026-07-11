@@ -30,6 +30,11 @@
 .loy-ticket.ready { border-color: color-mix(in srgb, var(--loy-gold) 60%, var(--line, #555)); }
 .loy-ticket.ready::before { background: linear-gradient(90deg, var(--loy-gold), var(--loy-gold-2)); }
 
+/* card-studio watermark (--loy-motif is set inline by loyaltyCardStyle) — sits under the content */
+.loy-motif { position: absolute; inset: 4px 0 0; background-image: var(--loy-motif, none);
+  background-size: 68px 68px; opacity: .45; pointer-events: none; }
+.loy-ticket-hd, .loy-perf, .loy-stamps, .loy-ticket-foot { position: relative; }
+
 .loy-ticket-hd { display: flex; align-items: center; gap: 12px; padding: 17px 16px 13px; }
 .loy-logo {
   width: 44px; height: 44px; border-radius: 13px; object-fit: cover; flex: none;
@@ -160,11 +165,13 @@
 
 /* ---------------------------------------------------- redeem card (checkout) */
 .loy-redeem {
-  display: flex; align-items: center; gap: 13px; margin-top: 14px; padding: 14px;
-  border-radius: 15px; cursor: pointer;
+  display: flex; flex-direction: column; margin-top: 14px;
+  border-radius: 15px; overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--loy-gold) 55%, var(--line, #555));
   background: linear-gradient(135deg, color-mix(in srgb, var(--loy-gold) 18%, var(--surface, #15181d)), var(--surface, #15181d));
 }
+.loy-redeem-head { display: flex; align-items: center; gap: 13px; padding: 14px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; }
 .loy-redeem .gift { font-size: 22px; flex: none; }
 .loy-redeem-main { flex: 1; min-width: 0; }
 .loy-redeem-main b { color: var(--text, #eee); font-size: 14px; display: block; }
@@ -179,6 +186,37 @@
 .loy-switch input:checked + .track::before { transform: translateX(19px); }
 [dir='rtl'] .loy-switch input:checked + .track::before { transform: translateX(-19px); }
 .loy-switch input:focus-visible + .track { box-shadow: 0 0 0 3px color-mix(in srgb, var(--loy-gold) 35%, transparent); }
+
+/* "choose your free item" — shown inside the redeem card when several items are eligible */
+.loy-free-pick { display: flex; flex-direction: column; gap: 8px; padding: 0 14px 14px; }
+.loy-free-pick > b { color: var(--text, #eee); font-size: 12.5px; padding-top: 12px;
+  border-top: 1.5px dashed color-mix(in srgb, var(--loy-gold) 45%, transparent); }
+.loy-free-opt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 11px;
+  cursor: pointer; border: 1px solid var(--line, rgba(255, 255, 255, .12));
+  background: color-mix(in srgb, var(--text, #fff) 4%, transparent); transition: border-color .15s, background .15s; }
+.loy-free-opt input { accent-color: var(--loy-gold, #ecc04a); margin: 0; flex: none; }
+.loy-free-opt .nm { flex: 1; min-width: 0; color: var(--text, #eee); font-size: 13px; font-weight: 600; }
+.loy-free-opt .pr { flex: none; color: var(--loy-gold, #ecc04a); font-size: 12.5px; font-weight: 700; }
+.loy-free-opt.on { border-color: color-mix(in srgb, var(--loy-gold) 70%, var(--line, #555));
+  background: color-mix(in srgb, var(--loy-gold) 14%, transparent); }
+
+/* gold "FREE" tag on the cart line the reward pays for */
+.loy-free-tag { display: inline-block; margin-inline-start: 7px; padding: 2px 8px; border-radius: 999px;
+  background: linear-gradient(135deg, #ecc04a, #c8901a); color: #2a1d04;
+  font-size: 10.5px; font-weight: 800; vertical-align: 2px; white-space: nowrap; }
+
+/* menu-card chip marking an item as claimable with a loyalty reward */
+.loy-item-badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; padding: 2.5px 9px;
+  border-radius: 999px; font-size: 10.5px; font-weight: 700; color: var(--muted, #9a958c);
+  border: 1px dashed color-mix(in srgb, var(--text, #fff) 24%, transparent); }
+.loy-item-badge.ready { border: 1px solid transparent; color: #2a1d04; font-weight: 800;
+  background: linear-gradient(135deg, #ecc04a, #c8901a); }
+
+/* eligible reward items listed on a portal stamp card */
+.loy-reward-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.loy-reward-chips span { padding: 2.5px 9px; border-radius: 999px; font-size: 11px;
+  color: var(--muted, #9a958c); border: 1px solid var(--line, rgba(255, 255, 255, .12));
+  background: color-mix(in srgb, var(--text, #fff) 4%, transparent); }
 
 /* loyalty discount row in an order's totals */
 .c-totals .row.loy-discount span:last-child,

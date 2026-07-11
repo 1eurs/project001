@@ -27,8 +27,10 @@ public record CreateOrderRequest(
         @Size(max = 64) String deviceToken,
         /** 30-day token issued by POST /api/public/otp/verify. Nullable while OTP is disabled. */
         String phoneToken,
-        /** When true, redeem an available loyalty reward (the free item must be among the items). */
+        /** When true, redeem an available loyalty reward (an eligible free item must be among the items). */
         boolean redeemReward,
+        /** The customer's pick among the program's eligible reward items; null lets the server choose. */
+        Long redeemItemId,
         @NotEmpty @Valid List<Item> items
 ) {
 

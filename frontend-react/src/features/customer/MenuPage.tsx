@@ -15,6 +15,7 @@ import { readMenuCache, writeMenuCache } from './menuCache';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
 import { ItemDetailModal } from './ItemDetailModal';
+import { loyaltyCardStyle } from './StampCard';
 import './loyalty.css';
 
 const DICT: Dict = {
@@ -23,13 +24,15 @@ const DICT: Dict = {
         ordersPaused: 'الطلبات متوقفة مؤقتاً', ordersPausedSub: 'يمكنك تصفح القائمة، لكن هذا الفرع لا يستقبل طلبات جديدة حالياً.',
         browseHint: 'امسح رمز طاولتك أو رمز خدمة السيارة لإرسال طلب.',
         welcome: 'أهلاً بعودتك', usual: 'طلبك المعتاد', addUsual: '＋ أضف', lastOrderLbl: 'طلبك السابق', reorderLast: '↻ أضِفه للسلة', lastAdded: 'أُضيف طلبك السابق إلى السلة ✓',
-        loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'استبدل مكافأتك المجانية عند الدفع', loyMinTag: 'الحد الأدنى' },
+        loyStamps: 'أختام', loyReady: 'مكافأتك جاهزة! 🎉', loyReadySub: 'استبدل مكافأتك المجانية عند الدفع', loyMinTag: 'الحد الأدنى',
+        loyPickAny: 'اختر أي صنف:', loyRewardBadge: 'مكافأة الولاء', loyFreeBadge: 'مجاني بمكافأتك' },
   en: { table: 'Table', viewCart: 'View cart', items: 'items', cur: 'OMR', min: 'min', from: 'from',
         soldout: 'Sold out', unavailable: 'Menu is unavailable right now', retry: 'Try again', car: 'Car order', added: 'Added ✓', menuOnly: 'Menu',
         ordersPaused: 'Orders are paused', ordersPausedSub: 'You can browse the menu, but this branch is not accepting new orders right now.',
         browseHint: 'Scan your table’s QR or the car-service QR to place an order.',
         welcome: 'Welcome back', usual: 'Your usual', addUsual: '＋ Add', lastOrderLbl: 'Your last order', reorderLast: '↻ Add to cart', lastAdded: 'Your last order is in the cart ✓',
-        loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Redeem your free reward at checkout', loyMinTag: 'min order' },
+        loyStamps: 'stamps', loyReady: 'Your reward is ready! 🎉', loyReadySub: 'Redeem your free reward at checkout', loyMinTag: 'min order',
+        loyPickAny: 'Pick any:', loyRewardBadge: 'Loyalty reward', loyFreeBadge: 'Free with your reward' },
 };
 
 const fallbackThumb = (it: PublicItem) => {
@@ -108,6 +111,14 @@ export default function MenuPage() {
     data?.categories.forEach((c) => c.items.forEach((i) => m.set(i.id, i)));
     return m;
   }, [data]);
+
+  // Loyalty reward eligibility: badge the items a full stamp card can claim free.
+  const loyRewardIds = (returning?.loyalty?.enabled ? returning.loyalty.rewardItemIds : null) ?? [];
+  const loyReady = (returning?.loyalty?.availableRewards ?? 0) > 0;
+  const loyRewardNames = useMemo(
+    () => loyRewardIds.map((id) => itemsById.get(id)).filter((it): it is PublicItem => !!it)
+      .slice(0, 3).map((it) => pick(it, 'name', lang)),
+    [loyRewardIds, itemsById, lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Your usual": only with a strong repeat signal — ≥2 orders and the top item in ≥50% of them
   // (the repeat/explore threshold that keeps the banner from guessing on thin history).
@@ -251,12 +262,15 @@ export default function MenuPage() {
           const ready = loy.availableRewards > 0;
           const dots = Math.min(loy.stampsRequired, 10);
           return (
-            <div className={'loy-strip on-menu' + (ready ? ' ready' : '')} onClick={() => nav('/loyalty', { state: { from: pathname } })}
+            <div className={'loy-strip on-menu' + (ready ? ' ready' : '')} style={loyaltyCardStyle(loy.cardColor)}
+              onClick={() => nav('/loyalty', { state: { from: pathname } })}
               role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: pathname } })}>
               <span className="loy-spark">{ready ? '★' : '🎟️'}</span>
               <div className="loy-strip-main">
                 <b>{ready ? t('loyReady') : <><span className="num">{loy.stamps}</span> / <span className="num">{loy.stampsRequired}</span> {t('loyStamps')}</>}</b>
-                <span>{ready ? t('loyReadySub') : <>{loy.rewardLabel}{loy.minOrderAmount ? <> · {t('loyMinTag')} <Money value={loy.minOrderAmount} /></> : null}</>}</span>
+                <span>{ready
+                  ? (loyRewardNames.length ? `${t('loyPickAny')} ${loyRewardNames.join(' · ')}` : t('loyReadySub'))
+                  : <>{loy.rewardLabel}{loy.minOrderAmount ? <> · {t('loyMinTag')} <Money value={loy.minOrderAmount} /></> : null}</>}</span>
               </div>
               <div className="loy-mini" aria-hidden="true">
                 {Array.from({ length: dots }).map((_, i) => (
@@ -336,6 +350,11 @@ export default function MenuPage() {
                           {hasOptions && <span className="c-from"> · {t('from')}</span>}
                         </div>
                         {it.preparationTimeMinutes ? <div className="c-prep">⏱ <span className="num">{it.preparationTimeMinutes}</span> {t('min')}</div> : null}
+                        {loyRewardIds.includes(it.id) && (
+                          <div className={'loy-item-badge' + (loyReady ? ' ready' : '')}>
+                            🎁 {loyReady ? t('loyFreeBadge') : t('loyRewardBadge')}
+                          </div>
+                        )}
                       </div>
                       {!orderable
                         ? null

@@ -541,7 +541,7 @@ function motifSvg(motif: MenuThemeCustom['motif'], accent: string, text: string,
   return `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><g fill="${accent}" fill-opacity="${fillOpacity}"><ellipse cx="36" cy="48" rx="11" ry="18" transform="rotate(25 36 48)"/><ellipse cx="60" cy="48" rx="11" ry="18" transform="rotate(-25 60 48)"/></g><path d="M35 36c3 8 3 16 0 24M61 36c-3 8-3 16 0 24" stroke="${text}" stroke-opacity="${detailOpacity}" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
 }
 
-function hexAlpha(hex: string, alpha: number): string {
+export function hexAlpha(hex: string, alpha: number): string {
   const { r, g, b } = toRgb(hex);
   return `rgba(${r},${g},${b},${alpha})`;
 }
@@ -564,8 +564,14 @@ function alphaBlend(fg: string, bg: string, alpha: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
 }
 
-function readableOn(hex: string): string {
+export function readableOn(hex: string): string {
   return contrastRatio('#171109', hex) >= contrastRatio('#FFF9EF', hex) ? '#171109' : '#FFF9EF';
+}
+
+/** A motif tile as a CSS url() — the loyalty card studio reuses the menu-theme motif library. */
+export function motifDataUrl(motif: MenuThemeCustom['motif'], color: string, opacity: number): string {
+  if (motif === 'none') return 'none';
+  return svgUrl(motifSvg(motif, color, color, clamp(opacity, 0.04, 0.3)));
 }
 
 // Keep a colour's hue but push its lightness until it clears `min` WCAG contrast

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
+import { sanitizePhone } from '../../lib/format';
 import type { LoyaltyPortalEntry } from '../../lib/types';
-import { useT, type Dict } from '../../lib/i18n';
+import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { CustomerFrame } from './CustomerFrame';
 import { StampCard } from './StampCard';
@@ -42,6 +43,7 @@ const DICT: Dict = {
 type Step = 'phone' | 'code' | 'done';
 
 export default function LoyaltyPortal() {
+  const { lang } = useI18n();
   const t = useT(DICT);
   const nav = useNavigate();
   const loc = useLocation();
@@ -78,18 +80,30 @@ export default function LoyaltyPortal() {
     }
   }, [token, portal.isError]);
 
-  const sendCode = useMutation({
-    mutationFn: () => api.post<void>('/api/public/otp/send', { phone: phone.trim() }, { auth: false }),
-    onSuccess: () => setStep('code'),
-    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
-  });
   const verify = useMutation({
-    mutationFn: () => api.post<{ phoneToken: string }>(
-      '/api/public/otp/verify', { phone: phone.trim(), code: code.trim() }, { auth: false }),
+    mutationFn: ({ otpCode }: { otpCode: string; silent?: boolean }) =>
+      api.post<{ phoneToken: string }>(
+        '/api/public/otp/verify', { phone: phone.trim(), code: otpCode }, { auth: false }),
     onSuccess: (data) => {
       localStorage.setItem(TOKEN_KEY, data.phoneToken);
       setToken(data.phoneToken);
       setStep('done');
+    },
+    onError: (e, vars) => {
+      // The silent attempt failing is the normal "real OTP is enforced" path — no toast,
+      // just show the code screen like before.
+      if (vars.silent) setStep('code');
+      else toast(e instanceof ApiError ? e.message : 'Error');
+    },
+  });
+  const sendCode = useMutation({
+    mutationFn: () => api.post<void>('/api/public/otp/send', { phone: phone.trim() }, { auth: false }),
+    onSuccess: () => {
+      // OTP is currently bypassed server-side (no WhatsApp provider configured — see
+      // OtpService), so self-verify with a dummy code and skip the code screen entirely.
+      // Once a real provider is configured, this dummy verify fails and we fall back to
+      // asking for the code, exactly like before.
+      verify.mutate({ otpCode: '000000', silent: true });
     },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
@@ -145,7 +159,7 @@ export default function LoyaltyPortal() {
             <div className="loy-field">
               <label htmlFor="loy-phone">{t('phone')}</label>
               <input id="loy-phone" className="num" inputMode="tel" value={phone} placeholder={t('phonePh')}
-                onChange={(e) => setPhone(e.target.value)} />
+                onChange={(e) => setPhone(sanitizePhone(e.target.value))} />
             </div>
             <button className="loy-btn" disabled={!phone.trim() || sendCode.isPending}
               onClick={() => sendCode.mutate()}>
@@ -166,7 +180,7 @@ export default function LoyaltyPortal() {
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
             </div>
             <button className="loy-btn" disabled={code.trim().length !== 6 || verify.isPending}
-              onClick={() => verify.mutate()}>
+              onClick={() => verify.mutate({ otpCode: code.trim() })}>
               {verify.isPending ? t('verifying') : t('verify')}
             </button>
             <button className="loy-link" onClick={() => { setStep('phone'); setCode(''); }}>{t('changeNum')}</button>
@@ -196,7 +210,11 @@ export default function LoyaltyPortal() {
                 {entries.map((e) => (
                   <StampCard key={e.restaurantSlug} name={e.restaurantName} logoUrl={e.logoUrl}
                     rewardLabel={e.rewardLabel} stamps={e.stamps} stampsRequired={e.stampsRequired}
-                    availableRewards={e.availableRewards} footer={cardFooter(e)} />
+                    availableRewards={e.availableRewards} footer={cardFooter(e)}
+                    cardColor={e.cardColor} cardBg={e.cardBg} stampIcon={e.stampIcon} cardMotif={e.cardMotif}
+                    rewardItemNames={(e.rewardItems ?? [])
+                      .map((r) => (lang === 'ar' ? (r.nameAr || r.nameEn) : (r.nameEn || r.nameAr)) ?? '')
+                      .filter(Boolean)} />
                 ))}
                 <button className="loy-link" style={{ margin: '6px auto 0' }} onClick={signOut}>{t('signout')}</button>
               </>

@@ -155,6 +155,7 @@ export default function TrackPage() {
               <StampCard name={t('loyCard')} rewardLabel={o.loyalty.rewardLabel || ''}
                 stamps={o.loyalty.stamps} stampsRequired={o.loyalty.stampsRequired}
                 availableRewards={o.loyalty.availableRewards}
+                cardColor={o.loyalty.cardColor} cardBg={o.loyalty.cardBg} stampIcon={o.loyalty.stampIcon} cardMotif={o.loyalty.cardMotif}
                 footer={o.loyalty.availableRewards > 0
                   ? <><span className="loy-progress">{t('counter')}</span>
                       <span className="loy-ready">★ {o.loyalty.availableRewards > 1

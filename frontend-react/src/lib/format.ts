@@ -18,6 +18,22 @@ export const estimateVat = (subtotal: number, vatRatePercent: number, enabled: b
 export const discountPercent = (base: number, sale: number): number =>
   base > 0 ? Math.round((1 - sale / base) * 100) : 0;
 
+/**
+ * Keep phone inputs to what the backend's Phones.normalize accepts: digits
+ * (Arabic-Indic converted to Latin) and one leading +. Everything else is
+ * dropped as the user types, so a pasted "96-12 34" or "٩٦١٢٣٤" still works.
+ */
+export const sanitizePhone = (raw: string): string => {
+  let out = '';
+  for (const c of raw) {
+    if (c >= '٠' && c <= '٩') out += String.fromCharCode(48 + c.charCodeAt(0) - 0x0660);
+    else if (c >= '۰' && c <= '۹') out += String.fromCharCode(48 + c.charCodeAt(0) - 0x06f0);
+    else if (c >= '0' && c <= '9') out += c;
+    else if (c === '+' && out === '') out += c;
+  }
+  return out.slice(0, 16);
+};
+
 export const fmtElapsed = (sinceIso: string | number): string => {
   const ms = Date.now() - (typeof sinceIso === 'number' ? sinceIso : new Date(sinceIso).getTime());
   const s = Math.max(0, Math.floor(ms / 1000));

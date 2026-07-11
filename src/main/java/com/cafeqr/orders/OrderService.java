@@ -24,7 +24,6 @@ import com.cafeqr.orders.dto.CreateStaffOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderSummaryResponse;
 import com.cafeqr.orders.dto.OrderTrackingResponse;
-import com.cafeqr.orders.print.PrintJobService;
 import com.cafeqr.orders.realtime.OrderEvent;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
@@ -76,7 +75,6 @@ public class OrderService {
     private final OtpService otpService;
     private final EventLogService eventLogService;
     private final LoyaltyService loyaltyService;
-    private final PrintJobService printJobService;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
@@ -92,7 +90,6 @@ public class OrderService {
                         OtpService otpService,
                         EventLogService eventLogService,
                         LoyaltyService loyaltyService,
-                        PrintJobService printJobService,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
@@ -107,7 +104,6 @@ public class OrderService {
         this.otpService = otpService;
         this.eventLogService = eventLogService;
         this.loyaltyService = loyaltyService;
-        this.printJobService = printJobService;
         this.objectMapper = objectMapper;
     }
 
@@ -170,7 +166,7 @@ public class OrderService {
         Order saved = orderRepository.save(order);
         customerService.recordOrder(saved, request.deviceToken());
         // Reserve a loyalty reward redemption if requested (adjusts the saved order's total).
-        loyaltyService.applyRedemption(saved, request.redeemReward());
+        loyaltyService.applyRedemption(saved, request.redeemReward(), request.redeemItemId());
 
         notifyAndStream(saved, NotificationType.NEW_ORDER, "order.created",
                 "New order " + saved.getOrderNumber() + " received");
@@ -333,9 +329,9 @@ public class OrderService {
         order.setCompletedAt(Instant.now());
         loyaltyService.onOrderCompleted(order); // earn a stamp + confirm any reserved reward
         eventLogService.recordOrderEvent(order, OrderStatus.COMPLETED, null);
-        // Same transaction as the completion: the job row is committed before the SSE event
-        // (published after commit) can prompt the print station to pull it.
-        printJobService.enqueueIfEnabled(order);
+        // Receipt printing is device-local: the tablet that completes the order prints it via
+        // RawBT (see frontend printer.ts). The print-jobs queue slice is dormant — kept in
+        // case cross-device printing returns, but nothing enqueues into it anymore.
         notifyAndStream(order, NotificationType.ORDER_COMPLETED, "order.completed",
                 "Order " + order.getOrderNumber() + " completed");
         return OrderResponse.from(order);

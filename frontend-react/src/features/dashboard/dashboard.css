@@ -135,15 +135,61 @@
 .loy-rule{margin:15px 0 0;padding:9px 11px;border:1.5px dashed var(--line-2);border-radius:6px;background:var(--paper);font-size:11.5px;color:var(--muted)}
 .loy-rule b{color:var(--text)}
 .loy-hint{display:block;margin-top:6px;font-size:10.5px;color:var(--muted);line-height:1.4}
+.loy-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.loy-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1.5px solid var(--ink);border-radius:99px;background:var(--lime);font:inherit;font-size:11.5px;font-weight:800;color:var(--ink);cursor:pointer;box-shadow:2px 2px 0 var(--ink)}
+.loy-chip:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.loy-chip i{font-style:normal;font-size:13px;line-height:1;opacity:.7}
+.loy-item-list{margin-top:8px;max-height:236px;overflow-y:auto;border:1.5px solid var(--line-2);border-radius:6px;background:var(--paper)}
+/* .loy-item-list prefix outranks theme.css's `.field label{display:block}` */
+.loy-item-list .loy-item-row{display:flex;align-items:center;gap:9px;margin:0;padding:8px 11px;border-bottom:1px solid var(--line-2);cursor:pointer;font-size:12.5px;color:var(--text);text-transform:none}
+.loy-item-row:last-child{border-bottom:0}
+.loy-item-row:hover{background:var(--faint)}
+.loy-item-row.sel{background:color-mix(in srgb,var(--lime) 20%,var(--paper))}
+.loy-item-row input{width:auto;flex:none;accent-color:var(--ink)}
+.loy-item-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loy-item-row .pr{flex:none;color:var(--muted);font-size:11px}
+.loy-no-match{margin:0;padding:14px;color:var(--muted);font-size:11.5px;text-align:center}
+/* ---- card studio controls (section 03) ---- */
+.loy-swatches{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.loy-swatch{width:30px;height:30px;flex:none;border-radius:50%;border:2px solid var(--ink);padding:0;cursor:pointer;box-shadow:2px 2px 0 var(--ink)}
+.loy-swatch:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.loy-swatch.on{outline:3px solid var(--lime);outline-offset:2px}
+.loy-swatch.auto{background:repeating-linear-gradient(45deg,var(--paper) 0 5px,var(--faint) 5px 10px)}
+.loy-swatch.custom{display:grid;place-items:center;position:relative;overflow:hidden;background:var(--paper);font-size:14px}
+.loy-swatch.custom input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.loy-icon-row{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.loy-icon-opt{width:36px;height:36px;flex:none;display:grid;place-items:center;border:1.5px solid var(--line-2);border-radius:9px;background:var(--paper);font-size:17px;cursor:pointer;padding:0}
+.loy-icon-opt:hover{border-color:var(--ink)}
+.loy-icon-opt.on{border-color:var(--ink);background:color-mix(in srgb,var(--lime) 25%,var(--paper));box-shadow:2px 2px 0 var(--ink)}
+.loy-icon-row input.loy-icon-free{width:70px;flex:none;text-align:center;font-size:16px}
+.loy-motif-row{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.loy-motif-opt{width:44px;height:44px;flex:none;border:1.5px solid var(--line-2);border-radius:9px;background-color:var(--paper);background-size:38px 38px;background-position:center;background-repeat:repeat;cursor:pointer;padding:0}
+.loy-motif-opt:hover{border-color:var(--ink)}
+.loy-motif-opt.none{width:auto;padding:0 13px;font:inherit;font-size:11px;font-weight:800;color:var(--muted)}
+.loy-motif-opt.on{border-color:var(--ink);box-shadow:2px 2px 0 var(--ink);background-color:color-mix(in srgb,var(--lime) 18%,var(--paper))}
+.loy-suggest{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;align-items:center}
+.loy-suggest small{flex-basis:100%;color:var(--muted);font-size:10.5px;font-weight:700}
+.loy-suggest button{padding:5px 11px;border:1.5px dashed var(--line-2);border-radius:99px;background:var(--paper);font:inherit;font-size:11px;color:var(--text);cursor:pointer;text-align:start}
+.loy-suggest button:hover{border-style:solid;border-color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
 .loy-card-preview{border:2px solid var(--ink);border-radius:8px;background:var(--bg-2);padding:15px;box-shadow:var(--hard-sm)}
 .loy-preview-label{display:block;margin-bottom:11px;color:var(--muted);font-family:var(--bold);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
-.loy-preview-ticket{position:relative;overflow:hidden;border:2px solid var(--ink);border-radius:8px;background:var(--lime);padding:15px;box-shadow:3px 3px 0 var(--ink)}.loy-preview-ticket::after{content:"";position:absolute;inset:-20% -15%;background:radial-gradient(circle,rgba(255,255,255,.24) 1px,transparent 1.5px) 0 0/12px 12px;pointer-events:none}
-.loy-preview-top,.loy-preview-stamps,.loy-preview-ticket p{position:relative;z-index:1}.loy-preview-top{display:flex;flex-direction:column;gap:9px}.loy-preview-top>span{font-family:var(--bold);font-size:12px;font-weight:900}.loy-preview-top b{max-width:18ch;font-family:var(--bold);font-size:18px;font-weight:900;line-height:1.1;text-wrap:balance}
-.loy-preview-stamps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:18px 0 13px}.loy-preview-stamps i{aspect-ratio:1;display:grid;place-items:center;border:1.5px solid var(--ink);border-radius:50%;background:rgba(255,255,255,.68);font-style:normal;font-size:10px}.loy-preview-stamps i:first-child{background:var(--ink);color:var(--lime)}
-.loy-preview-ticket p{margin:0;padding-top:10px;border-top:1.5px solid rgba(21,24,28,.45);color:var(--ink);font-size:10px;line-height:1.4}
+/* Collecting / Reward-ready preview toggle */
+.loy-preview-state{display:flex;gap:4px;margin-bottom:10px;padding:3px;border:1.5px solid var(--line-2);border-radius:7px;background:var(--paper)}
+.loy-preview-state button{flex:1;padding:6px 8px;border:0;border-radius:5px;background:none;font:inherit;font-size:10.5px;font-weight:800;color:var(--muted);cursor:pointer}
+.loy-preview-state button.on{background:var(--ink);color:var(--lime)}
+/* The REAL customer StampCard, rendered inside the café's actual menu skin (the wrapper is a
+   mini .cust-bg shell). The vars below are only the fallback for the default Onyx theme — every
+   named skin overrides them via menu-themes.css, and custom JSON themes via inline style. */
+.cust-bg.loy-preview-live{display:block;min-height:0;padding:12px;border-radius:10px;border:2px solid var(--ink);
+  background:var(--bg,#0c0e11)}
+/* Onyx-only token fallbacks — low specificity ON PURPOSE so every named skin
+   (.cust-bg[data-menu-theme="x"], 0-2-0) and custom JSON themes (inline) override them. */
+.loy-preview-live{--bg:#0c0e11;--surface:#15181d;--text:#f0ede6;--muted:#9a958c;--line:rgba(255,255,255,.12);
+  --accent:#10b981;--accent-2:#059669;--accent-ink:#04120c}
+.loy-card-preview .loy-rule{margin-top:12px}
 @media(max-width:980px){.loy-setup-layout{grid-template-columns:1fr}.loy-setup-aside{position:static;display:grid;grid-template-columns:minmax(0,1fr) 290px;align-items:start}}
 @media(max-width:720px){.loy-setup-hero{align-items:flex-start;flex-direction:column}.loy-setup-hero>.btn{width:100%}.loy-setup-aside{display:flex}.loy-config-fields{grid-template-columns:1fr}.loy-reward-item{grid-column:auto}}
-@media(max-width:560px){.loy-setup-page{padding:14px}.loy-setup-hero{padding:14px}.loy-ticket-mark{width:64px;height:64px;font-size:25px}.loy-config-section{padding:14px}.loy-preview-stamps{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:560px){.loy-setup-page{padding:14px}.loy-setup-hero{padding:14px}.loy-ticket-mark{width:64px;height:64px;font-size:25px}.loy-config-section{padding:14px}}
 .loy-people-hd{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 .loy-people-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .loy-people-hd h3{margin:0;font-size:16px;color:var(--text)}

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { PublicMenu, PublicItem, OrderTracking, CreateOrderPayload, OrderType, LoyaltySummary } from '../../lib/types';
-import { omr, estimateVat, round3 } from '../../lib/format';
+import { omr, estimateVat, round3, sanitizePhone } from '../../lib/format';
 import { useI18n, useT, pick, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { useCartStore, useCart, lineUnitPrice } from '../../lib/cart';
@@ -13,6 +13,7 @@ import { track } from '../../lib/analytics';
 import { useVenue, cartKeyOf, menuPathOf, menuUrlOf } from './venue';
 import { usePresence } from './usePresence';
 import { CustomerFrame } from './CustomerFrame';
+import { loyaltyCardStyle } from './StampCard';
 import './loyalty.css';
 
 const DICT: Dict = {
@@ -26,7 +27,9 @@ const DICT: Dict = {
         note: 'ملاحظة على الطلب', notePh: 'مثال: بدون سكر…', itemNote: 'ملاحظة على الصنف…',
         subtotal: 'المجموع الفرعي', vat: 'ضريبة القيمة المضافة', total: 'الإجمالي',
         finalNote: 'يُحتسب الإجمالي النهائي من المقهى عند تأكيد الطلب.', place: 'إرسال الطلب', placing: 'جارٍ الإرسال…',
-        loyStamps: 'أختام', redeemTitle: 'استخدم مكافأتك', redeemSub: 'هذا الصنف مجاناً',
+        loyStamps: 'أختام', redeemTitle: 'استخدم مكافأتك', redeemSub: 'صنف واحد مجاناً',
+        chooseFree: 'اختر صنفك المجاني', freeTag: 'مجاني 🎁',
+        rewardReady: 'لديك مكافأة مجانية!', addOneOf: 'أضف أحد هذه الأصناف لاستخدامها:',
         loyDiscount: 'مكافأة الولاء', myRewards: 'مكافآتي' },
   en: { title: 'Your cart', cur: 'OMR', empty: 'Your cart is empty', emptySub: 'Add something you love from the menu.', back: 'Back to menu',
         ordersPaused: 'Orders are paused', ordersPausedSub: 'This branch is not accepting new orders right now. You can return to browse the menu.', closedStamp: 'Closed',
@@ -38,7 +41,9 @@ const DICT: Dict = {
         note: 'Order note', notePh: 'e.g. no sugar…', itemNote: 'Note for this item…',
         subtotal: 'Subtotal', vat: 'VAT', total: 'Total',
         finalNote: 'Final total is confirmed by the cafe when your order is accepted.', place: 'Place order', placing: 'Sending…',
-        loyStamps: 'stamps', redeemTitle: 'Use your reward', redeemSub: 'this item is free',
+        loyStamps: 'stamps', redeemTitle: 'Use your reward', redeemSub: 'one item free',
+        chooseFree: 'Choose your free item', freeTag: 'FREE 🎁',
+        rewardReady: 'You have a free reward!', addOneOf: 'Add one of these to use it:',
         loyDiscount: 'Loyalty reward', myRewards: 'My rewards' },
 };
 
@@ -115,15 +120,42 @@ export default function CartPage() {
     enabled: !!slug && phoneDigits.length >= 7,
     staleTime: 60_000,
   });
-  // The reward is redeemable only when the customer has one AND the free item is in the cart.
-  const rewardLine = loyalty?.enabled && loyalty.rewardItemId != null
-    ? cart.find((l) => l.id === loyalty.rewardItemId) : undefined;
-  const canRedeem = !!(loyalty?.enabled && loyalty.availableRewards >= 1 && rewardLine);
+  // The reward is redeemable only when the customer has one AND an eligible item is in the cart.
+  // The café now sets a LIST of eligible items — the customer picks which ONE is free.
+  const rewardIds = (loyalty?.enabled ? loyalty.rewardItemIds : null) ?? [];
+  const eligibleLines = rewardIds.length ? cart.filter((l) => rewardIds.includes(l.id)) : [];
+  const canRedeem = !!(loyalty?.enabled && loyalty.availableRewards >= 1 && eligibleLines.length > 0);
   const [redeem, setRedeem] = useState(false);
   useEffect(() => { if (!canRedeem) setRedeem(false); }, [canRedeem]);
-  const rewardItem = rewardLine ? itemsById.get(rewardLine.id) : undefined;
-  const rewardDiscount = redeem && rewardItem && rewardLine
-    ? round3(lineUnitPrice(rewardItem, rewardLine.selectedOptions)) : 0;
+  // The explicit pick; falls back to the first eligible line still in the cart.
+  const [pickedRewardId, setPickedRewardId] = useState<number | null>(null);
+  const redeemItemId = canRedeem
+    ? (pickedRewardId != null && eligibleLines.some((l) => l.id === pickedRewardId)
+        ? pickedRewardId : eligibleLines[0].id)
+    : null;
+  const unitOf = (l: (typeof cart)[number]) => {
+    const it = itemsById.get(l.id);
+    return it ? round3(lineUnitPrice(it, l.selectedOptions)) : 0;
+  };
+  // One radio choice per distinct eligible item; the waived price mirrors the server's
+  // pick of the cheapest line of that item (options can price the same item differently).
+  const rewardChoices = (() => {
+    const m = new Map<number, number>();
+    for (const l of eligibleLines) {
+      const u = unitOf(l);
+      const cur = m.get(l.id);
+      if (cur == null || u < cur) m.set(l.id, u);
+    }
+    return [...m].map(([id, price]) => ({ id, price }));
+  })();
+  const chosenMatches = redeemItemId != null ? eligibleLines.filter((l) => l.id === redeemItemId) : [];
+  const freeLine = redeem && chosenMatches.length
+    ? chosenMatches.reduce((a, b) => (unitOf(a) <= unitOf(b) ? a : b)) : undefined;
+  const rewardDiscount = freeLine ? unitOf(freeLine) : 0;
+  // Reward items still on this menu, to nudge a customer whose reward is ready but unusable.
+  const rewardNames = rewardIds
+    .map((id) => itemsById.get(id)).filter((it): it is PublicItem => !!it)
+    .slice(0, 3).map((it) => pick(it, 'name', lang));
   // A redeemed reward waives the item's price AND its VAT, so a "free drink" is truly free.
   const rewardVat = redeem ? round3(estimateVat(rewardDiscount, restaurant?.vatRate ?? 0, vatEnabled)) : 0;
   const vatCharged = round3(vat - rewardVat);
@@ -140,6 +172,7 @@ export default function CartPage() {
         deviceToken: deviceToken(true),
         phoneToken: null,
         redeemReward: redeem,
+        redeemItemId: redeem ? redeemItemId : null,
         items: cart.map((l) => ({
           menuItemId: l.id, quantity: l.qty, note: l.note || null,
           selectedOptions: l.selectedOptions?.length ? l.selectedOptions : null,
@@ -210,7 +243,10 @@ export default function CartPage() {
                 <div className="c-line" key={l.key}>
                   <div className="c-thumb" style={thumb(it)}>{!it.imageUrl && <span className="glyph">{pick(it, 'name', lang).charAt(0)}</span>}</div>
                   <div className="c-line-main">
-                    <h4>{pick(it, 'name', lang)}</h4>
+                    <h4>
+                      {pick(it, 'name', lang)}
+                      {freeLine?.key === l.key && <span className="loy-free-tag">{t('freeTag')}</span>}
+                    </h4>
                     {l.selectedOptions?.length > 0 && (
                       <div className="c-line-opts">
                         {l.selectedOptions.map((sel) => {
@@ -301,7 +337,7 @@ export default function CartPage() {
             <div className="field">
               <label>{t('phone')}</label>
               <input className="num" inputMode="tel" value={phone} placeholder="9XXXXXXX"
-                onChange={(e) => setPhone(e.target.value)} />
+                onChange={(e) => setPhone(sanitizePhone(e.target.value))} />
               {savedPhones.length > 1 && (
                 <div className="saved-chips">
                   {savedPhones.map((p) => (
@@ -311,8 +347,9 @@ export default function CartPage() {
               )}
             </div>
 
-            {loyalty?.enabled && !canRedeem && (
-              <div className="loy-strip" onClick={() => nav('/loyalty', { state: { from: loc.pathname } })} role="button" tabIndex={0}
+            {loyalty?.enabled && loyalty.availableRewards < 1 && (
+              <div className="loy-strip" style={loyaltyCardStyle(loyalty.cardColor)}
+                onClick={() => nav('/loyalty', { state: { from: loc.pathname } })} role="button" tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && nav('/loyalty', { state: { from: loc.pathname } })}>
                 <span className="loy-spark">🎟️</span>
                 <div className="loy-strip-main">
@@ -327,19 +364,48 @@ export default function CartPage() {
                 <span className="loy-go">›</span>
               </div>
             )}
-            {canRedeem && (
-              <label className="loy-redeem">
-                <span className="gift" aria-hidden="true">🎁</span>
-                <div className="loy-redeem-main">
-                  <b>{t('redeemTitle')}</b>
-                  <span>{loyalty?.rewardLabel} — {t('redeemSub')}</span>
+            {loyalty?.enabled && loyalty.availableRewards >= 1 && eligibleLines.length === 0 && (
+              <div className="loy-strip ready" onClick={() => nav(menuPath)} role="button" tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && nav(menuPath)}>
+                <span className="loy-spark">🎁</span>
+                <div className="loy-strip-main">
+                  <b>{t('rewardReady')}</b>
+                  <span>{rewardNames.length ? `${t('addOneOf')} ${rewardNames.join(' · ')}` : loyalty.rewardLabel}</span>
                 </div>
-                <span className="loy-switch">
-                  <input type="checkbox" checked={redeem} aria-label={t('redeemTitle')}
-                    onChange={(e) => setRedeem(e.target.checked)} />
-                  <span className="track" />
-                </span>
-              </label>
+                <span className="loy-go">›</span>
+              </div>
+            )}
+            {canRedeem && (
+              <div className="loy-redeem">
+                <label className="loy-redeem-head">
+                  <span className="gift" aria-hidden="true">🎁</span>
+                  <div className="loy-redeem-main">
+                    <b>{t('redeemTitle')}</b>
+                    <span>{loyalty?.rewardLabel} — {t('redeemSub')}</span>
+                  </div>
+                  <span className="loy-switch">
+                    <input type="checkbox" checked={redeem} aria-label={t('redeemTitle')}
+                      onChange={(e) => setRedeem(e.target.checked)} />
+                    <span className="track" />
+                  </span>
+                </label>
+                {redeem && rewardChoices.length > 1 && (
+                  <div className="loy-free-pick" role="radiogroup" aria-label={t('chooseFree')}>
+                    <b>{t('chooseFree')}</b>
+                    {rewardChoices.map((c) => {
+                      const it = itemsById.get(c.id);
+                      return (
+                        <label key={c.id} className={'loy-free-opt' + (redeemItemId === c.id ? ' on' : '')}>
+                          <input type="radio" name="loy-free" checked={redeemItemId === c.id}
+                            onChange={() => setPickedRewardId(c.id)} />
+                          <span className="nm">{it ? pick(it, 'name', lang) : `#${c.id}`}</span>
+                          <span className="pr num">−{omr(c.price)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="field"><label>{t('note')}</label><textarea rows={2} value={note} onChange={(e) => setOrderNote(e.target.value)} placeholder={t('notePh')} /></div>

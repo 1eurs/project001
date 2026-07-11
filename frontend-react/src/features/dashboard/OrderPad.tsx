@@ -4,7 +4,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import { omr, estimateVat, discountPercent } from '../../lib/format';
+import { omr, estimateVat, discountPercent, sanitizePhone } from '../../lib/format';
 import { lineUnitPrice, cartLineKey, effectiveBasePrice } from '../../lib/cart';
 import { CAR_COLORS, carColorLabel } from '../../lib/carColors';
 import type {
@@ -256,7 +256,7 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
 
         <div className="pad-cust">
           <input placeholder={`${t('p_name')} (${t('p_optional')})`} value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-          <input placeholder={`${t('p_phone')} (${t('p_optional')})`} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} inputMode="tel" />
+          <input className="num" placeholder={`${t('p_phone')} (${t('p_optional')})`} value={customerPhone} onChange={(e) => setCustomerPhone(sanitizePhone(e.target.value))} inputMode="tel" />
         </div>
 
         <div className="pad-totals">
