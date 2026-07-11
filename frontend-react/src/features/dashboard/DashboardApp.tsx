@@ -1,9 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { create as createQrMatrix } from 'qrcode/lib/core/qrcode.js';
-import { api, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken, onAuthChange } from '../../lib/api';
+import { api, upload, ApiError, logout, accessTokenValue, changeEmail, freshStreamToken, onAuthChange, syncUser } from '../../lib/api';
 import { useAuth, isManager, canAcceptOrders, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
@@ -14,9 +14,14 @@ import { useWakeLock } from '../../lib/wakeLock';
 import { fmtElapsed } from '../../lib/format';
 import { Money } from '../../lib/Money';
 import { carColorOf } from '../../lib/carColors';
+import { isPrintStation, wasRecentlyPrinted, rememberPrintedOrder } from '../../lib/printer';
+import ReceiptCapture, { type PendingReceipt } from './ReceiptCapture';
+import { ReceiptPrinterProvider, useReceiptPrinter } from './receiptPrinter';
 import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem } from '../../lib/types';
 import { BRAND } from '../../lib/brand';
 import { ensureGoogleFonts, BOLD_FONTS } from '../../lib/fonts';
+import { canCustomizeQr } from '../../lib/plan';
+import { FONT_STACKS, type MenuFontKey } from '../customer/menuThemes';
 import Login from '../auth/Login';
 import MenuManager, { MenuLookManager } from './MenuManager';
 import OrdersPage from './OrdersPage';
@@ -26,7 +31,6 @@ import TeamPage from './TeamPage';
 // live board never download those bytes unless they open the analytics tab.
 const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
 import OrderPad from './OrderPad';
-import InvoicePrint from './InvoicePrint';
 import LoyaltyPage from './LoyaltyPage';
 import LoyaltySetup from './LoyaltySetup';
 import './dashboard.css';
@@ -44,6 +48,17 @@ const DICT: Dict = {
         cancelT: 'إلغاء الطلب', cancelP: 'سبب الإلغاء (اختياري)', reason: 'السبب',
         tablesTitle: 'الطاولات ورموز QR', addTable: '＋ طاولة', tableNumber: 'رقم الطاولة', add: 'إضافة',
         print: 'طباعة الكل', printOne: 'طباعة الرمز', printInv: 'طباعة الفاتورة', regenerate: 'تجديد الرمز', del: 'حذف', scan: 'امسح للطلب', copy: 'نسخ الرابط', copied: 'تم النسخ', carQr: 'رمز سيارات الخارج',
+        qrStyle: 'تخصيص رمز QR', qrColor: 'شارة', qrInk: 'الحبر', qrFont: 'الخط', qrLogo: 'شعار الوسط',
+        qrDots: 'النقاط', qrEyes: 'الزوايا', qrBadgeShape: 'شكل الشارة', qrPresets: 'قوالب جاهزة',
+        qrUploadLogo: 'رفع شعار', qrRemoveLogo: 'إزالة', qrUploading: 'جارٍ الرفع…', qrPreview: 'معاينة',
+        qrShuffle: 'خلط سريع', qrReset: 'الأصل',
+        qrStyleHint: 'بدون شعار يظهر اسم المقهى. الشعار هنا لرموز QR فقط. اطبع بعد التعديل لتجربة المسح.',
+        qrProSoon: 'تخصيص QR سيكون متاحاً في باقة أعلى قريباً.',
+        qrDot_soft: 'ناعم', qrDot_square: 'مربّع', qrDot_dots: 'دوائر', qrDot_diamond: 'معين',
+        qrEye_square: 'حاد', qrEye_rounded: 'مدوّر', qrEye_circle: 'دائري',
+        qrBadge_brutal: 'نيوبروتال', qrBadge_flat: 'مسطّح', qrBadge_pill: 'كبسولة', qrBadge_round: 'دائري',
+        qrPreset_serva: 'Serva', qrPreset_espresso: 'إسبريسو', qrPreset_ocean: 'محيط', qrPreset_sunset: 'غروب', qrPreset_mono: 'أبيض وأسود', qrPreset_candy: 'حلوى',
+        qrFt_bricolage: 'Bricolage', qrFt_tajawal: 'تجوّال', qrFt_markazi: 'مركزي', qrFt_elmessiri: 'المسيري', qrFt_reemkufi: 'ريم كوفي', qrFt_sora: 'Sora',
         noTables: 'لا توجد طاولات بعد', regenWarn: 'سيتوقف الرمز القديم عن العمل. متابعة؟', delWarn: 'حذف هذه الطاولة؟',
         syncing: 'مزامنة الطلبات', autoRefresh: 'التحديث التلقائي يعمل', newOrder: 'طلب جديد', newOrders: 'طلبات جديدة', tapView: 'اضغط للعرض',
         loginTitle: 'لوحة Serva.', loginSub: 'سجّل الدخول لإدارة الطلبات المباشرة', saved: 'تم الحفظ',
@@ -72,6 +87,17 @@ const DICT: Dict = {
         cancelT: 'Cancel order', cancelP: 'Cancel reason (optional)', reason: 'Reason',
         tablesTitle: 'Tables & QR codes', addTable: '＋ Table', tableNumber: 'Table number', add: 'Add',
         print: 'Print all', printOne: 'Print QR', printInv: 'Print invoice', regenerate: 'Regenerate', del: 'Delete', scan: 'Scan to order', copy: 'Copy link', copied: 'Copied', carQr: 'Outdoor car QR',
+        qrStyle: 'Customize QR', qrColor: 'Badge', qrInk: 'Ink', qrFont: 'Font', qrLogo: 'Center logo',
+        qrDots: 'Modules', qrEyes: 'Corners', qrBadgeShape: 'Badge shape', qrPresets: 'Presets',
+        qrUploadLogo: 'Upload logo', qrRemoveLogo: 'Remove', qrUploading: 'Uploading…', qrPreview: 'Preview',
+        qrShuffle: 'Quick mix', qrReset: 'Reset',
+        qrStyleHint: 'Without a logo, the café name sits in the center. Logo is QR-only. Print and scan to double-check.',
+        qrProSoon: 'QR customization will be a paid upgrade soon.',
+        qrDot_soft: 'Soft', qrDot_square: 'Square', qrDot_dots: 'Dots', qrDot_diamond: 'Diamond',
+        qrEye_square: 'Sharp', qrEye_rounded: 'Rounded', qrEye_circle: 'Circle',
+        qrBadge_brutal: 'Brutal', qrBadge_flat: 'Flat', qrBadge_pill: 'Pill', qrBadge_round: 'Round',
+        qrPreset_serva: 'Serva', qrPreset_espresso: 'Espresso', qrPreset_ocean: 'Ocean', qrPreset_sunset: 'Sunset', qrPreset_mono: 'Mono', qrPreset_candy: 'Candy',
+        qrFt_bricolage: 'Bricolage', qrFt_tajawal: 'Tajawal', qrFt_markazi: 'Markazi', qrFt_elmessiri: 'El Messiri', qrFt_reemkufi: 'Reem Kufi', qrFt_sora: 'Sora',
         noTables: 'No tables yet', regenWarn: 'The old QR will stop working. Continue?', delWarn: 'Delete this table?',
         syncing: 'Syncing orders', autoRefresh: 'Auto-refresh on', newOrder: 'New order', newOrders: 'new orders', tapView: 'Tap to view',
         loginTitle: 'Serva. dashboard', loginSub: 'Sign in to manage live orders', saved: 'Saved',
@@ -102,6 +128,8 @@ export default function DashboardApp() {
   const { user, authed } = useAuth();
   const t = useT(DICT);
   useEffect(() => { ensureGoogleFonts(BOLD_FONTS); }, []);
+  // Permissions may have been edited since login; pick them up on every dashboard load.
+  useEffect(() => { if (authed) syncUser(); }, [authed]);
   if (!authed || !user) {
     return <Login mark={BRAND.name} title={t('loginTitle')} subtitle={t('loginSub')} />;
   }
@@ -141,7 +169,14 @@ function useCalmStream(stream: StreamStatus, delayMs = 5_000): StreamStatus {
    the same react-query cache this stream keeps warm.
    Returns the connection status (for the live pill), the unacknowledged count (for the
    shell banner) and a clear(). */
-function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (k: string) => string) {
+type PrintCtx = { enabled: boolean; onDrain: () => void };
+
+/** Server print-job row: order snapshot included so the station renders with no extra fetch. */
+interface PrintJobResponse { id: number; orderId: number; createdAt: string; order: OrderResponse }
+/** Queue entry: server-backed jobs carry a jobId to ack; manual button prints don't. */
+type QueuedReceipt = PendingReceipt & { jobId?: number };
+
+function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (k: string) => string, printCtx: PrintCtx) {
   const qc = useQueryClient();
   const liveKey = ['live', branchId ?? 'all'];
   const [stream, setStream] = useState<StreamStatus>('connecting');
@@ -194,7 +229,16 @@ function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (
       if (name === 'order.created') {
         ping();
         setUnacked((n) => n + 1);
-        notify(t('newOrder'), o?.orderNumber ? `#${o.orderNumber}` : '');
+        notify(t('newOrder'), o?.dailyNumber ? `#${o.dailyNumber}` : '');
+      }
+      // Multi-staff: every dashboard tab gets this event, but only the one tablet marked as
+      // the print station (localStorage) + branch.printerEnabled actually prints. The event
+      // itself is only a nudge — the print station drains the server-side job queue, which is
+      // the source of truth, so an event lost to a frozen tab is recovered by the next drain
+      // ('connected' fires on every stream (re)connect, catching up whatever the gap missed).
+      if ((name === 'order.completed' || name === 'connected')
+          && printCtx.enabled && branchId != null && isPrintStation(branchId)) {
+        printCtx.onDrain();
       }
     },
     handleStreamStatus,
@@ -357,10 +401,12 @@ function Shell() {
   // default branch (named after the café) so QR codes work immediately.
   const canMakeBranch = can(user, 'BRANCHES');
   const needsBranch = canMakeBranch && branchesQ.isSuccess && branches.length === 0;
+  // Always warm (not just when needsBranch) — the print-station listener below needs the
+  // restaurant's name/phone/VAT settings for the receipt, on every tab, not only onboarding.
   const restaurantQ = useQuery({
     queryKey: ['restaurant', user!.restaurantId],
     queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
-    enabled: needsBranch && !!user!.restaurantId,
+    enabled: !!user!.restaurantId,
   });
   const madeBranchRef = useRef(false);
   const makeBranch = useMutation({
@@ -376,11 +422,93 @@ function Shell() {
     makeBranch.mutate(restaurantQ.data.name);
   }, [needsBranch, restaurantQ.data]); // eslint-disable-line
 
-  // Shell-level so order alerts fire on every tab, not just the live board.
-  const alerts = useLiveOrderAlerts(branchId, sound.ping, t);
+  // Table numbers for the auto-print receipt (order carries only a raw tableId).
+  const { data: printTablesRaw } = useQuery({
+    queryKey: ['tables', branchId],
+    queryFn: () => api.get<any>(`/api/branches/${branchId}/tables`),
+    enabled: !!branchId,
+  });
+  const printTableNo = useMemo(() => {
+    const list: TableResponse[] = Array.isArray(printTablesRaw) ? printTablesRaw : printTablesRaw?.content ?? [];
+    return new Map(list.map((tb) => [tb.id, tb.tableNumber]));
+  }, [printTablesRaw]);
+
+  // Keep the print-station tablet awake so auto-print (SSE → capture → RawBT) isn't delayed
+  // by background-tab throttling. We no longer bounce to the Play Store on a failed launch
+  // (see printer.ts), but a sleeping tab still hurts print latency.
+  useWakeLock(!!branchId && isPrintStation(branchId));
+
+  // FIFO of receipts awaiting capture — ReceiptCapture (mounted below) processes the head,
+  // then onDone acks the server job (if any) and shifts. A queue rather than a single slot:
+  // two orders completing together must both print, not overwrite each other.
+  const [printQueue, setPrintQueue] = useState<QueuedReceipt[]>([]);
+  // Shared by the queue drain below and any manual "print" button under the Shell (see
+  // receiptPrinter.tsx) — same RawBT pipeline either way, no browser print dialog.
+  const printReceipt = useCallback((o: OrderResponse, jobId?: number) => {
+    setPrintQueue((prev) => {
+      if (jobId != null && prev.some((q) => q.jobId === jobId)) return prev;
+      return [...prev, {
+        order: o,
+        restaurant: restaurantQ.data,
+        tableNumber: o.tableId != null ? printTableNo.get(o.tableId) ?? null : null,
+        jobId,
+        // Manual button prints carry the tap's gesture (Chrome allows the rawbt: fallback);
+        // queue-drained jobs have none and must go through the WebSocket server.
+        hasUserGesture: jobId == null,
+      }];
+    });
+  }, [restaurantQ.data, printTableNo]);
+
+  // Pull PENDING print jobs from the server and enqueue them. The queue on the server is the
+  // source of truth (at-least-once): SSE only nudges this, and focus/online/interval triggers
+  // let a tab that Android froze catch up the moment it wakes instead of losing the receipt.
+  const drainingRef = useRef(false);
+  const isStation = !!branchId && !!selectedBranch?.printerEnabled && isPrintStation(branchId);
+  const drainPrintJobs = useCallback(async () => {
+    if (!isStation || drainingRef.current) return;
+    drainingRef.current = true;
+    try {
+      const jobs = await api.get<PrintJobResponse[]>(`/api/dashboard/print-jobs?branchId=${branchId}`);
+      for (const job of jobs) {
+        if (wasRecentlyPrinted(job.id)) continue;
+        printReceipt(job.order, job.id);
+      }
+    } catch {
+      /* network blip — the next trigger retries */
+    } finally {
+      drainingRef.current = false;
+    }
+  }, [isStation, branchId, printReceipt]);
+
+  // Catch-up triggers beyond SSE: tab regains visibility/focus, network returns, and a slow
+  // safety-net interval (covers SSE silently dead while the tab thinks it's connected).
+  useEffect(() => {
+    if (!isStation) return;
+    const onWake = () => { if (!document.hidden) void drainPrintJobs(); };
+    window.addEventListener('focus', onWake);
+    window.addEventListener('online', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    const interval = window.setInterval(() => void drainPrintJobs(), 30_000);
+    void drainPrintJobs();
+    return () => {
+      window.removeEventListener('focus', onWake);
+      window.removeEventListener('online', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+      window.clearInterval(interval);
+    };
+  }, [isStation, drainPrintJobs]);
+
+  // Shell-level so order alerts (and the auto-print drain) fire on every tab, not just
+  // the live board — any tablet can complete an order, but only the one tablet flagged
+  // locally as the print station acts on it (see printer.ts).
+  const alerts = useLiveOrderAlerts(branchId, sound.ping, t, {
+    enabled: !!selectedBranch?.printerEnabled,
+    onDrain: () => void drainPrintJobs(),
+  });
   const calmStream = useCalmStream(alerts.stream);
 
   return (
+    <ReceiptPrinterProvider value={printReceipt}>
     <div className="dash">
       <aside className="rail">
         <div className="logo">S.</div>
@@ -469,7 +597,25 @@ function Shell() {
           </div>
         </div>
       )}
+
+      <ReceiptCapture
+        pending={printQueue[0] ?? null}
+        onDone={(printed) => {
+          const head = printQueue[0];
+          if (head?.jobId != null && printed) {
+            // Confirmed WebSocket handoff → ack (flips the job to PRINTED server-side).
+            // The client-side memory guards a reprint if the ack is lost to a network blip.
+            rememberPrintedOrder(head.jobId);
+            api.post(`/api/dashboard/print-jobs/${head.jobId}/ack`).catch(() => {});
+          }
+          // Unconfirmed job prints are NOT acked: the job stays PENDING on the server and a
+          // later drain retries it — e.g. Android killed "Server for RawBT" and staff reopen
+          // it a minute later; the receipt then prints instead of being lost forever.
+          setPrintQueue((prev) => prev.slice(1));
+        }}
+      />
     </div>
+    </ReceiptPrinterProvider>
   );
 }
 
@@ -769,6 +915,7 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
   const t = useT(DICT);
   const toast = useToast();
   const qc = useQueryClient();
+  const printReceipt = useReceiptPrinter();
 
   // keep the screen awake while the live board is open (counter phone / tablet)
   useWakeLock(true);
@@ -778,7 +925,6 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
     queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
     enabled: !!user!.restaurantId,
   });
-
   const { data: tablesRaw } = useQuery({
     queryKey: ['tables', branchId],
     queryFn: () => api.get<any>(`/api/branches/${branchId}/tables`),
@@ -813,7 +959,6 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
 
   const [modal, setModal] = useState<Modal>(null);
   const [field, setField] = useState('');
-  const [invoice, setInvoice] = useState<OrderResponse | null>(null);
   const [paymentPrompt, setPaymentPrompt] = useState<{ order: OrderResponse; completeAfter: boolean } | null>(null);
 
   const act = useMutation({
@@ -828,6 +973,9 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
+  // Printing itself is driven by the Shell's order-stream listener (useLiveOrderAlerts), not
+  // here — any tablet can complete an order, but only the one tablet designated as the print
+  // station should act on it, and that listener fires on every open tab, not just this board.
   const finishOrder = (o: OrderResponse, collect: boolean) => {
     const complete = () => act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` });
     if (collect) requestPayment(o, true);
@@ -895,7 +1043,7 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
                     onAccept={() => openModal('accept', o)} onDecline={() => openModal('decline', o)} onCancel={() => openModal('cancel', o)}
                     onReady={() => act.mutate({ path: `/api/dashboard/orders/${o.id}/ready` })}
                     onComplete={() => finishOrder(o, false)} onCollect={() => finishOrder(o, true)}
-                    onPay={() => requestPayment(o, false)} onPrint={() => setInvoice(o)} />
+                    onPay={() => requestPayment(o, false)} onPrint={() => printReceipt(o)} />
                 ))}
               </div>
             </div>
@@ -903,13 +1051,11 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
         })}
       </div>
 
-      {invoice && <InvoicePrint order={invoice} onDone={() => setInvoice(null)} />}
-
       {modal && (
         <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
           <div className="modal-card">
             <h3>{t(modal.type + 'T')}</h3>
-            <div className="ph">{t(modal.type + 'P')} · {modal.order.orderNumber}</div>
+            <div className="ph">{t(modal.type + 'P')} · #{modal.order.dailyNumber}</div>
             {modal.type === 'accept'
               ? <><input className="input num" type="number" min={1} value={field} onChange={(e) => setField(e.target.value)} />
                   <div className="preset">{[3, 5, 8, 10, 15].map((n) => <button key={n} onClick={() => setField(String(n))}>{n} {t('min')}</button>)}</div></>
@@ -928,7 +1074,7 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
         }}>
           <div className="modal-card payment-method-modal" role="dialog" aria-modal="true" aria-labelledby="payment-method-title">
             <h3 id="payment-method-title">{t('paymentTitle')}</h3>
-            <div className="ph">{t('paymentSub')} · {paymentPrompt.order.orderNumber}</div>
+            <div className="ph">{t('paymentSub')} · #{paymentPrompt.order.dailyNumber}</div>
             <Money value={paymentPrompt.order.total} className="payment-method-total num" />
             <div className="payment-method-grid">
               <button className="payment-method cash" disabled={pay.isPending} onClick={() => recordPayment('CASH')}>
@@ -960,7 +1106,7 @@ function OrderCard({ o, tableNo, t, lang, canAccept, canPay, onAccept, onDecline
     : <span className="where">🚗 <span className="tg">{t('car')}{o.carPlate ? ` · ${o.carPlate}` : ''}</span><CarColorTag color={o.carColor} lang={lang} /></span>;
   return (
     <div className="ocard">
-      <div className="ocard-top"><span className="ordno">{o.orderNumber}</span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
+      <div className="ocard-top"><span className="ordno">#{o.dailyNumber}</span><span className={'elapsed' + (mins > 10 ? ' late' : mins > 5 ? ' warn' : '')}>{el}</span>
         <button className="oprint" title={t('printInv')} aria-label={t('printInv')} onClick={onPrint}>🖨</button></div>
       {where}
       {o.status === 'ACCEPTED' && o.prepTimeMinutes ? <span className="where" style={{ color: 'var(--accepted)' }}>⏱ ~ <span className="num">{o.prepTimeMinutes}</span> {t('min')}</span> : null}
@@ -1005,9 +1151,9 @@ const carUrlOf = (slug: string, branchId: number) => `${window.location.origin}/
 const slugOf = (tb: TableResponse) => { try { return new URL(tb.qrCodeUrl!).pathname.split('/')[2] ?? ''; } catch { return ''; } };
 /* Bold-style QR: we render the matrix ourselves as inline SVG so the pattern
    matches the landing poster — ink "dot" modules, rounded finder eyes — and the
-   center "Serva." badge is real inline <text> in Bricolage (an embedded <image>
-   logo renders in a font sandbox and silently falls back to Arial). Error
-   correction stays at H so the rounded modules + cleared badge area still scan. */
+   center badge is real inline <text> (an embedded <image> logo uses a separate
+   square chip). Error correction stays at H so the rounded modules + cleared
+   badge area still scan. No logo → café name in the same neobrutalist pill. */
 const fmt = (v: number) => Math.round(v * 100) / 100;
 const roundRectPath = (x: number, y: number, w: number, h: number, r: number) => {
   const rad = Math.min(r, w / 2, h / 2);
@@ -1017,13 +1163,283 @@ const roundRectPath = (x: number, y: number, w: number, h: number, r: number) =>
     + `v${fmt(-(h - 2 * rad))}a${fmt(rad)} ${fmt(rad)} 0 0 1 ${fmt(rad)} ${fmt(-rad)}z`;
 };
 
-// On-screen QR ink + badge mirror the Serva theme tokens (theme.css): --ink and
-// --accent/--lime. Hardcoded (not var()) because the print path renders this SVG
-// into a popup window with no app stylesheet — print callers pass #000 explicitly.
-const QR_INK = '#15181C';      // --ink
-const QR_ACCENT = '#10b981';   // --accent / --lime
-function BrandedQrCode({ value, size, fgColor = QR_INK, marginSize = 1, badge = true }:
-  { value: string; size: number; fgColor?: string; marginSize?: number; badge?: boolean }) {
+// Hardcoded hex (not CSS vars) so print portal SVG stays correct without app stylesheets.
+const QR_INK = '#15181C';
+const QR_ACCENT = '#10b981';
+
+/** Fonts for the text badge. */
+type QrFontId = 'bricolage' | Extract<MenuFontKey, 'tajawal' | 'markazi' | 'elmessiri' | 'reemkufi' | 'sora'>;
+const QR_FONT_STACK: Record<QrFontId, string> = {
+  bricolage: "'Bricolage Grotesque','IBM Plex Sans Arabic',system-ui,sans-serif",
+  tajawal: FONT_STACKS.tajawal,
+  markazi: FONT_STACKS.markazi,
+  elmessiri: FONT_STACKS.elmessiri,
+  reemkufi: FONT_STACKS.reemkufi,
+  sora: FONT_STACKS.sora,
+};
+const QR_FONT_IDS = Object.keys(QR_FONT_STACK) as QrFontId[];
+const QR_FONT_GOOGLE: Partial<Record<QrFontId, string[]>> = {
+  bricolage: BOLD_FONTS,
+  tajawal: ['Tajawal:wght@400;500;700;800'],
+  markazi: ['Markazi+Text:wght@400;500;600;700'],
+  elmessiri: ['El+Messiri:wght@500;600;700'],
+  reemkufi: ['Reem+Kufi:wght@500;600;700'],
+  sora: ['Sora:wght@600;700;800'],
+};
+
+type QrDotStyle = 'soft' | 'square' | 'dots' | 'diamond';
+type QrEyeStyle = 'square' | 'rounded' | 'circle';
+type QrBadgeShape = 'brutal' | 'flat' | 'pill' | 'round';
+const QR_DOT_IDS: QrDotStyle[] = ['soft', 'square', 'dots', 'diamond'];
+const QR_EYE_IDS: QrEyeStyle[] = ['square', 'rounded', 'circle'];
+const QR_BADGE_SHAPE_IDS: QrBadgeShape[] = ['brutal', 'flat', 'pill', 'round'];
+
+/** Shared palette for ink + badge. Paper is always pure white (scan reliability). */
+const QR_PALETTE: { id: string; fill: string }[] = [
+  { id: 'lime', fill: QR_ACCENT },
+  { id: 'ink', fill: QR_INK },
+  { id: 'black', fill: '#0A0A0A' },
+  { id: 'navy', fill: '#1B2A4A' },
+  { id: 'espresso', fill: '#3D2314' },
+  { id: 'burgundy', fill: '#6B1D3A' },
+  { id: 'forest', fill: '#1F4D3A' },
+  { id: 'coral', fill: '#FF6B4A' },
+  { id: 'sky', fill: '#5B9FFF' },
+  { id: 'violet', fill: '#7C5CFC' },
+  { id: 'gold', fill: '#E8B84A' },
+  { id: 'cream', fill: '#F5E6C8' },
+  { id: 'blush', fill: '#FFD6E0' },
+  { id: 'mint', fill: '#C8F5E4' },
+  { id: 'white', fill: '#FFFFFF' },
+];
+const QR_PALETTE_MAP = Object.fromEntries(QR_PALETTE.map((c) => [c.id, c.fill])) as Record<string, string>;
+/** Inks dark enough to scan on white paper. */
+const QR_INK_IDS = ['ink', 'black', 'navy', 'espresso', 'burgundy', 'forest', 'violet'] as const;
+const QR_BADGE_COLOR_IDS = QR_PALETTE.map((c) => c.id);
+const QR_PAPER = '#ffffff';
+
+/**
+ * Per-café QR style blob (localStorage now → restaurant field when paid).
+ * `badgeImageUrl` is QR-only — never restaurant.logoUrl.
+ * Paper is fixed white (not stored / not customizable).
+ */
+type QrBadgeStyle = {
+  colorId: string;
+  inkId: string;
+  fontId: QrFontId;
+  dotStyle: QrDotStyle;
+  eyeStyle: QrEyeStyle;
+  badgeShape: QrBadgeShape;
+  badgeImageUrl?: string | null;
+};
+const DEFAULT_QR_STYLE: QrBadgeStyle = {
+  colorId: 'lime', inkId: 'ink',
+  fontId: 'bricolage', dotStyle: 'soft', eyeStyle: 'square', badgeShape: 'brutal',
+  badgeImageUrl: null,
+};
+
+type QrPreset = { id: string; style: Partial<QrBadgeStyle>; swatch: [string, string, string] };
+const QR_PRESETS: QrPreset[] = [
+  { id: 'serva', style: { ...DEFAULT_QR_STYLE }, swatch: [QR_INK, QR_ACCENT, '#fff'] },
+  { id: 'espresso', style: { inkId: 'espresso', colorId: 'gold', fontId: 'markazi', dotStyle: 'soft', eyeStyle: 'rounded', badgeShape: 'pill' }, swatch: ['#3D2314', '#E8B84A', '#fff'] },
+  { id: 'ocean', style: { inkId: 'navy', colorId: 'sky', fontId: 'sora', dotStyle: 'dots', eyeStyle: 'circle', badgeShape: 'round' }, swatch: ['#1B2A4A', '#5B9FFF', '#fff'] },
+  { id: 'sunset', style: { inkId: 'burgundy', colorId: 'coral', fontId: 'elmessiri', dotStyle: 'diamond', eyeStyle: 'rounded', badgeShape: 'brutal' }, swatch: ['#6B1D3A', '#FF6B4A', '#fff'] },
+  { id: 'mono', style: { inkId: 'black', colorId: 'white', fontId: 'bricolage', dotStyle: 'square', eyeStyle: 'square', badgeShape: 'flat' }, swatch: ['#0A0A0A', '#fff', '#eee'] },
+  { id: 'candy', style: { inkId: 'violet', colorId: 'violet', fontId: 'reemkufi', dotStyle: 'dots', eyeStyle: 'circle', badgeShape: 'pill' }, swatch: ['#7C5CFC', '#C8F5E4', '#fff'] },
+];
+
+/**
+ * Hand-tuned combos for "Quick mix" — same idea as menu theme PALETTE_RECIPES:
+ * pick a designed ink/badge pair, then randomize shapes/font. Paper is always white.
+ */
+type QrMixRecipe = Pick<QrBadgeStyle, 'inkId' | 'colorId'>;
+const QR_MIX_RECIPES: QrMixRecipe[] = [
+  { inkId: 'ink', colorId: 'lime' },
+  { inkId: 'espresso', colorId: 'gold' },
+  { inkId: 'espresso', colorId: 'coral' },
+  { inkId: 'navy', colorId: 'sky' },
+  { inkId: 'navy', colorId: 'lime' },
+  { inkId: 'burgundy', colorId: 'coral' },
+  { inkId: 'burgundy', colorId: 'gold' },
+  { inkId: 'forest', colorId: 'lime' },
+  { inkId: 'forest', colorId: 'gold' },
+  { inkId: 'violet', colorId: 'violet' },
+  { inkId: 'violet', colorId: 'coral' },
+  { inkId: 'black', colorId: 'white' },
+  { inkId: 'black', colorId: 'ink' },
+  { inkId: 'ink', colorId: 'coral' },
+  { inkId: 'navy', colorId: 'cream' },
+  { inkId: 'espresso', colorId: 'cream' },
+];
+
+const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+
+/** Fresh random look from curated recipes — keeps logo, avoids repeating the last palette. */
+function randomQrStyle(current: QrBadgeStyle): QrBadgeStyle {
+  const pool = QR_MIX_RECIPES.filter(
+    (r) => !(r.inkId === current.inkId && r.colorId === current.colorId),
+  );
+  const recipe = pick(pool.length ? pool : QR_MIX_RECIPES);
+  return {
+    ...DEFAULT_QR_STYLE,
+    ...recipe,
+    fontId: pick(QR_FONT_IDS),
+    dotStyle: pick(QR_DOT_IDS),
+    eyeStyle: pick(QR_EYE_IDS),
+    badgeShape: pick(QR_BADGE_SHAPE_IDS),
+    // Logo is intentional branding — don't wipe it on shuffle (same as presets).
+    badgeImageUrl: current.badgeImageUrl ?? null,
+  };
+}
+
+function loadQrStyle(restaurantId?: number | null): QrBadgeStyle {
+  if (!restaurantId) return { ...DEFAULT_QR_STYLE };
+  try {
+    const raw = localStorage.getItem(`serva.qrBadge.${restaurantId}`);
+    if (!raw) return { ...DEFAULT_QR_STYLE };
+    const p = JSON.parse(raw) as Partial<QrBadgeStyle>;
+    return {
+      colorId: QR_BADGE_COLOR_IDS.includes(p.colorId!) ? p.colorId! : DEFAULT_QR_STYLE.colorId,
+      inkId: (QR_INK_IDS as readonly string[]).includes(p.inkId!) ? p.inkId! : DEFAULT_QR_STYLE.inkId,
+      fontId: QR_FONT_IDS.includes(p.fontId as QrFontId) ? (p.fontId as QrFontId) : DEFAULT_QR_STYLE.fontId,
+      dotStyle: QR_DOT_IDS.includes(p.dotStyle as QrDotStyle) ? (p.dotStyle as QrDotStyle) : DEFAULT_QR_STYLE.dotStyle,
+      eyeStyle: QR_EYE_IDS.includes(p.eyeStyle as QrEyeStyle) ? (p.eyeStyle as QrEyeStyle) : DEFAULT_QR_STYLE.eyeStyle,
+      badgeShape: QR_BADGE_SHAPE_IDS.includes(p.badgeShape as QrBadgeShape) ? (p.badgeShape as QrBadgeShape) : DEFAULT_QR_STYLE.badgeShape,
+      badgeImageUrl: typeof p.badgeImageUrl === 'string' && p.badgeImageUrl.trim() ? p.badgeImageUrl.trim() : null,
+    };
+  } catch {
+    return { ...DEFAULT_QR_STYLE };
+  }
+}
+function saveQrStyle(restaurantId: number | null | undefined, style: QrBadgeStyle) {
+  if (!restaurantId) return;
+  try { localStorage.setItem(`serva.qrBadge.${restaurantId}`, JSON.stringify(style)); } catch { /* ignore */ }
+}
+
+function qrHex(id: string, fallback: string): string {
+  return QR_PALETTE_MAP[id] ?? fallback;
+}
+
+/** Perceived luminance → pick ink vs white text on the badge fill. */
+function qrTextOn(fill: string, ink = QR_INK): string {
+  const hex = fill.replace('#', '');
+  if (hex.length !== 6) return ink;
+  const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+  const lum = (r * 299 + g * 587 + b * 114) / 1000;
+  return lum < 150 ? '#FFFFFF' : ink;
+}
+
+const circlePath = (cx: number, cy: number, r: number) =>
+  `M${fmt(cx - r)} ${fmt(cy)}a${fmt(r)} ${fmt(r)} 0 1 0 ${fmt(r * 2)} 0a${fmt(r)} ${fmt(r)} 0 1 0 ${fmt(-r * 2)} 0`;
+
+const diamondPath = (x: number, y: number, w: number, h: number) => {
+  const cx = x + w / 2, cy = y + h / 2;
+  return `M${fmt(cx)} ${fmt(y)}L${fmt(x + w)} ${fmt(cy)}L${fmt(cx)} ${fmt(y + h)}L${fmt(x)} ${fmt(cy)}Z`;
+};
+
+function modulePath(style: QrDotStyle, x: number, y: number, cell: number): string {
+  if (style === 'square') return roundRectPath(x, y, cell, cell, 0);
+  if (style === 'dots') return circlePath(x + cell / 2, y + cell / 2, cell * 0.46);
+  if (style === 'diamond') return diamondPath(x + cell * 0.06, y + cell * 0.06, cell * 0.88, cell * 0.88);
+  return roundRectPath(x, y, cell, cell, cell * 0.22);
+}
+
+function eyePath(style: QrEyeStyle, x: number, y: number, cell: number): string {
+  const s = cell * 7;
+  if (style === 'circle') {
+    const cx = x + s / 2, cy = y + s / 2;
+    // outer ring + white gap + pupil via even-odd
+    return `${circlePath(cx, cy, s * 0.5)}${circlePath(cx, cy, s * 0.36)}${circlePath(cx, cy, s * 0.22)}`;
+  }
+  if (style === 'rounded') {
+    const r = cell * 1.1;
+    return `${roundRectPath(x, y, s, s, r)}${roundRectPath(x + cell, y + cell, cell * 5, cell * 5, r * 0.7)}${roundRectPath(x + cell * 2, y + cell * 2, cell * 3, cell * 3, r * 0.5)}`;
+  }
+  // sharp / square
+  return `${roundRectPath(x, y, s, s, cell * 0.45)}${roundRectPath(x + cell, y + cell, cell * 5, cell * 5, cell * 0.32)}${roundRectPath(x + cell * 2, y + cell * 2, cell * 3, cell * 3, cell * 0.24)}`;
+}
+
+/** Shared canvas for measuring badge text against real font metrics. */
+let _qrMeasureCtx: CanvasRenderingContext2D | null = null;
+function qrMeasureCtx(): CanvasRenderingContext2D | null {
+  if (typeof document === 'undefined') return null;
+  if (!_qrMeasureCtx) {
+    const c = document.createElement('canvas');
+    _qrMeasureCtx = c.getContext('2d');
+  }
+  return _qrMeasureCtx;
+}
+
+/**
+ * Largest font size that keeps `label` inside the chip. Uses canvas measureText
+ * so wide display faces (Reem Kufi, Markazi, etc.) don't blow past the pill.
+ * Height is capped hard — bold Arabic fonts have tall vertical metrics at 800.
+ */
+function fitBadgeFontSize(label: string, fontStack: string, maxW: number, maxH: number): number {
+  if (!label) return maxH * 0.4;
+  // Display faces at weight 800 routinely overshoot the em box; keep a generous air gap.
+  const maxByHeight = maxH * 0.42;
+  const minFs = Math.max(5, maxH * 0.22);
+  const ctx = qrMeasureCtx();
+  if (!ctx) {
+    // SSR / no canvas — conservative char-unit fallback.
+    let units = 0;
+    for (const ch of label) {
+      if (/\s|[·.,،]/.test(ch)) units += 0.28;
+      else if (ch.charCodeAt(0) > 0x0600) units += 1.05;
+      else units += 0.62;
+    }
+    return Math.max(minFs, Math.min(maxByHeight, maxW / Math.max(units, 1)));
+  }
+  // Binary search the largest size that still fits maxW.
+  let lo = minFs, hi = maxByHeight, best = minFs;
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    ctx.font = `800 ${mid}px ${fontStack}`;
+    // letter-spacing -0.02em is applied in SVG; approximate here.
+    const w = ctx.measureText(label).width * 0.98;
+    if (w <= maxW) { best = mid; lo = mid; }
+    else hi = mid;
+  }
+  return best;
+}
+
+/** Text-badge envelope — fixed-ish pill so scan area stays predictable. */
+function textBadgeSize(size: number, label: string): { bw: number; bh: number } {
+  const len = Math.max(1, [...label].length);
+  // Wider for longer names, but never more than ~half the QR (ECC-H budget).
+  const bw = size * Math.min(0.52, Math.max(0.30, 0.18 + len * 0.024));
+  // Slightly taller pill so font has room without looking cramped.
+  const bh = size * (len > 12 ? 0.148 : 0.138);
+  return { bw, bh };
+}
+
+function BrandedQrCode({ value, size, marginSize = 1, badge = true, style, label }: {
+  value: string; size: number; marginSize?: number; badge?: boolean;
+  style?: QrBadgeStyle; label?: string | null;
+}) {
+  const s = style ?? DEFAULT_QR_STYLE;
+  const ink = qrHex(s.inkId, QR_INK);
+  const paper = QR_PAPER; // always pure white — never customized
+  const badgeFill = qrHex(s.colorId, QR_ACCENT);
+  const stack = QR_FONT_STACK[s.fontId] ?? QR_FONT_STACK.bricolage;
+  const badgeImageUrl = s.badgeImageUrl;
+  const clipId = useId();
+  const textClipId = `${clipId}-txt`;
+  const hasLogo = badge && !!badgeImageUrl;
+  const mark = (label && label.trim()) || BRAND.name;
+  const textLabel = hasLogo ? '' : mark;
+  const { bw: textBw, bh: textBh } = textBadgeSize(size, textLabel || BRAND.name);
+
+  const [fontTick, setFontTick] = useState(0);
+  useEffect(() => {
+    if (hasLogo || typeof document === 'undefined' || !document.fonts) return;
+    let cancelled = false;
+    document.fonts.ready.then(() => { if (!cancelled) setFontTick((n) => n + 1); });
+    document.fonts.load(`800 16px ${stack}`).then(() => { if (!cancelled) setFontTick((n) => n + 1); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [stack, hasLogo, textLabel]);
+
   const { cells, eyes, cell } = useMemo(() => {
     const { modules } = createQrMatrix(value, { errorCorrectionLevel: 'H' });
     const n = modules.size;
@@ -1033,53 +1449,85 @@ function BrandedQrCode({ value, size, fgColor = QR_INK, marginSize = 1, badge = 
     const px = (i: number) => off + i * cell;
     const isFinder = (r: number, c: number) =>
       (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
-    // center badge knockout (px) — skip modules underneath so the mark sits clean
-    const bw = badge ? size * 0.3 : 0, bh = badge ? size * 0.135 : 0;
-    const bx = (size - bw) / 2, by = (size - bh) / 2, bpad = cell * 0.7;
+    const bw = badge ? (hasLogo ? size * 0.26 : textBw) : 0;
+    const bh = badge ? (hasLogo ? size * 0.26 : textBh) : 0;
+    const bx = (size - bw) / 2, by = (size - bh) / 2, bpad = cell * 0.75;
     const inBadge = (cx: number, cy: number) =>
       badge && cx > bx - bpad && cx < bx + bw + bpad && cy > by - bpad && cy < by + bh + bpad;
 
-    // Soft "rounded square" modules at full cell size: corners are rounded but
-    // straight edges keep neighbours touching, so finder/timing runs stay solid
-    // and the code decodes like a normal QR (separated dots break detection).
     let cells = '';
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
         if (!modules.get(r, c) || isFinder(r, c)) continue;
         const cx = px(c) + cell / 2, cy = px(r) + cell / 2;
         if (inBadge(cx, cy)) continue;
-        cells += roundRectPath(px(c), px(r), cell, cell, cell * 0.16);
+        cells += modulePath(s.dotStyle, px(c), px(r), cell);
       }
     }
-    const eye = (gr: number, gc: number) => {
-      const x = px(gc), y = px(gr), s = cell * 7;
-      // square, bold finder frames — mirror the app's hard-edged boxes (not soft circles)
-      return `${roundRectPath(x, y, s, s, cell * 0.45)}${roundRectPath(x + cell, y + cell, cell * 5, cell * 5, cell * 0.32)}${roundRectPath(x + cell * 2, y + cell * 2, cell * 3, cell * 3, cell * 0.24)}`;
-    };
-    const eyes = `${eye(0, 0)}${eye(0, n - 7)}${eye(n - 7, 0)}`;
+    const eyes = `${eyePath(s.eyeStyle, px(0), px(0), cell)}${eyePath(s.eyeStyle, px(n - 7), px(0), cell)}${eyePath(s.eyeStyle, px(0), px(n - 7), cell)}`;
     return { cells, eyes, cell };
-  }, [value, size, marginSize, badge]);
+  }, [value, size, marginSize, badge, hasLogo, textBw, textBh, s.dotStyle, s.eyeStyle]);
 
-  const bw = size * 0.3, bh = size * 0.135, bx = (size - bw) / 2, by = (size - bh) / 2;
-  // Neobrutalist chip: hard offset shadow, tight corners, thick ink keyline.
-  const badgeSh = Math.max(2, size * 0.016), badgeR = bh * 0.16, badgeBorder = Math.max(2, size * 0.013);
+  const bw = hasLogo ? size * 0.26 : textBw;
+  const bh = hasLogo ? size * 0.26 : textBh;
+  const bx = (size - bw) / 2, by = (size - bh) / 2;
+  const badgeBorder = Math.max(2, size * 0.013);
+  const badgeSh = s.badgeShape === 'brutal' ? Math.max(2, size * 0.016) : 0;
+  // Shape radius: round ≈ circle (logo), pill = capsule, flat/brutal = tight.
+  const badgeR = s.badgeShape === 'round' ? Math.min(bw, bh) / 2
+    : s.badgeShape === 'pill' ? Math.min(bw, bh) / 2
+    : hasLogo ? bw * 0.18
+    : bh * 0.16;
+  const logoInset = bw * 0.14;
+  const textFill = qrTextOn(badgeFill, ink);
+  const textPadX = Math.max(badgeBorder + 2, bw * 0.08);
+  const textPadY = Math.max(badgeBorder + 1, bh * 0.12);
+  const fontSize = useMemo(
+    () => fitBadgeFontSize(textLabel, stack, bw - textPadX * 2, bh - textPadY * 2),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [textLabel, stack, bw, bh, textPadX, textPadY, fontTick],
+  );
+  const isLatinOnly = /^[\x00-\x7F]*$/.test(textLabel);
+  const innerR = Math.max(0, badgeR - badgeBorder);
+  // Clear under badge uses paper so the quiet zone matches the QR paper tint.
+  const clearPad = cell * 0.9;
+
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" shapeRendering="geometricPrecision">
-      <rect width={size} height={size} fill="#ffffff" />
-      <path d={cells} fill={fgColor} />
-      {/* finder eyes: ink frame, white gap, ink pupil (even-odd lets one path nest) */}
-      <path d={eyes} fill={fgColor} fillRule="evenodd" />
+      <rect width={size} height={size} fill={paper} />
+      <path d={cells} fill={ink} />
+      <path d={eyes} fill={ink} fillRule="evenodd" />
       {badge && (
         <>
-          {/* clear the QR behind the chip and its hard shadow */}
-          <path d={roundRectPath(bx - cell, by - cell, bw + cell * 2 + badgeSh, bh + cell * 2 + badgeSh, cell * 0.4)} fill="#ffffff" />
-          {/* signature offset block shadow */}
-          <path d={roundRectPath(bx + badgeSh, by + badgeSh, bw, bh, badgeR)} fill={fgColor} />
-          {/* lime brand chip + ink keyline \u2014 same recipe as the .mark chip */}
-          <path d={roundRectPath(bx, by, bw, bh, badgeR)} fill={QR_ACCENT} stroke={fgColor} strokeWidth={badgeBorder} />
-          <text x={size / 2} y={size / 2 + bh * 0.02} textAnchor="middle" dominantBaseline="central" direction="ltr" unicodeBidi="bidi-override"
-            fontFamily="'Bricolage Grotesque','IBM Plex Sans Arabic',system-ui,sans-serif"
-            fontWeight={800} fontSize={bh * 0.6} letterSpacing="-0.02em" fill={fgColor}>{'Serva.\u200E'}</text>
+          <path d={roundRectPath(bx - clearPad, by - clearPad, bw + clearPad * 2 + badgeSh, bh + clearPad * 2 + badgeSh, clearPad * 0.5)} fill={paper} />
+          {badgeSh > 0 && (
+            <path d={roundRectPath(bx + badgeSh, by + badgeSh, bw, bh, badgeR)} fill={ink} />
+          )}
+          {hasLogo ? (
+            <>
+              <path d={roundRectPath(bx, by, bw, bh, badgeR)} fill="#ffffff" stroke={ink} strokeWidth={badgeBorder} />
+              <clipPath id={clipId}>
+                <path d={roundRectPath(bx + badgeBorder, by + badgeBorder, bw - badgeBorder * 2, bh - badgeBorder * 2, innerR)} />
+              </clipPath>
+              <image href={badgeImageUrl!} x={bx + logoInset} y={by + logoInset} width={bw - logoInset * 2} height={bh - logoInset * 2}
+                preserveAspectRatio="xMidYMid meet" clipPath={`url(#${clipId})`} />
+            </>
+          ) : (
+            <>
+              <path d={roundRectPath(bx, by, bw, bh, badgeR)} fill={badgeFill} stroke={ink} strokeWidth={badgeBorder} />
+              <clipPath id={textClipId}>
+                <path d={roundRectPath(bx + badgeBorder, by + badgeBorder, bw - badgeBorder * 2, bh - badgeBorder * 2, innerR)} />
+              </clipPath>
+              <text x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
+                direction={isLatinOnly ? 'ltr' : 'auto'}
+                unicodeBidi={isLatinOnly ? 'bidi-override' : 'normal'}
+                fontFamily={stack}
+                fontWeight={800} fontSize={fontSize} letterSpacing="-0.02em" fill={textFill}
+                clipPath={`url(#${textClipId})`}>
+                {isLatinOnly ? `${textLabel}\u200E` : textLabel}
+              </text>
+            </>
+          )}
         </>
       )}
     </svg>
@@ -1096,6 +1544,9 @@ function TablesPage({ branchId }: { branchId?: number }) {
   const { user } = useAuth();
   const [num, setNum] = useState('');
   const [singlePrint, setSinglePrint] = useState<PrintQrJob | null>(null);
+  const [qrStyle, setQrStyle] = useState<QrBadgeStyle>(() => loadQrStyle(user?.restaurantId));
+  const [qrLogoUploading, setQrLogoUploading] = useState(false);
+  const qrLogoRef = useRef<HTMLInputElement>(null);
 
   const { data: raw, isLoading } = useQuery({
     queryKey: ['tables', branchId],
@@ -1108,9 +1559,46 @@ function TablesPage({ branchId }: { branchId?: number }) {
     queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
     enabled: !!user?.restaurantId,
   });
+  // Reload saved badge prefs when the signed-in restaurant changes.
+  useEffect(() => { setQrStyle(loadQrStyle(user?.restaurantId)); }, [user?.restaurantId]);
+  // Pull Google font for the chosen badge face (Bricolage already loaded app-wide).
+  useEffect(() => {
+    const specs = QR_FONT_GOOGLE[qrStyle.fontId];
+    if (specs) ensureGoogleFonts(specs);
+  }, [qrStyle.fontId]);
+
+  // Gate: currently open for all plans; flip canCustomizeQr() when this becomes paid.
+  const qrCustom = canCustomizeQr(restaurant?.plan);
+  const setQrStylePersist = (next: QrBadgeStyle) => {
+    if (!qrCustom) return;
+    setQrStyle(next);
+    saveQrStyle(user?.restaurantId, next);
+  };
+  const patchQr = (partial: Partial<QrBadgeStyle>) => setQrStylePersist({ ...qrStyle, ...partial });
   const restaurantSlug = restaurant?.slug;
+  const cafeName = restaurant?.name?.trim() || '';
+  // Locked plans always get the free default look.
+  const effectiveStyle: QrBadgeStyle = qrCustom ? qrStyle : { ...DEFAULT_QR_STYLE };
+  const hasBadgeImage = !!effectiveStyle.badgeImageUrl;
+  const previewValue = carUrlOf(restaurantSlug || 'demo', branchId || 1);
   const carUrl = branchId && restaurantSlug ? carUrlOf(restaurantSlug, branchId) : null;
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tables', branchId] });
+
+  async function onQrLogoFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !qrCustom) return;
+    setQrLogoUploading(true);
+    try {
+      // Reuse the logo upload endpoint for storage; we never write restaurant.logoUrl.
+      const { url } = await upload('/api/uploads/restaurants/logo', file);
+      patchQr({ badgeImageUrl: url });
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Upload failed');
+    } finally {
+      setQrLogoUploading(false);
+      if (qrLogoRef.current) qrLogoRef.current.value = '';
+    }
+  }
 
   // Live "ordering now" + today's orders per QR (shared hook: fetch + poll + SSE).
   const activity = useQrActivity(branchId);
@@ -1172,6 +1660,168 @@ function TablesPage({ branchId }: { branchId?: number }) {
         <button className="btn sm ghost" disabled={!tables.length && !carUrl} onClick={printAll}>🖨 {t('print')}</button>
       </div>
 
+      {/* Full QR studio — presets, ink/paper/badge colors, module & eye shapes, logo, font.
+          Independent of restaurant profile logo. Gated by canCustomizeQr for future PRO. */}
+      <div className={'qr-style' + (qrCustom ? '' : ' locked')} aria-label={t('qrStyle')}>
+        <div className="qr-style-top">
+          <div className="qr-style-head">{t('qrStyle')}</div>
+          {qrCustom && (
+            <div className="qr-style-actions">
+              <button className="btn sm ghost" type="button"
+                onClick={() => setQrStylePersist(randomQrStyle(qrStyle))}>
+                🎲 {t('qrShuffle')}
+              </button>
+              <button className="btn sm ghost" type="button"
+                onClick={() => setQrStylePersist({
+                  ...DEFAULT_QR_STYLE,
+                  badgeImageUrl: qrStyle.badgeImageUrl ?? null,
+                })}>
+                {t('qrReset')}
+              </button>
+            </div>
+          )}
+        </div>
+        {qrCustom ? (
+          <div className="qr-style-body">
+            <div className="qr-style-preview" aria-label={t('qrPreview')}>
+              <BrandedQrCode value={previewValue} size={148} style={effectiveStyle} label={cafeName} />
+            </div>
+            <div className="qr-style-controls">
+              <div className="qr-style-row">
+                <span className="qr-style-lbl">{t('qrPresets')}</span>
+                <div className="qr-presets">
+                  {QR_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="qr-preset"
+                      title={t('qrPreset_' + p.id)}
+                      onClick={() => setQrStylePersist({
+                        ...DEFAULT_QR_STYLE,
+                        ...p.style,
+                        badgeImageUrl: qrStyle.badgeImageUrl, // keep uploaded logo across presets
+                      })}
+                    >
+                      <span className="qr-preset-swatch">
+                        <i style={{ background: p.swatch[0] }} />
+                        <i style={{ background: p.swatch[1] }} />
+                        <i style={{ background: p.swatch[2] }} />
+                      </span>
+                      <b>{t('qrPreset_' + p.id)}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="qr-style-row">
+                <span className="qr-style-lbl">{t('qrLogo')}</span>
+                <div className="qr-logo-ctl">
+                  {hasBadgeImage && (
+                    <span className="qr-logo-thumb" style={{ backgroundImage: `url('${effectiveStyle.badgeImageUrl}')` }} />
+                  )}
+                  <input ref={qrLogoRef} type="file" accept="image/*" hidden onChange={onQrLogoFile} />
+                  <button className="btn sm ghost" type="button" disabled={qrLogoUploading}
+                    onClick={() => qrLogoRef.current?.click()}>
+                    {qrLogoUploading ? t('qrUploading') : t('qrUploadLogo')}
+                  </button>
+                  {hasBadgeImage && (
+                    <button className="btn sm danger" type="button" disabled={qrLogoUploading}
+                      onClick={() => patchQr({ badgeImageUrl: null })}>
+                      {t('qrRemoveLogo')}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="qr-style-row">
+                <span className="qr-style-lbl">{t('qrInk')}</span>
+                <div className="qr-swatches">
+                  {QR_INK_IDS.map((id) => (
+                    <button key={id} type="button"
+                      className={'qr-swatch' + (qrStyle.inkId === id ? ' on' : '')}
+                      style={{ background: qrHex(id, QR_INK) }}
+                      title={id} aria-label={id}
+                      onClick={() => patchQr({ inkId: id })} />
+                  ))}
+                </div>
+              </div>
+
+              <div className={'qr-style-row' + (hasBadgeImage ? ' dim' : '')}>
+                <span className="qr-style-lbl">{t('qrColor')}</span>
+                <div className="qr-swatches">
+                  {QR_PALETTE.map((c) => (
+                    <button key={c.id} type="button"
+                      className={'qr-swatch' + (qrStyle.colorId === c.id ? ' on' : '')}
+                      style={{ background: c.fill }}
+                      title={c.id} aria-label={c.id}
+                      disabled={hasBadgeImage}
+                      onClick={() => patchQr({ colorId: c.id })} />
+                  ))}
+                </div>
+              </div>
+
+              <div className="qr-style-row">
+                <span className="qr-style-lbl">{t('qrDots')}</span>
+                <div className="qr-fonts">
+                  {QR_DOT_IDS.map((id) => (
+                    <button key={id} type="button"
+                      className={'qr-font' + (qrStyle.dotStyle === id ? ' on' : '')}
+                      onClick={() => patchQr({ dotStyle: id })}>
+                      {t('qrDot_' + id)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="qr-style-row">
+                <span className="qr-style-lbl">{t('qrEyes')}</span>
+                <div className="qr-fonts">
+                  {QR_EYE_IDS.map((id) => (
+                    <button key={id} type="button"
+                      className={'qr-font' + (qrStyle.eyeStyle === id ? ' on' : '')}
+                      onClick={() => patchQr({ eyeStyle: id })}>
+                      {t('qrEye_' + id)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="qr-style-row">
+                <span className="qr-style-lbl">{t('qrBadgeShape')}</span>
+                <div className="qr-fonts">
+                  {QR_BADGE_SHAPE_IDS.map((id) => (
+                    <button key={id} type="button"
+                      className={'qr-font' + (qrStyle.badgeShape === id ? ' on' : '')}
+                      onClick={() => patchQr({ badgeShape: id })}>
+                      {t('qrBadge_' + id)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={'qr-style-row' + (hasBadgeImage ? ' dim' : '')}>
+                <span className="qr-style-lbl">{t('qrFont')}</span>
+                <div className="qr-fonts">
+                  {QR_FONT_IDS.map((id) => (
+                    <button key={id} type="button"
+                      className={'qr-font' + (qrStyle.fontId === id ? ' on' : '')}
+                      style={{ fontFamily: QR_FONT_STACK[id] }}
+                      disabled={hasBadgeImage}
+                      onClick={() => patchQr({ fontId: id })}>
+                      {t('qrFt_' + id)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="qr-style-hint">{t('qrStyleHint')}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="qr-style-hint">{t('qrProSoon')}</p>
+        )}
+      </div>
+
       {isLoading ? <div className="center"><div className="spinner" /></div>
         : tables.length === 0 && !carUrl ? <div className="empty"><div className="big">🪑</div><h3>{t('noTables')}</h3></div>
         : (
@@ -1179,7 +1829,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
             {carUrl && (
               <div className="tcard" key="outdoor-car">
                 <div className="tcard-hd"><span className="tnum">🚗 {t('carQr')}</span></div>
-                <div className="qrtile"><BrandedQrCode value={carUrl} size={150} /></div>
+                <div className="qrtile"><BrandedQrCode value={carUrl} size={150} style={effectiveStyle} label={cafeName} /></div>
                 <button className="tlink" title={carUrl} onClick={() => { navigator.clipboard?.writeText(carUrl); toast(t('copied')); }}>{t('copy')} ⧉</button>
                 <ActivityRow liveKey="car" todayKey="car" />
                 <div className="tcard-actions">
@@ -1192,7 +1842,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
               return (
                 <div className="tcard" key={tb.id}>
                   <div className="tcard-hd"><span className="tnum num">{tb.tableNumber}</span>{!tb.active && <span className="chip">off</span>}</div>
-                  <div className="qrtile"><BrandedQrCode value={url} size={150} /></div>
+                  <div className="qrtile"><BrandedQrCode value={url} size={150} style={effectiveStyle} label={cafeName} /></div>
                   <button className="tlink" title={url} onClick={() => { navigator.clipboard?.writeText(url); toast(t('copied')); }}>{t('copy')} ⧉</button>
                   <ActivityRow liveKey={tb.qrCodeToken} todayKey={String(tb.id)} />
                   <div className="tcard-actions">
@@ -1213,7 +1863,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
             {singlePrint.subtitle && <div className="print-single-brand">{singlePrint.subtitle}</div>}
             <div className="print-single-title">{singlePrint.title}</div>
             <div className="print-single-qr">
-              <BrandedQrCode value={singlePrint.value} size={560} fgColor="#000000" marginSize={2} />
+              <BrandedQrCode value={singlePrint.value} size={560} marginSize={2} style={effectiveStyle} label={cafeName} />
             </div>
             <div className="print-single-scan">{t('scan')}</div>
           </div>
@@ -1223,7 +1873,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
               <div className="tent" key="outdoor-car">
                 <div className="tent-brand">{restaurantSlug}</div>
                 <div className="tent-table">🚗 {t('carQr')}</div>
-                <BrandedQrCode value={carUrl} size={210} fgColor="#000000" marginSize={2} />
+                <BrandedQrCode value={carUrl} size={210} marginSize={2} style={effectiveStyle} label={cafeName} />
                 <div className="tent-scan">{t('scan')}</div>
               </div>
             )}
@@ -1233,7 +1883,7 @@ function TablesPage({ branchId }: { branchId?: number }) {
                 <div className="tent" key={tb.id}>
                   <div className="tent-brand">{slugOf(tb)}</div>
                   <div className="tent-table">{t('table')} {tb.tableNumber}</div>
-                  <BrandedQrCode value={url} size={210} fgColor="#000000" marginSize={2} />
+                  <BrandedQrCode value={url} size={210} marginSize={2} style={effectiveStyle} label={cafeName} />
                   <div className="tent-scan">{t('scan')}</div>
                 </div>
               );

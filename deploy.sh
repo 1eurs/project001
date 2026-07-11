@@ -182,6 +182,13 @@ server {
         client_max_body_size 50M;
     }
 
+    # The SPA shell must never be cached: hashed asset URLs live inside it, so a stale
+    # index.html pins tablets to an old bundle for days after a deploy.
+    location = /index.html {
+        root /home/pi/cafeqr/frontend-react/dist;
+        add_header Cache-Control "no-cache, must-revalidate";
+    }
+
     location / {
         root /home/pi/cafeqr/frontend-react/dist;
         try_files $uri $uri/ /index.html;

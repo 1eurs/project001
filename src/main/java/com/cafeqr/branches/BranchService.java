@@ -76,6 +76,9 @@ public class BranchService {
         if (request.openingHours() != null) {
             branch.setOpeningHours(request.openingHours());
         }
+        if (request.printerEnabled() != null) {
+            branch.setPrinterEnabled(request.printerEnabled());
+        }
         return BranchResponse.from(branch);
     }
 

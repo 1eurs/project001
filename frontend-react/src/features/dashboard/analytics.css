@@ -269,8 +269,10 @@ html[dir="rtl"] .an-fn-fill{transform-origin:right center}
     border:2px solid var(--ink);border-radius:6px;background:var(--bg-2);padding:8px 10px;font-size:12.5px}
   .an-tabs button.on{background:var(--lime);color:var(--ink)}
   .an-tabs button.on::after{display:none}
-  /* Tighten the range presets so all five fit without overflowing a narrow screen. */
-  .an-seg button{padding:7px 9px}
+  /* Padding alone doesn't reliably fit "Today / 7 days / 30 days / 90 days / Custom"
+     on one row under ~380px — wrap into a second row instead of overflowing. */
+  .an-seg{flex-wrap:wrap;width:100%}
+  .an-seg button{flex:1 1 auto;padding:8px 9px;text-align:center}
   .an-directory-head{align-items:flex-start;flex-direction:column}.an-directory-back{width:100%}
 }
 

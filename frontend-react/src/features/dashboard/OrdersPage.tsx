@@ -6,7 +6,7 @@ import { useToast } from '../../lib/toast';
 import { Money } from '../../lib/Money';
 import { carColorOf, carColorLabel } from '../../lib/carColors';
 import type { OrderSummaryResponse, PageResponse, OrderResponse, OrderStatus } from '../../lib/types';
-import InvoicePrint from './InvoicePrint';
+import { useReceiptPrinter } from './receiptPrinter';
 
 const DICT: Dict = {
   ar: { cur: 'ر.ع', all: 'الكل', table: 'طاولة', car: 'خدمة السيارة', carPlate: 'لوحة السيارة', thNo: 'الطلب', thTime: 'الوقت', thType: 'النوع', thStatus: 'الحالة', thPay: 'الدفع', thTotal: 'الإجمالي',
@@ -64,7 +64,7 @@ export default function OrdersPage({ branchId }: { branchId?: number }) {
         : rows.length === 0 ? <div className="empty"><div className="big">🧾</div><h3>{t('none')}</h3></div>
         : (
           <>
-            <table className="tbl">
+            <table className="tbl orders-tbl">
               <thead><tr>
                 <th>{t('thNo')}</th><th className="hide-sm">{t('thTime')}</th><th className="hide-sm">{t('thType')}</th>
                 <th>{t('thStatus')}</th><th className="hide-sm">{t('thPay')}</th><th>{t('thTotal')}</th>
@@ -103,7 +103,7 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
   const { lang } = useI18n();
   const toast = useToast();
   const qc = useQueryClient();
-  const [printing, setPrinting] = useState(false);
+  const printReceipt = useReceiptPrinter();
   const { data: o } = useQuery({ queryKey: ['order', id], queryFn: () => api.get<OrderResponse>(`/api/dashboard/orders/${id}`) });
 
   const pay = useMutation({
@@ -157,12 +157,11 @@ function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
         </div>
       </div>
       <div className="drawer-ft">
-        <button className="btn ghost" onClick={() => setPrinting(true)}>🖨 {t('printInv')}</button>
+        <button className="btn ghost" onClick={() => printReceipt(o)}>🖨 {t('printInv')}</button>
         {o.paymentStatus === 'PAID'
           ? <button className="btn ghost" disabled>✓ {t('paid')}{o.paymentMethod ? ` · ${o.paymentMethod}` : ''}</button>
           : <button className="btn" disabled={pay.isPending} onClick={() => pay.mutate()}>{t('markPaid')}</button>}
       </div>
-      {printing && <InvoicePrint order={o} onDone={() => setPrinting(false)} />}
     </>
   );
 }

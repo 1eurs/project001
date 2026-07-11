@@ -78,7 +78,7 @@ export interface OrderItem {
   price: number; lineTotal: number; note?: string | null;
 }
 export interface OrderTracking {
-  orderNumber: string; trackingToken: string; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
+  orderNumber: string; dailyNumber: number; trackingToken: string; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
   customerName?: string | null; carPlate?: string | null; carColor?: string | null; customerNote?: string | null;
   loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null; loyalty?: LoyaltySummary | null; stampEarned?: boolean | null; items: OrderItem[];
@@ -87,7 +87,7 @@ export interface OrderTracking {
 }
 // full dashboard order (live board / detail) — mirrors OrderResponse.java
 export interface OrderResponse {
-  id: number; orderNumber: string; trackingToken: string; restaurantId: number; branchId: number; tableId?: number | null;
+  id: number; orderNumber: string; dailyNumber: number; trackingToken: string; restaurantId: number; branchId: number; tableId?: number | null;
   customerName?: string | null; customerPhone?: string | null; carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus;
   subtotal: number; vatAmount: number; total: number; prepTimeMinutes?: number | null; declineReason?: string | null;
   customerNote?: string | null; internalNote?: string | null; loyaltyRewardLabel?: string | null; loyaltyRewardDiscount?: number | null;
@@ -98,7 +98,7 @@ export interface OrderResponse {
 
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean; createdAt?: string;
+  openingHours?: string | null; active: boolean; acceptingOrders: boolean; printerEnabled: boolean; createdAt?: string;
 }
 export interface TableResponse {
   id: number; restaurantId: number; branchId: number; tableNumber: string; qrCodeToken: string;
@@ -106,7 +106,7 @@ export interface TableResponse {
 }
 
 export interface OrderSummaryResponse {
-  id: number; orderNumber: string; branchId?: number | null; tableId?: number | null; customerName?: string | null;
+  id: number; orderNumber: string; dailyNumber: number; branchId?: number | null; tableId?: number | null; customerName?: string | null;
   carPlate?: string | null; carColor?: string | null; orderType: OrderType; status: OrderStatus; paymentStatus: PaymentStatus; total: number; prepTimeMinutes?: number | null; createdAt: string;
 }
 export interface PageResponse<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number; last: boolean; }
@@ -227,5 +227,5 @@ export interface QrActivity {
 /* ---- branch management (admin drawer) ---- */
 export interface BranchResponse {
   id: number; restaurantId: number; name: string; address?: string | null; phone?: string | null;
-  openingHours?: string | null; active: boolean; acceptingOrders: boolean; createdAt?: string;
+  openingHours?: string | null; active: boolean; acceptingOrders: boolean; printerEnabled: boolean; createdAt?: string;
 }

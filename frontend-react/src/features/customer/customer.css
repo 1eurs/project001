@@ -233,7 +233,12 @@ html[dir="ltr"] .c-back .arr{display:inline-block;transform:scaleX(-1)}
 
 /* tracking */
 .c-track{text-align:center;padding:10px 4px 2px}
-.c-track .no{font-family:var(--font-mono);font-size:12px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+.c-track .no{display:flex;align-items:center;justify-content:center;gap:9px}
+.c-track .no .lbl{font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.c-track .no .num{display:inline-flex;align-items:center;justify-content:center;min-width:2.1em;
+  font-family:var(--font-mono);font-size:19px;font-weight:800;letter-spacing:0;
+  color:var(--accent-ink);background:var(--accent);border-radius:var(--r-sm,10px);padding:3px 11px;
+  box-shadow:0 8px 18px -9px var(--accent-glow)}
 .c-track .state{font-family:var(--font-display);font-size:28px;font-weight:700;margin:8px 0 4px;letter-spacing:-.02em}
 .c-track .sub{color:var(--muted);font-size:13.5px}
 .c-pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-inline-end:8px;vertical-align:middle;animation:c-pulse 1.8s infinite}

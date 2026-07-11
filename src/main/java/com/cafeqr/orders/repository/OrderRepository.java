@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +27,20 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query(value = "SELECT nextval('order_number_seq')", nativeQuery = true)
     long nextOrderNumber();
+
+    /**
+     * Atomically bumps (or creates) the ticket counter for one branch's business day and returns
+     * the new value. The upsert's row lock serializes concurrent order creation for the same
+     * branch/day, so two tickets can never come out with the same number.
+     */
+    @Query(value = """
+            INSERT INTO branch_daily_counters (branch_id, business_date, last_number)
+            VALUES (:branchId, :businessDate, 1)
+            ON CONFLICT (branch_id, business_date)
+            DO UPDATE SET last_number = branch_daily_counters.last_number + 1
+            RETURNING last_number
+            """, nativeQuery = true)
+    int nextDailyNumber(@Param("branchId") Long branchId, @Param("businessDate") LocalDate businessDate);
 
     // -------- returning customers --------
 

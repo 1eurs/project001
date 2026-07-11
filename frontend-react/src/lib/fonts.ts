@@ -12,6 +12,9 @@ export function ensureStylesheet(href: string) {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = href;
+  // Google Fonts sends CORS headers on its CSS responses; without this, html-to-image
+  // (ReceiptCapture.tsx) can't read the stylesheet's rules to embed the font in a capture.
+  link.crossOrigin = 'anonymous';
   document.head.appendChild(link);
 }
 

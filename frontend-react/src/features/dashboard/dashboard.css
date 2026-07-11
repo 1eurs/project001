@@ -86,7 +86,9 @@
 @keyframes opop{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
 .ocard-top{display:flex;align-items:center;gap:8px}
 .ocard-top .elapsed{margin-inline-start:auto}
-.ordno{font-family:var(--font-mono);font-weight:600;font-size:14px}
+.ordno{display:inline-flex;align-items:center;justify-content:center;min-width:2.3em;
+  font-family:var(--font-mono);font-weight:700;font-size:20px;line-height:1;
+  padding:5px 10px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--line-2)}
 .elapsed{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 .elapsed.warn{color:var(--pending)}.elapsed.late{color:var(--bad)}
 .oprint{flex:0 0 auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--line-2);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;display:grid;place-items:center;transition:.15s}
@@ -173,6 +175,43 @@
 .tables-wrap{flex:1;overflow-y:auto;padding:18px 22px}
 .tables-tool{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
 .addtable{display:flex;gap:8px;align-items:center}
+/* QR studio — presets, ink/paper/badge, shapes, logo, font + live preview. */
+.qr-style{display:flex;flex-direction:column;gap:12px;margin:-4px 0 16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
+.qr-style.locked{opacity:.85}
+.qr-style-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.qr-style-head{font-family:var(--bold);font-weight:800;font-size:14px;letter-spacing:.02em}
+.qr-style-actions{display:flex;gap:8px;flex-wrap:wrap}
+.qr-style-body{display:grid;grid-template-columns:auto 1fr;gap:18px 20px;align-items:start}
+.qr-style-preview{background:var(--paper);border:2px solid var(--ink);border-radius:10px;padding:12px;line-height:0;box-shadow:var(--hard-sm);position:sticky;top:12px}
+.qr-style-controls{display:flex;flex-direction:column;gap:11px;min-width:0}
+.qr-style-row{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.qr-style-row.dim{opacity:.45}
+.qr-style-lbl{font-size:11.5px;font-weight:700;color:var(--muted);min-width:5rem;padding-top:7px;letter-spacing:.03em;text-transform:uppercase}
+.qr-logo-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qr-logo-thumb{width:36px;height:36px;border-radius:8px;border:2px solid var(--ink);background:#fff center/contain no-repeat;box-shadow:2px 2px 0 var(--ink);flex-shrink:0}
+.qr-swatches{display:flex;gap:7px;flex-wrap:wrap}
+.qr-swatch{width:26px;height:26px;border-radius:7px;border:2px solid var(--ink);cursor:pointer;padding:0;box-shadow:2px 2px 0 transparent;transition:transform .12s,box-shadow .12s}
+.qr-swatch:hover:not(:disabled){transform:translate(-1px,-1px)}
+.qr-swatch.on{box-shadow:2px 2px 0 var(--ink);transform:translate(-1px,-1px)}
+.qr-swatch:disabled{cursor:not-allowed}
+.qr-fonts{display:flex;gap:6px;flex-wrap:wrap}
+.qr-font{appearance:none;border:1.5px solid var(--line-2);background:var(--paper);color:var(--ink);border-radius:7px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;line-height:1.2}
+.qr-font:hover:not(:disabled){border-color:var(--ink)}
+.qr-font.on{border-color:var(--ink);background:var(--lime);box-shadow:2px 2px 0 var(--ink)}
+.qr-font:disabled{cursor:not-allowed}
+.qr-presets{display:flex;gap:8px;flex-wrap:wrap}
+.qr-preset{appearance:none;display:flex;flex-direction:column;align-items:center;gap:5px;border:2px solid var(--ink);background:var(--paper);border-radius:9px;padding:7px 9px 6px;cursor:pointer;min-width:64px;box-shadow:2px 2px 0 transparent;transition:transform .12s,box-shadow .12s}
+.qr-preset:hover{transform:translate(-1px,-1px);box-shadow:2px 2px 0 var(--ink)}
+.qr-preset-swatch{display:flex;width:40px;height:14px;border-radius:4px;overflow:hidden;border:1.5px solid var(--ink)}
+.qr-preset-swatch i{flex:1;display:block}
+.qr-preset b{font-size:10.5px;font-weight:800;letter-spacing:.02em}
+.qr-style-hint{margin:2px 0 0;font-size:11.5px;color:var(--muted);line-height:1.4}
+.dash .qr-style{border:2px solid var(--ink);border-radius:8px;box-shadow:var(--hard-sm)}
+.dash .qrtile{background:transparent;border-color:var(--ink)}
+@media (max-width:720px){
+  .qr-style-body{grid-template-columns:1fr}
+  .qr-style-preview{position:static;justify-self:center}
+}
 .tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
 .tcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;display:flex;flex-direction:column;align-items:center;gap:11px}
 .tcard-hd{display:flex;align-items:center;gap:8px;align-self:stretch;justify-content:space-between}
@@ -215,6 +254,33 @@
   .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
   .inv-brand{text-align:center;font-family:var(--font-mono);font-size:10px;color:#555;margin-top:2px}
 }
+
+/* Same receipt, rasterized off-screen for RawBT auto-print (ReceiptCapture.tsx) instead of
+   sent to an actual print context — so the rules above (gated to @media print) don't apply
+   and need a parallel, always-on copy scoped under this wrapper. Keep both in sync. */
+/* Sits fully painted (opacity/visibility untouched — html-to-image bakes those into the
+   rasterized clone, so opacity:0 or visibility:hidden here would capture as a blank image)
+   but behind the app's own opaque background, so it's never actually visible to a user. */
+.receipt-capture-sheet{position:fixed;top:0;left:0;z-index:-1;pointer-events:none}
+.receipt-capture-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:6mm 4mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5}
+.receipt-capture-sheet .inv-name{text-align:center;font-size:16px;font-weight:800}
+.receipt-capture-sheet .inv-sub{text-align:center;font-size:11px;color:#333}
+.receipt-capture-sheet .inv-title{text-align:center;font-weight:700;margin:6px 0 8px;padding:3px 0;border-top:1px dashed #000;border-bottom:1px dashed #000}
+.receipt-capture-sheet .inv-row{display:table;width:100%}
+.receipt-capture-sheet .inv-row>span:first-child{display:table-cell;text-align:start}
+/* width:1% + nowrap (auto table-layout, NOT fixed) is the standard trick to make this
+   column shrink to its content while the label column above absorbs all the remaining
+   width — reproducing flex's justify-content:space-between, which pins one item to each
+   edge instead of letting both cells sit side by side in the middle. */
+.receipt-capture-sheet .inv-row>span:last-child{display:table-cell;text-align:end;white-space:nowrap;width:1%}
+.receipt-capture-sheet .inv-row .amt{font-family:var(--font-mono);white-space:nowrap}
+.receipt-capture-sheet .inv-item{margin:2px 0}
+.receipt-capture-sheet .inv-en{font-size:10px;color:#333}
+.receipt-capture-sheet .inv-note{font-size:10px;color:#333;padding-inline-start:16px}
+.receipt-capture-sheet .inv-hr{border-top:1px dashed #000;margin:6px 0}
+.receipt-capture-sheet .inv-total{font-weight:800;font-size:14px}
+.receipt-capture-sheet .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
+.receipt-capture-sheet .inv-brand{text-align:center;font-family:var(--font-mono);font-size:10px;color:#555;margin-top:2px}
 
 /* ---- menu manager ---- */
 .mcat{margin-bottom:22px}
@@ -358,9 +424,14 @@
 .profile-fields .field,.profile-settings .field{margin:0}.profile-fields .field>span,.profile-settings .field>span{display:block;margin-bottom:6px;color:var(--muted);font-size:11px;font-weight:800}
 .profile-currency{max-width:180px}
 .profile-settings{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:10px}
+.profile-fields+.profile-settings{margin-top:16px}
 .profile-setting{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:68px;border:1.5px solid var(--line-2);border-radius:7px;background:var(--paper);padding:11px 12px}
 .profile-setting>div{min-width:0}.profile-setting b{display:block;color:var(--ink);font-size:12.5px;font-weight:900}.profile-setting div>span{display:block;max-width:58ch;margin-top:3px;color:var(--muted);font-size:10.5px;line-height:1.4}
-.profile-payment-setting{grid-column:1 / -1}
+.profile-payment-setting,.profile-printer-setting{grid-column:1 / -1}
+.printer-station-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.print-server-status{display:block;margin-top:5px;font-size:10.5px;font-weight:800}
+.print-server-status.ok{color:var(--ready,#15803d)}
+.print-server-status.bad{color:var(--bad,#d32f2f)}
 .profile-vat-rate{border:1.5px solid var(--line-2);border-radius:7px;background:var(--paper);padding:9px 10px;transition:opacity .15s}.profile-vat-rate.disabled{opacity:.45}
 .profile-number-input{display:flex;align-items:center}.profile-number-input input{min-width:0;border-start-end-radius:0!important;border-end-end-radius:0!important}.profile-number-input i{align-self:stretch;display:grid;place-items:center;min-width:34px;border:2px solid var(--ink);border-inline-start:0;border-radius:0 6px 6px 0;background:var(--surface-2);font-family:var(--font-mono);font-style:normal;font-weight:900}
 html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:0;border-radius:6px 0 0 6px}
@@ -526,6 +597,10 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
   .tables-wrap{padding-bottom:92px}
   .dash .tbl .hide-sm{display:none}
   .dash .tbl th,.dash .tbl td{padding:12px 10px;font-size:12.5px}
+  /* Order-history status filter holds 6 pills ("In progress", "Cancelled"…) with no
+     wrap — left uncontained it overflows the screen edge on a phone. Scroll it instead. */
+  .dash .toolbar .seg{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;max-width:100%}
+  .dash .toolbar .seg button{flex:0 0 auto;white-space:nowrap}
 
   .dnav-bottom{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;
     background:var(--glass);backdrop-filter:blur(16px);border-top:1px solid var(--line);
@@ -718,6 +793,8 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .ocard{border:2px solid var(--ink);border-inline-start:5px solid var(--col,var(--ink));
   border-radius:7px;box-shadow:var(--hard-sm)}
 .dash .ocard:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--ink);border-color:var(--ink)}
+/* ticket number: the one thing on a busy board that must read at a glance */
+.dash .ordno{background:var(--lime);color:var(--ink);border:2px solid var(--ink);border-radius:6px;box-shadow:var(--hard-sm)}
 .dash .col-head .cnt{border:2px solid var(--ink);border-radius:6px;color:var(--ink);box-shadow:none;font-weight:800}
 .dash .col-empty{border:2px dashed var(--line-2);border-radius:7px}
 .dash .where .tg{border:1.5px solid var(--ink);border-radius:6px}
@@ -731,6 +808,11 @@ html[dir="rtl"] .profile-number-input i{border-inline-start:0;border-inline-end:
 .dash .tbl{border:2px solid var(--ink);border-radius:8px;box-shadow:var(--hard-sm)}
 .dash .tbl th{color:var(--ink);border-bottom:2px solid var(--ink);font-family:var(--bold);font-weight:900}
 .dash .tbl td{border-bottom:1.5px solid var(--line-2)}
+/* Order history's Time/Type/Payment columns (plus a locale timestamp and a car plate
+   in the Type cell) don't fit 6-across on a tablet — hide-sm only drops them below
+   640px. Widen that just for this table so a portrait tablet isn't cramped either;
+   the same detail is one tap away in the row's drawer. */
+@media(max-width:860px){.dash .orders-tbl .hide-sm{display:none}}
 .dash .perm-tags span{border:1.5px solid var(--ink);border-radius:6px;background:var(--paper);color:var(--ink);font-family:var(--bold)}
 .dash .tcard:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--ink);border-color:var(--ink)}
 .dash .qrtile{position:relative;background:#fff;border:2.5px solid var(--ink);border-radius:8px;padding:12px;box-shadow:var(--hard)}

@@ -7,6 +7,11 @@ var apiTarget = process.env.VITE_API_TARGET || 'http://localhost:8080';
 export default defineConfig({
     plugins: [react()],
     base: base,
+    // Shown in the print-station settings so support can confirm a device runs the
+    // latest deploy without devtools (stale-cache diagnosis on Android tablets).
+    define: {
+        __BUILD_TIME__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ') + 'Z'),
+    },
     server: {
         port: 5173,
         proxy: {

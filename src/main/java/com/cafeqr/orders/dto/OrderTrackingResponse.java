@@ -13,6 +13,7 @@ import java.util.List;
 /** Customer-facing order view (no internal notes). Returned by the public tracking endpoint. */
 public record OrderTrackingResponse(
         String orderNumber,
+        int dailyNumber,
         String trackingToken,
         OrderType orderType,
         OrderStatus status,
@@ -53,7 +54,7 @@ public record OrderTrackingResponse(
 
     public static OrderTrackingResponse from(Order o, LoyaltySummaryResponse loyalty, Boolean stampEarned) {
         return new OrderTrackingResponse(
-                o.getOrderNumber(), o.getTrackingToken(), o.getOrderType(), o.getStatus(), o.getPaymentStatus(),
+                o.getOrderNumber(), o.getDailyNumber(), o.getTrackingToken(), o.getOrderType(), o.getStatus(), o.getPaymentStatus(),
                 o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(), o.getDeclineReason(),
                 o.getCustomerName(), o.getCarPlate(), o.getCarColor(), o.getCustomerNote(),
                 o.getLoyaltyRewardLabel(), o.getLoyaltyRewardDiscount(), loyalty,

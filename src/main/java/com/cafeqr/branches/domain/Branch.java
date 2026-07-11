@@ -31,6 +31,9 @@ public class Branch extends BaseEntity {
     @Column(name = "accepting_orders", nullable = false)
     private boolean acceptingOrders = true;
 
+    @Column(name = "printer_enabled", nullable = false)
+    private boolean printerEnabled = false;
+
     public Long getRestaurantId() {
         return restaurantId;
     }
@@ -85,5 +88,13 @@ public class Branch extends BaseEntity {
 
     public void setAcceptingOrders(boolean acceptingOrders) {
         this.acceptingOrders = acceptingOrders;
+    }
+
+    public boolean isPrinterEnabled() {
+        return printerEnabled;
+    }
+
+    public void setPrinterEnabled(boolean printerEnabled) {
+        this.printerEnabled = printerEnabled;
     }
 }

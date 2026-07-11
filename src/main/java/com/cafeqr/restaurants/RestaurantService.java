@@ -69,8 +69,9 @@ public class RestaurantService {
         if (request.name() != null) {
             restaurant.setName(request.name());
         }
+        // Blank string clears the logo (PATCH null = "leave unchanged", so clients send "").
         if (request.logoUrl() != null) {
-            restaurant.setLogoUrl(request.logoUrl());
+            restaurant.setLogoUrl(request.logoUrl().isBlank() ? null : request.logoUrl().trim());
         }
         if (request.phone() != null) {
             restaurant.setPhone(request.phone());

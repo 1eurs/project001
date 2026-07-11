@@ -4,5 +4,5 @@
 export const DEMO = {
   slug: 'mutrah-coffee',
   branchId: 1,
-  tableToken: 'Ymlr-a-6yIXejL60DOWdP4-b',
+  tableToken: '-6IJmF4u0dzXNkizh9ztS_rn',
 };

@@ -7,6 +7,7 @@ import com.cafeqr.common.exception.BadRequestException;
 import com.cafeqr.common.exception.ErrorCode;
 import com.cafeqr.common.exception.ResourceNotFoundException;
 import com.cafeqr.common.util.Phones;
+import com.cafeqr.common.util.TimeZones;
 import com.cafeqr.common.util.Tokens;
 import com.cafeqr.customers.CustomerService;
 import com.cafeqr.loyalty.LoyaltyService;
@@ -23,6 +24,7 @@ import com.cafeqr.orders.dto.CreateStaffOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderSummaryResponse;
 import com.cafeqr.orders.dto.OrderTrackingResponse;
+import com.cafeqr.orders.print.PrintJobService;
 import com.cafeqr.orders.realtime.OrderEvent;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
@@ -50,6 +52,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 
@@ -73,6 +76,7 @@ public class OrderService {
     private final OtpService otpService;
     private final EventLogService eventLogService;
     private final LoyaltyService loyaltyService;
+    private final PrintJobService printJobService;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
@@ -88,6 +92,7 @@ public class OrderService {
                         OtpService otpService,
                         EventLogService eventLogService,
                         LoyaltyService loyaltyService,
+                        PrintJobService printJobService,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.restaurantService = restaurantService;
@@ -102,6 +107,7 @@ public class OrderService {
         this.otpService = otpService;
         this.eventLogService = eventLogService;
         this.loyaltyService = loyaltyService;
+        this.printJobService = printJobService;
         this.objectMapper = objectMapper;
     }
 
@@ -158,6 +164,7 @@ public class OrderService {
         order.setVatAmount(vatAmount);
         order.setTotal(subtotal.add(vatAmount));
         order.setOrderNumber(nextOrderNumber());
+        order.setDailyNumber(orderRepository.nextDailyNumber(branch.getId(), LocalDate.now(TimeZones.CAFES)));
         order.setTrackingToken(Tokens.random(18));
 
         Order saved = orderRepository.save(order);
@@ -223,6 +230,7 @@ public class OrderService {
         order.setVatAmount(vatAmount);
         order.setTotal(subtotal.add(vatAmount));
         order.setOrderNumber(nextOrderNumber());
+        order.setDailyNumber(orderRepository.nextDailyNumber(branch.getId(), LocalDate.now(TimeZones.CAFES)));
         order.setTrackingToken(Tokens.random(18));
 
         Order saved = orderRepository.save(order);
@@ -325,6 +333,9 @@ public class OrderService {
         order.setCompletedAt(Instant.now());
         loyaltyService.onOrderCompleted(order); // earn a stamp + confirm any reserved reward
         eventLogService.recordOrderEvent(order, OrderStatus.COMPLETED, null);
+        // Same transaction as the completion: the job row is committed before the SSE event
+        // (published after commit) can prompt the print station to pull it.
+        printJobService.enqueueIfEnabled(order);
         notifyAndStream(order, NotificationType.ORDER_COMPLETED, "order.completed",
                 "Order " + order.getOrderNumber() + " completed");
         return OrderResponse.from(order);

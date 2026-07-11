@@ -12,6 +12,7 @@ import java.time.Instant;
 public record OrderSummaryResponse(
         Long id,
         String orderNumber,
+        int dailyNumber,
         Long branchId,
         Long tableId,
         String customerName,
@@ -26,7 +27,7 @@ public record OrderSummaryResponse(
 ) {
     public static OrderSummaryResponse from(Order o) {
         return new OrderSummaryResponse(
-                o.getId(), o.getOrderNumber(), o.getBranchId(), o.getTableId(), o.getCustomerName(), o.getCarPlate(), o.getCarColor(),
+                o.getId(), o.getOrderNumber(), o.getDailyNumber(), o.getBranchId(), o.getTableId(), o.getCustomerName(), o.getCarPlate(), o.getCarColor(),
                 o.getOrderType(), o.getStatus(), o.getPaymentStatus(), o.getTotal(),
                 o.getPrepTimeMinutes(), o.getCreatedAt());
     }

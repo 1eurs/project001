@@ -177,6 +177,25 @@ export async function upload<T = { url: string }>(path: string, file: File, retr
   return env.data as T;
 }
 
+/**
+ * Re-syncs the signed-in user with the server (permissions, branch, profile). Permissions
+ * are claims baked into the access token at issue time, so when they changed since login a
+ * plain /me fetch would update the UI but leave API calls carrying the old claims — in that
+ * case force a token refresh so the new token (and its user snapshot) match the DB.
+ */
+export async function syncUser(): Promise<void> {
+  if (!accessToken) return;
+  try {
+    const fresh = await raw<UserResponse>('/api/auth/me', { method: 'GET' });
+    const sorted = (u: UserResponse) => [...(u.permissions ?? [])].sort().join(',');
+    const changed = !currentUser
+      || sorted(fresh) !== sorted(currentUser)
+      || fresh.branchId !== currentUser.branchId;
+    if (changed && refreshToken) await tryRefresh();
+    else setUser(fresh);
+  } catch { /* offline or session expired — the normal 401 path handles it */ }
+}
+
 export async function login(username: string, password: string): Promise<UserResponse> {
   const auth = await raw<AuthResponse>('/api/auth/login', { method: 'POST', auth: false, body: { username, password } });
   setSession(auth);

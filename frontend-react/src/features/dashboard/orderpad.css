@@ -84,3 +84,14 @@ input.pad-field{background:var(--bg-2);border:1px solid var(--line);color:var(--
   /* Keep the place-order row easy to reach with a thumb on phones. */
   .pad-actions{position:sticky;bottom:0;background:var(--surface);padding-top:8px;margin:0 -2px;z-index:1}
 }
+
+@media (max-width:640px){
+  /* Below 640px the shell swaps the rail for a fixed bottom tab bar (dnav-bottom)
+     that overlays page content — without this offset "Send to kitchen" sticks at
+     bottom:0 and ends up hidden behind it, so orders can't be placed from a phone. */
+  .pad-actions{bottom:80px}
+  /* Qty stepper and car-color swatches are the main controls for building an order —
+     26px is well under a comfortable touch target on a phone. */
+  .pad-qty button{width:34px;height:34px;font-size:18px}
+  .pad-color{width:34px;height:34px}
+}

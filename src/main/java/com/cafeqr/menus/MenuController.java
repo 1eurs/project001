@@ -75,6 +75,8 @@ public class MenuController {
     }
 
     @Operation(summary = "List menu items")
+    // PROFILE too: the loyalty setup screen (a PROFILE page) lists items to pick the reward.
+    @PreAuthorize("hasAnyAuthority('MENU','PROFILE')")
     @GetMapping("/items")
     public ApiResponse<List<MenuItemResponse>> listItems(
             @RequestParam(required = false) Long restaurantId,

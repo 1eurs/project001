@@ -5,8 +5,9 @@
  */
 const BASE = process.env.API_BASE || 'http://localhost:8080';
 const SLUG = 'mutrah-coffee';
-const ADMIN = { email: 'admin@cafeqr.local', password: 'Admin123!' };
-const OWNER = { email: 'owner@mutrah.coffee', password: 'Owner123!' };
+// Login API expects `username` (email is used as username at registration).
+const ADMIN = { username: 'admin@cafeqr.local', password: 'Admin123!' };
+const OWNER = { username: 'owner@mutrah.coffee', password: 'Owner123!' };
 
 let pass = 0, fail = 0;
 const ok = (n, cond, extra = '') => { (cond ? pass++ : fail++); console.log(`${cond ? '✓' : '✗ FAIL'}  ${n}${extra ? '  ·  ' + extra : ''}`); return cond; };
@@ -26,21 +27,23 @@ async function main() {
   // ---------------- AUTH ----------------
   section('Auth');
   const adminLogin = await call('/api/auth/login', { method: 'POST', body: ADMIN });
-  ok('Admin login', adminLogin.ok && adminLogin.data?.user?.role === 'PLATFORM_ADMIN', adminLogin.data?.user?.role);
+  ok('Admin login', adminLogin.ok && adminLogin.data?.user?.permissions?.includes('PLATFORM_ADMIN'),
+    (adminLogin.data?.user?.permissions || []).join(','));
   const adminTok = adminLogin.data?.accessToken;
 
   const ownerLogin = await call('/api/auth/login', { method: 'POST', body: OWNER });
-  ok('Owner login', ownerLogin.ok && ownerLogin.data?.user?.role === 'RESTAURANT_OWNER', ownerLogin.data?.user?.role);
+  ok('Owner login', ownerLogin.ok && ownerLogin.data?.user?.owner === true,
+    'owner=' + ownerLogin.data?.user?.owner);
   const ownerTok = ownerLogin.data?.accessToken;
   const ownerRefresh = ownerLogin.data?.refreshToken;
 
   const me = await call('/api/auth/me', { token: ownerTok });
-  ok('GET /me (owner)', me.ok && me.data?.email === OWNER.email, me.data?.fullName);
+  ok('GET /me (owner)', me.ok && me.data?.email === OWNER.username, me.data?.fullName);
 
   const refreshed = await call('/api/auth/refresh', { method: 'POST', body: { refreshToken: ownerRefresh } });
   ok('Token refresh', refreshed.ok && !!refreshed.data?.accessToken);
 
-  const badLogin = await call('/api/auth/login', { method: 'POST', body: { email: OWNER.email, password: 'wrong' } });
+  const badLogin = await call('/api/auth/login', { method: 'POST', body: { username: OWNER.username, password: 'wrong' } });
   ok('Wrong password rejected', badLogin.status === 401 || badLogin.code === 'INVALID_CREDENTIALS', badLogin.code || badLogin.status);
 
   const noAuth = await call('/api/dashboard/orders/live?branchId=1');

@@ -7,7 +7,11 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
-/** All fields optional (PATCH semantics): only non-null values are applied. */
+/**
+ * All fields optional (PATCH semantics): only non-null values are applied.
+ * For {@code logoUrl}, send an empty string to clear a previously set logo
+ * ({@code null} still means "leave unchanged").
+ */
 public record UpdateRestaurantRequest(
         @Size(max = 150) String name,
         @Size(max = 500) String logoUrl,

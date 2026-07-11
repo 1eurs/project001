@@ -88,7 +88,7 @@ export default function TrackPage() {
 
       <div className="c-vbody">
         <div className="c-track">
-          <div className="no">{t('orderNo')} · <span className="num">{o.orderNumber}</span></div>
+          <div className="no"><span className="lbl">{t('orderNo')}</span><span className="num">#{o.dailyNumber}</span></div>
           <div className="state">{!bad && <span className="c-pulse" />}{t('head_' + o.status)}</div>
           {!bad && (
             <div className="sub">

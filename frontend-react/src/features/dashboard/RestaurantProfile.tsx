@@ -4,7 +4,9 @@ import { api, upload, ApiError } from '../../lib/api';
 import { useAuth, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import type { Restaurant, Subscription, BranchResponse } from '../../lib/types';
+import { isPrintStation, setPrintStation, checkPrintServer, getLastPrintAttempt, type PrintAttempt } from '../../lib/printer';
+import { useReceiptPrinter } from './receiptPrinter';
+import type { Restaurant, Subscription, BranchResponse, OrderResponse } from '../../lib/types';
 
 const DICT: Dict = {
   ar: {
@@ -17,11 +19,16 @@ const DICT: Dict = {
     name: 'اسم المطعم', phone: 'الهاتف', email: 'البريد', instagram: 'إنستجرام',
     currency: 'العملة', vatEnabled: 'تفعيل الضريبة', vatRate: 'نسبة الضريبة', logo: 'شعار المطعم',
     paymentSelection: 'اختيار طريقة الدفع عند التحصيل', paymentSelectionSub: 'عند التفعيل، يختار الموظف نقداً أو بطاقة قبل إنهاء الطلب. عند الإيقاف، تُسجّل البطاقة افتراضياً.',
-    uploadLogo: 'رفع الشعار', uploading: 'جارٍ الرفع...', save: 'حفظ الملف', saved: 'تم الحفظ', openMenu: 'فتح القائمة',
+    uploadLogo: 'رفع الشعار', removeLogo: 'إزالة الشعار', logoRemoved: 'تم إزالة الشعار', uploading: 'جارٍ الرفع...', save: 'حفظ الملف', saved: 'تم الحفظ', openMenu: 'فتح القائمة',
     slug: 'رابط القائمة', active: 'نشط',
     subscription: 'الاشتراك', plan: 'الباقة', sstatus: 'الحالة', renews: 'يتجدد', ended: 'انتهى',
     oneTime: 'دفع مرة واحدة', access: 'الوصول', lifetime: 'مدى الحياة',
     branchName: 'اسم الفرع', saveBranch: 'حفظ', branchSaved: 'تم حفظ الفرع',
+    printerEnabled: 'الطباعة التلقائية للفواتير', printerEnabledSub: 'عند التفعيل، عند إنهاء أي طلب (من أي جهاز) يصل إشعار للجهاز المعيّن كمحطة طباعة ويطبع الفاتورة عبر RawBT.',
+    printStation: 'محطة الطباعة (هذا الجهاز)', printStationSub: 'فعّل هذا فقط على الجهاز الواحد المتصل بالطابعة. ثبّت تطبيقي RawBT و Server for RawBT من متجر Play على هذا الجهاز وأبقِهما يعملان — الطباعة الصامتة تتم عبرهما.',
+    testPrint: 'طباعة تجريبية', testPrintSent: 'أُرسلت الطباعة التجريبية',
+    printServerOk: 'خادم الطباعة: متصل', printServerMissing: 'خادم الطباعة غير موجود — ثبّت وشغّل تطبيق "Server for RawBT" وإلا لن تعمل الطباعة التلقائية.',
+    lastVia_server: 'آخر طباعة: أُرسلت عبر خادم الطباعة', lastVia_applink: 'آخر طباعة: عبر فتح تطبيق RawBT (احتياطي)', lastVia_none: 'آخر محاولة فشلت — الخادم غير متاح', buildLabel: 'إصدار التطبيق',
     st_PENDING_PAYMENT: 'بانتظار الدفع', st_TRIAL: 'تجريبي', st_ACTIVE: 'نشط',
     st_PAST_DUE: 'متأخر', st_CANCELLED: 'ملغى', st_EXPIRED: 'منتهي',
   },
@@ -35,15 +42,32 @@ const DICT: Dict = {
     name: 'Restaurant name', phone: 'Phone', email: 'Email', instagram: 'Instagram',
     currency: 'Currency', vatEnabled: 'Enable VAT', vatRate: 'VAT rate', logo: 'Restaurant logo',
     paymentSelection: 'Choose payment method at collection', paymentSelectionSub: 'When enabled, staff choose Cash or Card before completing an order. When off, Card is recorded by default.',
-    uploadLogo: 'Upload logo', uploading: 'Uploading...', save: 'Save profile', saved: 'Saved', openMenu: 'Open menu',
+    uploadLogo: 'Upload logo', removeLogo: 'Remove logo', logoRemoved: 'Logo removed', uploading: 'Uploading...', save: 'Save profile', saved: 'Saved', openMenu: 'Open menu',
     slug: 'Menu link', active: 'Active',
     subscription: 'Subscription', plan: 'Plan', sstatus: 'Status', renews: 'Renews', ended: 'Ended',
     oneTime: 'One-time access', access: 'Access', lifetime: 'Lifetime',
     branchName: 'Branch name', saveBranch: 'Save', branchSaved: 'Branch saved',
+    printerEnabled: 'Auto-print receipts', printerEnabledSub: 'When on, completing any order (from any staff tablet) notifies the print-station device over live updates and prints the receipt via RawBT there.',
+    printStation: 'Print station (this device)', printStationSub: 'Turn this on only on the one tablet next to the printer. Install both RawBT and "Server for RawBT" from the Play Store on this device and keep them running — silent printing goes through them.',
+    testPrint: 'Test print', testPrintSent: 'Test print sent',
+    printServerOk: 'Print server: connected', printServerMissing: 'Print server not found — install and open the "Server for RawBT" app, or auto-print will not work.',
+    lastVia_server: 'Last print: sent via print server', lastVia_applink: 'Last print: via RawBT app link (fallback)', lastVia_none: 'Last attempt failed — server unreachable', buildLabel: 'App build',
     st_PENDING_PAYMENT: 'Awaiting payment', st_TRIAL: 'Trial', st_ACTIVE: 'Active',
     st_PAST_DUE: 'Past due', st_CANCELLED: 'Cancelled', st_EXPIRED: 'Expired',
   },
 };
+
+/** Synthetic order for the "Test print" button — exercises the whole capture→RawBT→printer
+ *  chain during setup without needing a real order. Never sent to the backend. */
+function makeTestOrder(restaurantId: number, branchId: number): OrderResponse {
+  return {
+    id: 0, orderNumber: 'TEST', dailyNumber: 0, trackingToken: '', restaurantId, branchId,
+    tableId: null, customerName: 'Print test', orderType: 'DINE_IN', status: 'COMPLETED',
+    paymentStatus: 'PAID', subtotal: 0, vatAmount: 0, total: 0,
+    items: [{ nameEn: 'Printer OK', nameAr: 'الطابعة تعمل', quantity: 1, price: 0, lineTotal: 0 }],
+    createdAt: new Date().toISOString(),
+  };
+}
 
 export default function RestaurantProfile({ branchId }: { branchId?: number }) {
   const { user } = useAuth();
@@ -52,6 +76,7 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
   const t = useT(DICT);
   const toast = useToast();
   const qc = useQueryClient();
+  const printReceipt = useReceiptPrinter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [branchName, setBranchName] = useState('');
@@ -88,8 +113,32 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
   const branch = branchesQ.data?.find((b) => b.id === branchId) ?? branchesQ.data?.[0];
   useEffect(() => { if (branch) setBranchName(branch.name); }, [branch?.id]); // eslint-disable-line
 
+  // Device-local, not saved to the backend — see printer.ts. Re-read whenever the branch
+  // in view changes, since the flag is scoped per branch.
+  const [printStationOn, setPrintStationOn] = useState(false);
+  useEffect(() => { if (branch) setPrintStationOn(isPrintStation(branch.id)); }, [branch?.id]);
+
+  // Live probe of the local "Server for RawBT" WebSocket while this page is open — auto-print
+  // depends on it (gesture-less prints can't use the rawbt: scheme), so surface its absence
+  // here where staff set the station up instead of letting receipts silently queue.
+  const [printServerUp, setPrintServerUp] = useState<boolean | null>(null);
+  const [lastAttempt, setLastAttempt] = useState<PrintAttempt | null>(null);
+  useEffect(() => {
+    if (!printStationOn) { setPrintServerUp(null); setLastAttempt(null); return; }
+    let cancelled = false;
+    const probe = () => {
+      void checkPrintServer().then((ok) => { if (!cancelled) setPrintServerUp(ok); });
+      setLastAttempt(getLastPrintAttempt());
+    };
+    probe();
+    // 4s cadence: fast enough that a "Test print" tap shows its outcome moments later.
+    const interval = window.setInterval(probe, 4_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [printStationOn]);
+
   const branchSave = useMutation({
-    mutationFn: () => api.patch<BranchResponse>(`/api/branches/${branch!.id}`, { name: branchName.trim() }),
+    mutationFn: (body: { name?: string; printerEnabled?: boolean }) =>
+      api.patch<BranchResponse>(`/api/branches/${branch!.id}`, body),
     onSuccess: (b) => {
       qc.setQueryData<BranchResponse[]>(['branches', rid], (prev = []) => prev.map((x) => (x.id === b.id ? b : x)));
       toast(t('branchSaved'));
@@ -120,7 +169,8 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
   const save = useMutation({
     mutationFn: () => api.patch<Restaurant>(`/api/restaurants/${rid}`, {
       name: form.name.trim(),
-      logoUrl: form.logoUrl.trim() || null,
+      // Empty string clears the logo server-side; omit only when we intentionally leave it alone.
+      logoUrl: form.logoUrl.trim(),
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
       instagramUrl: form.instagramUrl.trim() || null,
@@ -136,13 +186,27 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
+  const removeLogo = useMutation({
+    // PATCH: blank logoUrl clears; other fields omitted = unchanged.
+    mutationFn: () => api.patch<Restaurant>(`/api/restaurants/${rid}`, { logoUrl: '' }),
+    onSuccess: (r) => {
+      qc.setQueryData(['restaurant', rid], r);
+      setForm((p) => ({ ...p, logoUrl: '' }));
+      toast(t('logoRemoved'));
+    },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
   async function onLogoFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
       const { url } = await upload('/api/uploads/restaurants/logo', file);
-      setForm((p) => ({ ...p, logoUrl: url }));
+      // Persist immediately so the logo sticks without a second "Save profile" click.
+      const r = await api.patch<Restaurant>(`/api/restaurants/${rid}`, { logoUrl: url });
+      qc.setQueryData(['restaurant', rid], r);
+      setForm((p) => ({ ...p, logoUrl: r.logoUrl ?? url }));
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Upload failed');
     } finally {
@@ -176,10 +240,15 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
             </div>
           </div>
           <div className="profile-actions">
-            <button className="btn sm ghost" type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>{t('uploadLogo')}</button>
+            <button className="btn sm ghost" type="button" onClick={() => fileRef.current?.click()} disabled={uploading || removeLogo.isPending}>{t('uploadLogo')}</button>
+            {form.logoUrl && (
+              <button className="btn sm danger" type="button"
+                disabled={uploading || removeLogo.isPending}
+                onClick={() => removeLogo.mutate()}>{t('removeLogo')}</button>
+            )}
             <button className="btn sm ghost" type="button" disabled={!publicUrl}
               onClick={() => publicUrl && window.open(publicUrl, '_blank', 'noopener,noreferrer')}>↗ {t('openMenu')}</button>
-            <button className="btn sm" type="button" disabled={!form.name.trim() || save.isPending || uploading}
+            <button className="btn sm" type="button" disabled={!form.name.trim() || save.isPending || uploading || removeLogo.isPending}
               onClick={() => save.mutate()}>{t('save')}</button>
           </div>
         </header>
@@ -238,12 +307,60 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
                       <input value={branchName} onChange={(e) => setBranchName(e.target.value)} />
                       <button className="btn sm ghost" type="button"
                         disabled={!branchName.trim() || branchName.trim() === branch.name || branchSave.isPending}
-                        onClick={() => branchSave.mutate()}>{t('saveBranch')}</button>
+                        onClick={() => branchSave.mutate({ name: branchName.trim() })}>{t('saveBranch')}</button>
                     </div>
                   </label>
                 )}
                 <label className="field"><span>{t('slug')}</span><input className="num" value={restaurantQ.data?.slug ?? ''} disabled /></label>
               </div>
+              {branch && can(user, 'BRANCHES') && (
+                <div className="profile-settings">
+                  <div className="profile-setting profile-printer-setting">
+                    <div><b>{t('printerEnabled')}</b><span>{t('printerEnabledSub')}</span></div>
+                    <button type="button" className={'switch' + (branch.printerEnabled ? ' on' : '')}
+                      role="switch" aria-checked={branch.printerEnabled} aria-label={t('printerEnabled')}
+                      disabled={branchSave.isPending}
+                      onClick={() => branchSave.mutate({ printerEnabled: !branch.printerEnabled })}><span /></button>
+                  </div>
+                  {branch.printerEnabled && (
+                    <div className="profile-setting profile-printer-setting">
+                      <div>
+                        <b>{t('printStation')}</b><span>{t('printStationSub')}</span>
+                        {printStationOn && printServerUp != null && (
+                          <span className={'print-server-status' + (printServerUp ? ' ok' : ' bad')}>
+                            {printServerUp ? '● ' + t('printServerOk') : '● ' + t('printServerMissing')}
+                          </span>
+                        )}
+                        {printStationOn && lastAttempt && (
+                          <span className={'print-server-status' + (lastAttempt.ok ? ' ok' : ' bad')}>
+                            {(lastAttempt.ok ? '✓ ' : '✗ ')
+                              + t(lastAttempt.via === 'server' ? 'lastVia_server' : lastAttempt.via === 'app-link' ? 'lastVia_applink' : 'lastVia_none')
+                              + ' · ' + new Date(lastAttempt.at).toLocaleTimeString()}
+                          </span>
+                        )}
+                        {printStationOn && (
+                          <span className="print-server-status">{t('buildLabel')}: {__BUILD_TIME__}</span>
+                        )}
+                      </div>
+                      <div className="printer-station-actions">
+                        {printStationOn && (
+                          <button className="btn sm ghost" type="button"
+                            onClick={() => { printReceipt(makeTestOrder(rid, branch.id)); toast(t('testPrintSent')); }}>
+                            🖨 {t('testPrint')}
+                          </button>
+                        )}
+                        <button type="button" className={'switch' + (printStationOn ? ' on' : '')}
+                          role="switch" aria-checked={printStationOn} aria-label={t('printStation')}
+                          onClick={() => {
+                            const next = !printStationOn;
+                            setPrintStationOn(next);
+                            setPrintStation(branch.id, next);
+                          }}><span /></button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           </main>
 

@@ -19,6 +19,7 @@ import com.cafeqr.orders.dto.AcceptOrderRequest;
 import com.cafeqr.orders.dto.CreateOrderRequest;
 import com.cafeqr.orders.dto.OrderResponse;
 import com.cafeqr.orders.dto.OrderTrackingResponse;
+import com.cafeqr.orders.print.PrintJobService;
 import com.cafeqr.orders.realtime.OrderStreamService;
 import com.cafeqr.orders.repository.OrderRepository;
 import com.cafeqr.restaurants.RestaurantService;
@@ -61,6 +62,7 @@ class OrderServiceTest {
     @Mock private OtpService otpService;
     @Mock private EventLogService eventLogService;
     @Mock private LoyaltyService loyaltyService;
+    @Mock private PrintJobService printJobService;
 
     private OrderService orderService;
 
@@ -68,7 +70,7 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, restaurantService, branchService, tableService,
                 menuService, accessGuard, notificationService, streamService, events, customerService,
-                otpService, eventLogService, loyaltyService, new ObjectMapper());
+                otpService, eventLogService, loyaltyService, printJobService, new ObjectMapper());
         lenient().when(otpService.isPhoneTokenValid(any(), any())).thenReturn(true);
     }
 

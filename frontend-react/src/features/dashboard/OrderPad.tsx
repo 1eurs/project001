@@ -143,7 +143,7 @@ export default function OrderPad({ branchId, onPlaced }: { branchId?: number; on
       return api.post<OrderResponse>('/api/dashboard/orders', payload);
     },
     onSuccess: (order) => {
-      toast(`${t('p_sent')} · ${order.orderNumber}`);
+      toast(`${t('p_sent')} · #${order.dailyNumber}`);
       reset();
       qc.invalidateQueries({ queryKey: ['live'] });
       qc.invalidateQueries({ queryKey: ['orders'] });

@@ -22,6 +22,11 @@ public class Order extends BaseEntity {
     @Column(name = "order_number", nullable = false)
     private String orderNumber;
 
+    /** Per-branch ticket number shown to kitchen/customers; resets daily. See {@link #orderNumber}
+     *  for the globally unique reference used in URLs/receipts/logs. */
+    @Column(name = "daily_number", nullable = false)
+    private int dailyNumber;
+
     @Column(name = "tracking_token", nullable = false)
     private String trackingToken;
 
@@ -119,6 +124,14 @@ public class Order extends BaseEntity {
 
     public void setOrderNumber(String orderNumber) {
         this.orderNumber = orderNumber;
+    }
+
+    public int getDailyNumber() {
+        return dailyNumber;
+    }
+
+    public void setDailyNumber(int dailyNumber) {
+        this.dailyNumber = dailyNumber;
     }
 
     public String getTrackingToken() {

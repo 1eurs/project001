@@ -73,7 +73,9 @@ springdoc:
 app:
   jwt:
     secret: ${APP_JWT_SECRET:Y2FmZXFyLXN1cGVyLXNlY3JldC1rZXktY2hhbmdlLW1lLWluLXByb2R1Y3Rpb24tMTIzNDU2}
-    access-token-ttl-minutes: ${APP_JWT_ACCESS_TTL_MINUTES:60}
+    # Short TTL bounds how long a stale token keeps old permissions (perms are claims,
+    # re-read from the DB only when the token is re-minted on refresh).
+    access-token-ttl-minutes: ${APP_JWT_ACCESS_TTL_MINUTES:15}
     refresh-token-ttl-days: ${APP_JWT_REFRESH_TTL_DAYS:90}    # rotates on each refresh; active users stay signed in
     issuer: cafeqr
   storage:

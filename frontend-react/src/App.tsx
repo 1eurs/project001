@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import MenuPage from './features/customer/MenuPage';
 import CartPage from './features/customer/CartPage';
 import TrackPage from './features/customer/TrackPage';
+import { useAuth } from './lib/auth';
 
 const LandingPage = lazy(() => import('./features/site/LandingPage'));
 const LoyaltyPortal = lazy(() => import('./features/customer/LoyaltyPortal'));
@@ -12,11 +13,14 @@ const DashboardApp = lazy(() => import('./features/dashboard/DashboardApp'));
 const AdminApp = lazy(() => import('./features/admin/AdminApp'));
 
 export default function App() {
+  const { authed } = useAuth();
   return (
     <Suspense fallback={null}>
       <Routes>
-        {/* Marketing landing + legal (public) */}
-        <Route path="/" element={<LandingPage />} />
+        {/* Marketing landing (public) — but a session already in localStorage skips
+            straight to the dashboard instead of showing the marketing page again;
+            DashboardApp itself further routes platform admins on to /admin. */}
+        <Route path="/" element={authed ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
         <Route path="/legal/:slug" element={<LegalPage />} />
         <Route path="/guide/analytics" element={<AnalyticsGuidePage />} />
 

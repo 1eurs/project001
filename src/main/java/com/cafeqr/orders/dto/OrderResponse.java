@@ -13,6 +13,7 @@ import java.util.List;
 public record OrderResponse(
         Long id,
         String orderNumber,
+        int dailyNumber,
         String trackingToken,
         Long restaurantId,
         Long branchId,
@@ -44,7 +45,7 @@ public record OrderResponse(
 ) {
     public static OrderResponse from(Order o) {
         return new OrderResponse(
-                o.getId(), o.getOrderNumber(), o.getTrackingToken(), o.getRestaurantId(), o.getBranchId(),
+                o.getId(), o.getOrderNumber(), o.getDailyNumber(), o.getTrackingToken(), o.getRestaurantId(), o.getBranchId(),
                 o.getTableId(), o.getCustomerName(), o.getCustomerPhone(), o.getCarPlate(), o.getCarColor(), o.getOrderType(), o.getStatus(),
                 o.getPaymentStatus(), o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(),
                 o.getDeclineReason(), o.getCustomerNote(), o.getInternalNote(),

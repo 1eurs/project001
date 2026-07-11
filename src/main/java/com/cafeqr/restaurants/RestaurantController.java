@@ -59,7 +59,9 @@ public class RestaurantController {
     }
 
     @Operation(summary = "Update the public menu theme")
-    @PreAuthorize("hasAuthority('PROFILE')")
+    // MENU owns "menu items + look / theme" — the Look editor is a MENU screen; PROFILE
+    // (restaurant settings) keeps it too so neither gets locked out of branding.
+    @PreAuthorize("hasAnyAuthority('MENU','PROFILE')")
     @PatchMapping("/api/restaurants/{restaurantId}/theme")
     public ApiResponse<RestaurantResponse> updateTheme(@PathVariable Long restaurantId,
                                                        @Valid @RequestBody UpdateRestaurantThemeRequest request) {

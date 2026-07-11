@@ -13,6 +13,10 @@ import org.springframework.stereotype.Component;
  *   <li>restaurant-wide user ({@code branchId == null}) – own restaurant, any branch</li>
  *   <li>branch-scoped user ({@code branchId != null}) – own branch only</li>
  * </ul>
+ *
+ * <p>A resource with a {@code null} branchId is restaurant-wide/shared (e.g. a menu item not
+ * pinned to a specific branch) and is accessible to branch-scoped users too, matching the list
+ * filters used elsewhere.
  */
 @Component
 public class AccessGuard {
@@ -35,7 +39,7 @@ public class AccessGuard {
             return;
         }
         requireRestaurantAccess(restaurantId);
-        if (isBranchScoped(user) && !user.getBranchId().equals(branchId)) {
+        if (isBranchScoped(user) && branchId != null && !user.getBranchId().equals(branchId)) {
             throw new ForbiddenException("You do not have access to this branch");
         }
     }
