@@ -14,7 +14,6 @@ import { useWakeLock } from '../../lib/wakeLock';
 import { fmtElapsed } from '../../lib/format';
 import { Money } from '../../lib/Money';
 import { carColorOf } from '../../lib/carColors';
-import { isPrintStation, wasRecentlyPrinted, rememberPrintedOrder } from '../../lib/printer';
 import ReceiptCapture, { type PendingReceipt } from './ReceiptCapture';
 import { ReceiptPrinterProvider, useReceiptPrinter } from './receiptPrinter';
 import type { OrderResponse, OrderStatus, BranchResponse, TableResponse, Restaurant, QrActivity, QrCartItem } from '../../lib/types';
@@ -169,14 +168,7 @@ function useCalmStream(stream: StreamStatus, delayMs = 5_000): StreamStatus {
    the same react-query cache this stream keeps warm.
    Returns the connection status (for the live pill), the unacknowledged count (for the
    shell banner) and a clear(). */
-type PrintCtx = { enabled: boolean; onDrain: () => void };
-
-/** Server print-job row: order snapshot included so the station renders with no extra fetch. */
-interface PrintJobResponse { id: number; orderId: number; createdAt: string; order: OrderResponse }
-/** Queue entry: server-backed jobs carry a jobId to ack; manual button prints don't. */
-type QueuedReceipt = PendingReceipt & { jobId?: number };
-
-function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (k: string) => string, printCtx: PrintCtx) {
+function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (k: string) => string) {
   const qc = useQueryClient();
   const liveKey = ['live', branchId ?? 'all'];
   const [stream, setStream] = useState<StreamStatus>('connecting');
@@ -230,15 +222,6 @@ function useLiveOrderAlerts(branchId: number | undefined, ping: () => void, t: (
         ping();
         setUnacked((n) => n + 1);
         notify(t('newOrder'), o?.dailyNumber ? `#${o.dailyNumber}` : '');
-      }
-      // Multi-staff: every dashboard tab gets this event, but only the one tablet marked as
-      // the print station (localStorage) + branch.printerEnabled actually prints. The event
-      // itself is only a nudge — the print station drains the server-side job queue, which is
-      // the source of truth, so an event lost to a frozen tab is recovered by the next drain
-      // ('connected' fires on every stream (re)connect, catching up whatever the gap missed).
-      if ((name === 'order.completed' || name === 'connected')
-          && printCtx.enabled && branchId != null && isPrintStation(branchId)) {
-        printCtx.onDrain();
       }
     },
     handleStreamStatus,
@@ -433,78 +416,22 @@ function Shell() {
     return new Map(list.map((tb) => [tb.id, tb.tableNumber]));
   }, [printTablesRaw]);
 
-  // Keep the print-station tablet awake so auto-print (SSE → capture → RawBT) isn't delayed
-  // by background-tab throttling. We no longer bounce to the Play Store on a failed launch
-  // (see printer.ts), but a sleeping tab still hurts print latency.
-  useWakeLock(!!branchId && isPrintStation(branchId));
-
   // FIFO of receipts awaiting capture — ReceiptCapture (mounted below) processes the head,
-  // then onDone acks the server job (if any) and shifts. A queue rather than a single slot:
-  // two orders completing together must both print, not overwrite each other.
-  const [printQueue, setPrintQueue] = useState<QueuedReceipt[]>([]);
-  // Shared by the queue drain below and any manual "print" button under the Shell (see
-  // receiptPrinter.tsx) — same RawBT pipeline either way, no browser print dialog.
-  const printReceipt = useCallback((o: OrderResponse, jobId?: number) => {
-    setPrintQueue((prev) => {
-      if (jobId != null && prev.some((q) => q.jobId === jobId)) return prev;
-      return [...prev, {
-        order: o,
-        restaurant: restaurantQ.data,
-        tableNumber: o.tableId != null ? printTableNo.get(o.tableId) ?? null : null,
-        jobId,
-        // Manual button prints carry the tap's gesture (Chrome allows the rawbt: fallback);
-        // queue-drained jobs have none and must go through the WebSocket server.
-        hasUserGesture: jobId == null,
-      }];
-    });
+  // then onDone shifts. A queue rather than a single slot: two rapid prints must both come
+  // out, not overwrite each other. Printing is device-local by design: RawBT is installed on
+  // every staff device (all paired to the same WiFi printer), and whichever device completes
+  // an order prints it right there — no cross-device forwarding.
+  const [printQueue, setPrintQueue] = useState<PendingReceipt[]>([]);
+  const printReceipt = useCallback((o: OrderResponse) => {
+    setPrintQueue((prev) => [...prev, {
+      order: o,
+      restaurant: restaurantQ.data,
+      tableNumber: o.tableId != null ? printTableNo.get(o.tableId) ?? null : null,
+    }]);
   }, [restaurantQ.data, printTableNo]);
 
-  // Pull PENDING print jobs from the server and enqueue them. The queue on the server is the
-  // source of truth (at-least-once): SSE only nudges this, and focus/online/interval triggers
-  // let a tab that Android froze catch up the moment it wakes instead of losing the receipt.
-  const drainingRef = useRef(false);
-  const isStation = !!branchId && !!selectedBranch?.printerEnabled && isPrintStation(branchId);
-  const drainPrintJobs = useCallback(async () => {
-    if (!isStation || drainingRef.current) return;
-    drainingRef.current = true;
-    try {
-      const jobs = await api.get<PrintJobResponse[]>(`/api/dashboard/print-jobs?branchId=${branchId}`);
-      for (const job of jobs) {
-        if (wasRecentlyPrinted(job.id)) continue;
-        printReceipt(job.order, job.id);
-      }
-    } catch {
-      /* network blip — the next trigger retries */
-    } finally {
-      drainingRef.current = false;
-    }
-  }, [isStation, branchId, printReceipt]);
-
-  // Catch-up triggers beyond SSE: tab regains visibility/focus, network returns, and a slow
-  // safety-net interval (covers SSE silently dead while the tab thinks it's connected).
-  useEffect(() => {
-    if (!isStation) return;
-    const onWake = () => { if (!document.hidden) void drainPrintJobs(); };
-    window.addEventListener('focus', onWake);
-    window.addEventListener('online', onWake);
-    document.addEventListener('visibilitychange', onWake);
-    const interval = window.setInterval(() => void drainPrintJobs(), 30_000);
-    void drainPrintJobs();
-    return () => {
-      window.removeEventListener('focus', onWake);
-      window.removeEventListener('online', onWake);
-      document.removeEventListener('visibilitychange', onWake);
-      window.clearInterval(interval);
-    };
-  }, [isStation, drainPrintJobs]);
-
-  // Shell-level so order alerts (and the auto-print drain) fire on every tab, not just
-  // the live board — any tablet can complete an order, but only the one tablet flagged
-  // locally as the print station acts on it (see printer.ts).
-  const alerts = useLiveOrderAlerts(branchId, sound.ping, t, {
-    enabled: !!selectedBranch?.printerEnabled,
-    onDrain: () => void drainPrintJobs(),
-  });
+  // Shell-level so order alerts fire on every tab, not just the live board.
+  const alerts = useLiveOrderAlerts(branchId, sound.ping, t);
   const calmStream = useCalmStream(alerts.stream);
 
   return (
@@ -600,19 +527,7 @@ function Shell() {
 
       <ReceiptCapture
         pending={printQueue[0] ?? null}
-        onDone={(printed) => {
-          const head = printQueue[0];
-          if (head?.jobId != null && printed) {
-            // Confirmed WebSocket handoff → ack (flips the job to PRINTED server-side).
-            // The client-side memory guards a reprint if the ack is lost to a network blip.
-            rememberPrintedOrder(head.jobId);
-            api.post(`/api/dashboard/print-jobs/${head.jobId}/ack`).catch(() => {});
-          }
-          // Unconfirmed job prints are NOT acked: the job stays PENDING on the server and a
-          // later drain retries it — e.g. Android killed "Server for RawBT" and staff reopen
-          // it a minute later; the receipt then prints instead of being lost forever.
-          setPrintQueue((prev) => prev.slice(1));
-        }}
+        onDone={() => setPrintQueue((prev) => prev.slice(1))}
       />
     </div>
     </ReceiptPrinterProvider>
@@ -925,6 +840,12 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
     queryFn: () => api.get<Restaurant>(`/api/restaurants/${user!.restaurantId}`),
     enabled: !!user!.restaurantId,
   });
+  // Same cache key the Shell uses — react-query dedupes, so this costs no extra request.
+  const branchQ = useQuery({
+    queryKey: ['branch', branchId],
+    queryFn: () => api.get<BranchResponse>(`/api/branches/${branchId}`),
+    enabled: !!branchId,
+  });
   const { data: tablesRaw } = useQuery({
     queryKey: ['tables', branchId],
     queryFn: () => api.get<any>(`/api/branches/${branchId}/tables`),
@@ -973,11 +894,13 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
 
-  // Printing itself is driven by the Shell's order-stream listener (useLiveOrderAlerts), not
-  // here — any tablet can complete an order, but only the one tablet designated as the print
-  // station should act on it, and that listener fires on every open tab, not just this board.
+  // Auto-print on THIS device when it completes an order (branch toggle permitting) — RawBT
+  // lives on every staff device, all paired to the same printer, so no cross-device relaying.
+  const printIfEnabled = (o: OrderResponse) => {
+    if (branchQ.data?.printerEnabled) printReceipt(o);
+  };
   const finishOrder = (o: OrderResponse, collect: boolean) => {
-    const complete = () => act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` });
+    const complete = () => act.mutate({ path: `/api/dashboard/orders/${o.id}/complete` }, { onSuccess: printIfEnabled });
     if (collect) requestPayment(o, true);
     else complete();
   };
@@ -988,7 +911,7 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
     }
     pay.mutate({ orderId: order.id, method: 'CARD' }, {
       onSuccess: () => {
-        if (completeAfter) act.mutate({ path: `/api/dashboard/orders/${order.id}/complete` });
+        if (completeAfter) act.mutate({ path: `/api/dashboard/orders/${order.id}/complete` }, { onSuccess: printIfEnabled });
       },
     });
   };
@@ -998,7 +921,7 @@ function KdsBoard({ branchId, focusSignal }: { branchId?: number; focusSignal: n
     pay.mutate({ orderId: order.id, method }, {
       onSuccess: () => {
         setPaymentPrompt(null);
-        if (completeAfter) act.mutate({ path: `/api/dashboard/orders/${order.id}/complete` });
+        if (completeAfter) act.mutate({ path: `/api/dashboard/orders/${order.id}/complete` }, { onSuccess: printIfEnabled });
       },
     });
   };

@@ -4,7 +4,7 @@ import { api, upload, ApiError } from '../../lib/api';
 import { useAuth, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
-import { isPrintStation, setPrintStation, checkPrintServer, getLastPrintAttempt, type PrintAttempt } from '../../lib/printer';
+import { getLastPrintAttempt, type PrintAttempt } from '../../lib/printer';
 import { useReceiptPrinter } from './receiptPrinter';
 import type { Restaurant, Subscription, BranchResponse, OrderResponse } from '../../lib/types';
 
@@ -24,11 +24,9 @@ const DICT: Dict = {
     subscription: 'الاشتراك', plan: 'الباقة', sstatus: 'الحالة', renews: 'يتجدد', ended: 'انتهى',
     oneTime: 'دفع مرة واحدة', access: 'الوصول', lifetime: 'مدى الحياة',
     branchName: 'اسم الفرع', saveBranch: 'حفظ', branchSaved: 'تم حفظ الفرع',
-    printerEnabled: 'الطباعة التلقائية للفواتير', printerEnabledSub: 'عند التفعيل، عند إنهاء أي طلب (من أي جهاز) يصل إشعار للجهاز المعيّن كمحطة طباعة ويطبع الفاتورة عبر RawBT.',
-    printStation: 'محطة الطباعة (هذا الجهاز)', printStationSub: 'فعّل هذا فقط على الجهاز الواحد المتصل بالطابعة. ثبّت تطبيقي RawBT و Server for RawBT من متجر Play على هذا الجهاز وأبقِهما يعملان — الطباعة الصامتة تتم عبرهما.',
+    printerEnabled: 'الطباعة التلقائية للفواتير', printerEnabledSub: 'عند التفعيل، تُطبع الفاتورة من الجهاز الذي أنهى الطلب. ثبّت تطبيق RawBT على كل جهاز موظفين واربطه بالطابعة نفسها.',
     testPrint: 'طباعة تجريبية', testPrintSent: 'أُرسلت الطباعة التجريبية',
-    printServerOk: 'خادم الطباعة: متصل', printServerMissing: 'خادم الطباعة غير موجود — ثبّت وشغّل تطبيق "Server for RawBT" وإلا لن تعمل الطباعة التلقائية.',
-    lastVia_server: 'آخر طباعة: أُرسلت عبر خادم الطباعة', lastVia_applink: 'آخر طباعة: عبر فتح تطبيق RawBT (احتياطي)', lastVia_none: 'آخر محاولة فشلت — الخادم غير متاح', buildLabel: 'إصدار التطبيق',
+    lastSent: 'آخر إرسال للطابعة', buildLabel: 'إصدار التطبيق',
     st_PENDING_PAYMENT: 'بانتظار الدفع', st_TRIAL: 'تجريبي', st_ACTIVE: 'نشط',
     st_PAST_DUE: 'متأخر', st_CANCELLED: 'ملغى', st_EXPIRED: 'منتهي',
   },
@@ -47,11 +45,9 @@ const DICT: Dict = {
     subscription: 'Subscription', plan: 'Plan', sstatus: 'Status', renews: 'Renews', ended: 'Ended',
     oneTime: 'One-time access', access: 'Access', lifetime: 'Lifetime',
     branchName: 'Branch name', saveBranch: 'Save', branchSaved: 'Branch saved',
-    printerEnabled: 'Auto-print receipts', printerEnabledSub: 'When on, completing any order (from any staff tablet) notifies the print-station device over live updates and prints the receipt via RawBT there.',
-    printStation: 'Print station (this device)', printStationSub: 'Turn this on only on the one tablet next to the printer. Install both RawBT and "Server for RawBT" from the Play Store on this device and keep them running — silent printing goes through them.',
+    printerEnabled: 'Auto-print receipts', printerEnabledSub: 'When on, the receipt prints from whichever device completed the order. Install the RawBT app on every staff device and pair each with the same printer.',
     testPrint: 'Test print', testPrintSent: 'Test print sent',
-    printServerOk: 'Print server: connected', printServerMissing: 'Print server not found — install and open the "Server for RawBT" app, or auto-print will not work.',
-    lastVia_server: 'Last print: sent via print server', lastVia_applink: 'Last print: via RawBT app link (fallback)', lastVia_none: 'Last attempt failed — server unreachable', buildLabel: 'App build',
+    lastSent: 'Last sent to printer', buildLabel: 'App build',
     st_PENDING_PAYMENT: 'Awaiting payment', st_TRIAL: 'Trial', st_ACTIVE: 'Active',
     st_PAST_DUE: 'Past due', st_CANCELLED: 'Cancelled', st_EXPIRED: 'Expired',
   },
@@ -113,28 +109,16 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
   const branch = branchesQ.data?.find((b) => b.id === branchId) ?? branchesQ.data?.[0];
   useEffect(() => { if (branch) setBranchName(branch.name); }, [branch?.id]); // eslint-disable-line
 
-  // Device-local, not saved to the backend — see printer.ts. Re-read whenever the branch
-  // in view changes, since the flag is scoped per branch.
-  const [printStationOn, setPrintStationOn] = useState(false);
-  useEffect(() => { if (branch) setPrintStationOn(isPrintStation(branch.id)); }, [branch?.id]);
-
-  // Live probe of the local "Server for RawBT" WebSocket while this page is open — auto-print
-  // depends on it (gesture-less prints can't use the rawbt: scheme), so surface its absence
-  // here where staff set the station up instead of letting receipts silently queue.
-  const [printServerUp, setPrintServerUp] = useState<boolean | null>(null);
+  // Last handoff time (device-local) — refreshed while this page is open so a "Test print"
+  // tap visibly registers moments later, useful on tablets with no devtools.
+  const printingOn = !!branch?.printerEnabled;
   const [lastAttempt, setLastAttempt] = useState<PrintAttempt | null>(null);
   useEffect(() => {
-    if (!printStationOn) { setPrintServerUp(null); setLastAttempt(null); return; }
-    let cancelled = false;
-    const probe = () => {
-      void checkPrintServer().then((ok) => { if (!cancelled) setPrintServerUp(ok); });
-      setLastAttempt(getLastPrintAttempt());
-    };
-    probe();
-    // 4s cadence: fast enough that a "Test print" tap shows its outcome moments later.
-    const interval = window.setInterval(probe, 4_000);
-    return () => { cancelled = true; window.clearInterval(interval); };
-  }, [printStationOn]);
+    if (!printingOn) { setLastAttempt(null); return; }
+    setLastAttempt(getLastPrintAttempt());
+    const interval = window.setInterval(() => setLastAttempt(getLastPrintAttempt()), 4_000);
+    return () => window.clearInterval(interval);
+  }, [printingOn]);
 
   const branchSave = useMutation({
     mutationFn: (body: { name?: string; printerEnabled?: boolean }) =>
@@ -316,49 +300,30 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
               {branch && can(user, 'BRANCHES') && (
                 <div className="profile-settings">
                   <div className="profile-setting profile-printer-setting">
-                    <div><b>{t('printerEnabled')}</b><span>{t('printerEnabledSub')}</span></div>
-                    <button type="button" className={'switch' + (branch.printerEnabled ? ' on' : '')}
-                      role="switch" aria-checked={branch.printerEnabled} aria-label={t('printerEnabled')}
-                      disabled={branchSave.isPending}
-                      onClick={() => branchSave.mutate({ printerEnabled: !branch.printerEnabled })}><span /></button>
-                  </div>
-                  {branch.printerEnabled && (
-                    <div className="profile-setting profile-printer-setting">
-                      <div>
-                        <b>{t('printStation')}</b><span>{t('printStationSub')}</span>
-                        {printStationOn && printServerUp != null && (
-                          <span className={'print-server-status' + (printServerUp ? ' ok' : ' bad')}>
-                            {printServerUp ? '● ' + t('printServerOk') : '● ' + t('printServerMissing')}
-                          </span>
-                        )}
-                        {printStationOn && lastAttempt && (
-                          <span className={'print-server-status' + (lastAttempt.ok ? ' ok' : ' bad')}>
-                            {(lastAttempt.ok ? '✓ ' : '✗ ')
-                              + t(lastAttempt.via === 'server' ? 'lastVia_server' : lastAttempt.via === 'app-link' ? 'lastVia_applink' : 'lastVia_none')
-                              + ' · ' + new Date(lastAttempt.at).toLocaleTimeString()}
-                          </span>
-                        )}
-                        {printStationOn && (
-                          <span className="print-server-status">{t('buildLabel')}: {__BUILD_TIME__}</span>
-                        )}
-                      </div>
-                      <div className="printer-station-actions">
-                        {printStationOn && (
-                          <button className="btn sm ghost" type="button"
-                            onClick={() => { printReceipt(makeTestOrder(rid, branch.id)); toast(t('testPrintSent')); }}>
-                            🖨 {t('testPrint')}
-                          </button>
-                        )}
-                        <button type="button" className={'switch' + (printStationOn ? ' on' : '')}
-                          role="switch" aria-checked={printStationOn} aria-label={t('printStation')}
-                          onClick={() => {
-                            const next = !printStationOn;
-                            setPrintStationOn(next);
-                            setPrintStation(branch.id, next);
-                          }}><span /></button>
-                      </div>
+                    <div>
+                      <b>{t('printerEnabled')}</b><span>{t('printerEnabledSub')}</span>
+                      {printingOn && lastAttempt && (
+                        <span className="print-server-status ok">
+                          {'✓ ' + t('lastSent') + ' · ' + new Date(lastAttempt.at).toLocaleTimeString()}
+                        </span>
+                      )}
+                      {printingOn && (
+                        <span className="print-server-status">{t('buildLabel')}: {__BUILD_TIME__}</span>
+                      )}
                     </div>
-                  )}
+                    <div className="printer-station-actions">
+                      {printingOn && (
+                        <button className="btn sm ghost" type="button"
+                          onClick={() => { printReceipt(makeTestOrder(rid, branch.id)); toast(t('testPrintSent')); }}>
+                          🖨 {t('testPrint')}
+                        </button>
+                      )}
+                      <button type="button" className={'switch' + (branch.printerEnabled ? ' on' : '')}
+                        role="switch" aria-checked={branch.printerEnabled} aria-label={t('printerEnabled')}
+                        disabled={branchSave.isPending}
+                        onClick={() => branchSave.mutate({ printerEnabled: !branch.printerEnabled })}><span /></button>
+                    </div>
+                  </div>
                 </div>
               )}
             </section>

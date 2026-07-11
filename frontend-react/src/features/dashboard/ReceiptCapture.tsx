@@ -9,12 +9,6 @@ export interface PendingReceipt {
   order: OrderResponse;
   restaurant: Restaurant | undefined;
   tableNumber: string | null;
-  /**
-   * Manual (tapped) prints may fall back to the rawbt: scheme — the tap's gesture lets Chrome
-   * launch the app. Gesture-less queue prints must not: Chrome blocks the launch silently,
-   * so only a confirmed WebSocket handoff counts as printed for them.
-   */
-  hasUserGesture: boolean;
 }
 
 // Measured directly on the actual printer with a dot-ruler test print — the documented
@@ -62,7 +56,7 @@ function binarizeCanvas(canvas: HTMLCanvasElement): void {
  *  receipt is pixel-identical to the one staff print manually, Arabic and all. */
 export default function ReceiptCapture({ pending, onDone }: {
   pending: PendingReceipt | null;
-  onDone: (printed: boolean) => void;
+  onDone: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -75,7 +69,6 @@ export default function ReceiptCapture({ pending, onDone }: {
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(async () => {
         if (cancelled || !ref.current) return;
-        let printed = false;
         try {
           // Scale the export to an exact, known pixel width instead of relying on
           // pixelRatio (which varies per device and previously produced inconsistent
@@ -89,12 +82,9 @@ export default function ReceiptCapture({ pending, onDone }: {
             backgroundColor: '#fff', pixelRatio: 1, canvasWidth, canvasHeight, skipFonts: true,
           });
           binarizeCanvas(canvas);
-          const raster = buildEscPosRaster(canvas);
-          if (!cancelled) {
-            printed = await printRasterViaRawBt(raster, { allowSchemeFallback: pending.hasUserGesture });
-          }
+          if (!cancelled) printRasterViaRawBt(buildEscPosRaster(canvas));
         } finally {
-          if (!cancelled) onDone(printed);
+          if (!cancelled) onDone();
         }
       });
     });
