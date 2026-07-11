@@ -73,7 +73,11 @@ export function StampCard({
           <div className="reward">🎁 {rewardLabel}</div>
           {rewardItemNames && rewardItemNames.length > 0 && (
             <div className="loy-reward-chips">
-              {rewardItemNames.map((n) => <span key={n}>{n}</span>)}
+              {/* keep the card scannable — a big menu of rewards collapses into "+N" */}
+              {rewardItemNames.slice(0, 3).map((n) => <span key={n}>{n}</span>)}
+              {rewardItemNames.length > 3 && (
+                <span className="more">+<span className="num">{rewardItemNames.length - 3}</span></span>
+              )}
             </div>
           )}
         </div>

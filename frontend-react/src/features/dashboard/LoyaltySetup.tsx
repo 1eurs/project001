@@ -358,7 +358,7 @@ export default function LoyaltySetup() {
                   name={restaurantQ.data?.name || 'Serva'}
                   logoUrl={restaurantQ.data?.logoUrl}
                   rewardLabel={form.rewardLabel.trim() || t('previewEmpty')}
-                  rewardItemNames={selectedNames.slice(0, 3)}
+                  rewardItemNames={selectedNames}
                   stamps={previewReady ? stampCount : Math.max(1, Math.min(stampCount - 1, Math.ceil(stampCount * 0.6)))}
                   stampsRequired={stampCount}
                   availableRewards={previewReady ? 1 : 0}

@@ -212,11 +212,12 @@
 .loy-item-badge.ready { border: 1px solid transparent; color: #2a1d04; font-weight: 800;
   background: linear-gradient(135deg, #ecc04a, #c8901a); }
 
-/* eligible reward items listed on a portal stamp card */
+/* eligible reward items on a stamp card — capped at 3 + a "+N" overflow chip */
 .loy-reward-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-.loy-reward-chips span { padding: 2.5px 9px; border-radius: 999px; font-size: 11px;
+.loy-reward-chips > span { padding: 2.5px 9px; border-radius: 999px; font-size: 11px;
   color: var(--muted, #9a958c); border: 1px solid var(--line, rgba(255, 255, 255, .12));
   background: color-mix(in srgb, var(--text, #fff) 4%, transparent); }
+.loy-reward-chips > .more { border-style: dashed; font-weight: 700; }
 
 /* loyalty discount row in an order's totals */
 .c-totals .row.loy-discount span:last-child,
