@@ -23,7 +23,9 @@ const DICT: Dict = {
     signout: 'تسجيل الخروج',
     emptyTitle: 'لا أختام بعد', emptySub: 'اطلب من مقهى يقدّم بطاقة أختام لتبدأ بالجمع، وستظهر بطاقاتك هنا.',
     of: 'من', moreOne: 'ختم واحد يتبقّى على', moreN: 'أختام تتبقّى على', counter: 'استبدل مكافأتك المجانية عند الدفع',
-    ready: 'مكافأة جاهزة', readyN: 'مكافآت جاهزة', summaryReady: 'مكافأة جاهزة للاستلام', summaryReadyN: 'مكافآت جاهزة للاستلام',
+    ready: 'مكافأة جاهزة', readyN: 'مكافآت جاهزة',
+    summaryReady: 'مكافأة مجانية بانتظارك! 🎉', summaryReadyN: 'مكافآت بانتظارك! 🎉',
+    summaryReadySub: 'استبدلها مع طلبك القادم ✨',
     sampleCafe: 'مقهى الرصيف', sampleReward: 'قهوة مجانية',
   },
   en: {
@@ -35,7 +37,9 @@ const DICT: Dict = {
     signout: 'Sign out',
     emptyTitle: 'No stamps yet', emptySub: 'Order from a café that runs a stamp card to start collecting — your cards will show up here.',
     of: 'of', moreOne: 'more stamp for', moreN: 'more stamps for', counter: 'Redeem your free reward at checkout',
-    ready: 'Reward ready', readyN: 'rewards ready', summaryReady: 'reward ready to claim', summaryReadyN: 'rewards ready to claim',
+    ready: 'Reward ready', readyN: 'rewards ready',
+    summaryReady: 'A free treat is waiting for you! 🎉', summaryReadyN: 'treats are waiting for you! 🎉',
+    summaryReadySub: 'Redeem it with your next order ✨',
     sampleCafe: 'Curb Side Coffee', sampleReward: 'Free coffee',
   },
 };
@@ -200,10 +204,13 @@ export default function LoyaltyPortal() {
             ) : (
               <>
                 {rewardsReady > 0 && (
-                  <div className="loy-summary">
-                    <span className="star">★</span>
-                    <div>
-                      <b><span className="num">{rewardsReady}</span> {rewardsReady > 1 ? t('summaryReadyN') : t('summaryReady')}</b>
+                  <div className="loy-treat">
+                    <span className="gift" aria-hidden="true">🎁</span>
+                    <div className="loy-treat-txt">
+                      <b>{rewardsReady > 1
+                        ? <><span className="num">{rewardsReady}</span> {t('summaryReadyN')}</>
+                        : t('summaryReady')}</b>
+                      <span>{t('summaryReadySub')}</span>
                     </div>
                   </div>
                 )}

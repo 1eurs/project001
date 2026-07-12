@@ -206,6 +206,7 @@ export interface PricingPlan {
 export interface Restaurant {
   id: number; name: string; slug: string; logoUrl?: string | null; phone?: string | null; email?: string | null; instagramUrl?: string | null;
   currency: string; vatEnabled: boolean; vatRate: number; theme?: string | null; themeCustomJson?: string | null;
+  receiptSettingsJson?: string | null;
   paymentMethodSelectionEnabled: boolean;
   active: boolean; premiumLook?: boolean; plan?: Plan; createdAt?: string;
 }

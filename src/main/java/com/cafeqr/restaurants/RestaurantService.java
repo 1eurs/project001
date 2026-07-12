@@ -109,6 +109,17 @@ public class RestaurantService {
         return RestaurantResponse.from(restaurant);
     }
 
+    @Transactional
+    public RestaurantResponse updateReceiptSettings(Long id, String receiptSettingsJson) {
+        Restaurant restaurant = getEntity(id);
+        String json = (receiptSettingsJson == null || receiptSettingsJson.isBlank()) ? null : receiptSettingsJson.trim();
+        if (json != null && !isJsonObject(json)) {
+            throw new BadRequestException("receiptSettingsJson must be a valid JSON object");
+        }
+        restaurant.setReceiptSettingsJson(json);
+        return RestaurantResponse.from(restaurant);
+    }
+
     private boolean isJsonObject(String json) {
         try {
             return THEME_JSON.readTree(json).isObject();

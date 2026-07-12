@@ -20,6 +20,7 @@ public record RestaurantResponse(
         boolean paymentMethodSelectionEnabled,
         String theme,
         String themeCustomJson,
+        String receiptSettingsJson,
         boolean active,
         boolean premiumLook,
         Plan plan,
@@ -30,7 +31,8 @@ public record RestaurantResponse(
         return new RestaurantResponse(
                 r.getId(), r.getName(), r.getSlug(), r.getLogoUrl(), r.getPhone(), r.getEmail(),
                 r.getInstagramUrl(), r.getCurrency(), r.isVatEnabled(), r.getVatRate(),
-                r.isPaymentMethodSelectionEnabled(), r.getTheme(), r.getThemeCustomJson(), r.isActive(),
+                r.isPaymentMethodSelectionEnabled(), r.getTheme(), r.getThemeCustomJson(),
+                r.getReceiptSettingsJson(), r.isActive(),
                 r.isPremiumLook(), r.getPlan(), r.getCreatedAt(), r.getUpdatedAt());
     }
 }

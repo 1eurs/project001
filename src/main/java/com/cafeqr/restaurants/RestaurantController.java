@@ -4,6 +4,7 @@ import com.cafeqr.auth.security.AccessGuard;
 import com.cafeqr.common.api.ApiResponse;
 import com.cafeqr.restaurants.dto.RestaurantResponse;
 import com.cafeqr.restaurants.dto.UpdateRestaurantRequest;
+import com.cafeqr.restaurants.dto.UpdateRestaurantReceiptRequest;
 import com.cafeqr.restaurants.dto.UpdateRestaurantThemeRequest;
 import com.cafeqr.subscriptions.SubscriptionService;
 import com.cafeqr.subscriptions.dto.SubscriptionResponse;
@@ -67,5 +68,15 @@ public class RestaurantController {
                                                        @Valid @RequestBody UpdateRestaurantThemeRequest request) {
         accessGuard.requireRestaurantAccess(restaurantId);
         return ApiResponse.ok("Menu theme updated", restaurantService.updateTheme(restaurantId, request.theme(), request.themeCustomJson()));
+    }
+
+    @Operation(summary = "Update the printed receipt customization")
+    @PreAuthorize("hasAuthority('PROFILE')")
+    @PatchMapping("/api/restaurants/{restaurantId}/receipt")
+    public ApiResponse<RestaurantResponse> updateReceipt(@PathVariable Long restaurantId,
+                                                         @Valid @RequestBody UpdateRestaurantReceiptRequest request) {
+        accessGuard.requireRestaurantAccess(restaurantId);
+        return ApiResponse.ok("Receipt settings updated",
+                restaurantService.updateReceiptSettings(restaurantId, request.receiptSettingsJson()));
     }
 }
