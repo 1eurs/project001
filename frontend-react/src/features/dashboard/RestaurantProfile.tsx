@@ -5,7 +5,9 @@ import { useAuth, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { getLastPrintAttempt, type PrintAttempt } from '../../lib/printer';
+import { FOOTER_ART, parseReceiptSettings, RECEIPT_DEFAULTS, type ReceiptSettings, type ReceiptStyle } from '../../lib/receiptSettings';
 import { useReceiptPrinter } from './receiptPrinter';
+import ReceiptSheet from './ReceiptSheet';
 import type { Restaurant, Subscription, BranchResponse, OrderResponse } from '../../lib/types';
 
 const DICT: Dict = {
@@ -27,6 +29,15 @@ const DICT: Dict = {
     printerEnabled: 'الطباعة التلقائية للفواتير', printerEnabledSub: 'عند التفعيل، تُطبع الفاتورة من الجهاز الذي أنهى الطلب. ثبّت تطبيق RawBT على كل جهاز موظفين واربطه بالطابعة نفسها.',
     testPrint: 'طباعة تجريبية', testPrintSent: 'أُرسلت الطباعة التجريبية',
     lastSent: 'آخر إرسال للطابعة', buildLabel: 'إصدار التطبيق',
+    receiptTitle: 'تخصيص الفاتورة', receiptSub: 'أضف لمستك على الفاتورة المطبوعة — الشكل، الشعار، ورسالتك الخاصة.',
+    rcptStyle: 'شكل الفاتورة', rcptClassic: 'كلاسيكي', rcptMinimal: 'بسيط', rcptBold: 'جريء',
+    rcptRetro: 'ريترو', rcptFancy: 'فاخر', rcptTicket: 'تذكرة',
+    rcptArt: 'ختم فني أسفل الفاتورة', rcptArtNone: 'بدون',
+    rcptShowLogo: 'إظهار الشعار أعلى الفاتورة', rcptNoLogo: 'ارفع شعاراً أولاً من أعلى الصفحة.',
+    rcptShowPhone: 'إظهار رقم الهاتف', rcptNoPhone: 'أضف رقم الهاتف أولاً في بيانات المطعم.',
+    rcptFooter: 'رسالة أسفل الفاتورة', rcptFooterPh: 'مثال: تابعونا على إنستجرام @cafe · واي فاي: guest123',
+    rcptVatNo: 'الرقم الضريبي (VAT)', rcptCrNo: 'السجل التجاري (CR)',
+    rcptSave: 'حفظ الفاتورة', rcptSaved: 'تم حفظ إعدادات الفاتورة', rcptPreview: 'معاينة حية',
     st_PENDING_PAYMENT: 'بانتظار الدفع', st_TRIAL: 'تجريبي', st_ACTIVE: 'نشط',
     st_PAST_DUE: 'متأخر', st_CANCELLED: 'ملغى', st_EXPIRED: 'منتهي',
   },
@@ -48,19 +59,32 @@ const DICT: Dict = {
     printerEnabled: 'Auto-print receipts', printerEnabledSub: 'When on, the receipt prints from whichever device completed the order. Install the RawBT app on every staff device and pair each with the same printer.',
     testPrint: 'Test print', testPrintSent: 'Test print sent',
     lastSent: 'Last sent to printer', buildLabel: 'App build',
+    receiptTitle: 'Receipt customization', receiptSub: 'Add your touch to the printed receipt — style, logo, and your own message.',
+    rcptStyle: 'Receipt style', rcptClassic: 'Classic', rcptMinimal: 'Minimal', rcptBold: 'Bold',
+    rcptRetro: 'Retro', rcptFancy: 'Fancy', rcptTicket: 'Ticket',
+    rcptArt: 'Art stamp at the bottom', rcptArtNone: 'None',
+    rcptShowLogo: 'Show logo at the top', rcptNoLogo: 'Upload a logo first (top of this page).',
+    rcptShowPhone: 'Show phone number', rcptNoPhone: 'Add a phone number first (restaurant details).',
+    rcptFooter: 'Footer message', rcptFooterPh: 'e.g. Follow us @cafe · WiFi: guest123',
+    rcptVatNo: 'VAT number', rcptCrNo: 'CR number',
+    rcptSave: 'Save receipt', rcptSaved: 'Receipt settings saved', rcptPreview: 'Live preview',
     st_PENDING_PAYMENT: 'Awaiting payment', st_TRIAL: 'Trial', st_ACTIVE: 'Active',
     st_PAST_DUE: 'Past due', st_CANCELLED: 'Cancelled', st_EXPIRED: 'Expired',
   },
 };
 
-/** Synthetic order for the "Test print" button — exercises the whole capture→RawBT→printer
- *  chain during setup without needing a real order. Never sent to the backend. */
+/** Synthetic order for the "Test print" button and the receipt live preview — exercises the
+ *  whole capture→RawBT→printer chain without a real order. Never sent to the backend.
+ *  Realistic sample lines so the preview reads like an actual receipt. */
 function makeTestOrder(restaurantId: number, branchId: number): OrderResponse {
   return {
-    id: 0, orderNumber: 'TEST', dailyNumber: 0, trackingToken: '', restaurantId, branchId,
+    id: 0, orderNumber: 'TEST', dailyNumber: 12, trackingToken: '', restaurantId, branchId,
     tableId: null, customerName: 'Print test', orderType: 'DINE_IN', status: 'COMPLETED',
-    paymentStatus: 'PAID', subtotal: 0, vatAmount: 0, total: 0,
-    items: [{ nameEn: 'Printer OK', nameAr: 'الطابعة تعمل', quantity: 1, price: 0, lineTotal: 0 }],
+    paymentStatus: 'PAID', paymentMethod: 'CASH', subtotal: 4.4, vatAmount: 0.22, total: 4.62,
+    items: [
+      { nameEn: 'Cappuccino', nameAr: 'كابتشينو', quantity: 2, price: 1.3, lineTotal: 2.6 },
+      { nameEn: 'Cheesecake', nameAr: 'تشيز كيك', quantity: 1, price: 1.8, lineTotal: 1.8 },
+    ],
     createdAt: new Date().toISOString(),
   };
 }
@@ -126,6 +150,24 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
     onSuccess: (b) => {
       qc.setQueryData<BranchResponse[]>(['branches', rid], (prev = []) => prev.map((x) => (x.id === b.id ? b : x)));
       toast(t('branchSaved'));
+    },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
+  });
+
+  // Receipt customization draft — hydrated from the saved JSON, edited locally with a live
+  // preview, saved via its own PATCH (mirrors the menu-theme flow in MenuManager).
+  const [rcpt, setRcpt] = useState<ReceiptSettings>({ ...RECEIPT_DEFAULTS });
+  useEffect(() => {
+    if (restaurantQ.data) setRcpt(parseReceiptSettings(restaurantQ.data.receiptSettingsJson));
+  }, [restaurantQ.data?.id]); // eslint-disable-line
+  const setRcptField = <K extends keyof ReceiptSettings>(k: K, v: ReceiptSettings[K]) =>
+    setRcpt((p) => ({ ...p, [k]: v }));
+  const rcptSave = useMutation({
+    mutationFn: () => api.patch<Restaurant>(`/api/restaurants/${rid}/receipt`,
+      { receiptSettingsJson: JSON.stringify(rcpt) }),
+    onSuccess: (r) => {
+      qc.setQueryData(['restaurant', rid], r);
+      toast(t('rcptSaved'));
     },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Error'),
   });
@@ -326,6 +368,74 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
                   </div>
                 </div>
               )}
+            </section>
+
+            <section className="profile-section">
+              <div className="profile-section-head">
+                <span className="profile-section-no">04</span>
+                <div><h4>{t('receiptTitle')}</h4><p>{t('receiptSub')}</p></div>
+              </div>
+              <div className="rcpt-editor">
+                <div className="rcpt-controls">
+                  <label className="field"><span>{t('rcptStyle')}</span>
+                    <div className="seg seg-wrap">
+                      {(['classic', 'minimal', 'bold', 'retro', 'fancy', 'ticket'] as ReceiptStyle[]).map((st) => (
+                        <button key={st} type="button" className={rcpt.style === st ? 'on' : ''}
+                          onClick={() => setRcptField('style', st)}>
+                          {t('rcpt' + st.charAt(0).toUpperCase() + st.slice(1))}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+                  <div className="profile-setting">
+                    <div><b>{t('rcptShowLogo')}</b>{!form.logoUrl && <span>{t('rcptNoLogo')}</span>}</div>
+                    <button type="button" className={'switch' + (rcpt.showLogo ? ' on' : '')}
+                      role="switch" aria-checked={rcpt.showLogo} aria-label={t('rcptShowLogo')}
+                      disabled={!form.logoUrl}
+                      onClick={() => setRcptField('showLogo', !rcpt.showLogo)}><span /></button>
+                  </div>
+                  <div className="profile-setting">
+                    <div><b>{t('rcptShowPhone')}</b>{!form.phone && <span>{t('rcptNoPhone')}</span>}</div>
+                    <button type="button" className={'switch' + (rcpt.showPhone ? ' on' : '')}
+                      role="switch" aria-checked={rcpt.showPhone} aria-label={t('rcptShowPhone')}
+                      disabled={!form.phone}
+                      onClick={() => setRcptField('showPhone', !rcpt.showPhone)}><span /></button>
+                  </div>
+                  <label className="field"><span>{t('rcptFooter')}</span>
+                    <textarea rows={2} maxLength={200} value={rcpt.footerText} placeholder={t('rcptFooterPh')}
+                      onChange={(e) => setRcptField('footerText', e.target.value)} />
+                  </label>
+                  <label className="field"><span>{t('rcptArt')}</span>
+                    <div className="seg seg-wrap">
+                      <button type="button" className={rcpt.footerArt === '' ? 'on' : ''}
+                        onClick={() => setRcptField('footerArt', '')}>{t('rcptArtNone')}</button>
+                      {Object.entries(FOOTER_ART).map(([id, a]) => (
+                        <button key={id} type="button" className={rcpt.footerArt === id ? 'on' : ''}
+                          onClick={() => setRcptField('footerArt', id)}>
+                          {lang === 'ar' ? a.label.ar : a.label.en}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+                  <label className="field"><span>{t('rcptVatNo')}</span>
+                    <input className="num" maxLength={30} value={rcpt.vatNumber}
+                      onChange={(e) => setRcptField('vatNumber', e.target.value)} />
+                  </label>
+                  <label className="field"><span>{t('rcptCrNo')}</span>
+                    <input className="num" maxLength={30} value={rcpt.crNumber}
+                      onChange={(e) => setRcptField('crNumber', e.target.value)} />
+                  </label>
+                  <button className="btn sm" type="button" disabled={rcptSave.isPending}
+                    onClick={() => rcptSave.mutate()}>{t('rcptSave')}</button>
+                </div>
+                <div className="rcpt-preview-col">
+                  <span className="profile-side-label">{t('rcptPreview')}</span>
+                  <div className="receipt-preview-sheet">
+                    <ReceiptSheet order={makeTestOrder(rid, branch?.id ?? 0)} restaurant={restaurantQ.data}
+                      tableNumber="5" settingsOverride={rcpt} />
+                  </div>
+                </div>
+              </div>
             </section>
           </main>
 

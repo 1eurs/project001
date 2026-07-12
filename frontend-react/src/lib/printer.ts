@@ -74,6 +74,12 @@ export function buildEscPosRaster(canvas: HTMLCanvasElement): Uint8Array {
       raster[y * bytesPerRow + byteX] = byte;
     }
   }
+  // One dot (0.125mm — invisible on paper) in the bottom-left corner: RawBT trims trailing
+  // all-blank raster lines from the job, which silently deleted the receipt's baked-in
+  // bottom margin and made prints end flush against the cut. A single inked dot on the last
+  // row makes the full height "real", so the paper actually feeds through the padding.
+  raster[(height - 1) * bytesPerRow] |= 0x80;
+
   const header = new Uint8Array([
     0x1d, 0x76, 0x30, 0x00, // GS v 0, mode = normal
     bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,

@@ -56,6 +56,11 @@ public class PaymentService {
         Restaurant restaurant = restaurantService.getEntity(order.getRestaurantId());
 
         order.setPaymentStatus(status);
+        // Mirror the method onto the order so dashboard reads and printed receipts get it
+        // without joining the ledger. Only meaningful for PAID; a failure leaves it as-is.
+        if (status == PaymentStatus.PAID) {
+            order.setPaymentMethod(method);
+        }
 
         Payment payment = new Payment();
         payment.setOrderId(order.getId());

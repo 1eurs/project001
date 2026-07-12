@@ -63,6 +63,11 @@ public class Order extends BaseEntity {
     @Column(name = "payment_status", nullable = false, length = 20)
     private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
 
+    /** How the order was paid — denormalized from the payments ledger (see PaymentService). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private com.cafeqr.payments.domain.PaymentMethod paymentMethod;
+
     @Column(name = "subtotal", nullable = false)
     private BigDecimal subtotal;
 
@@ -220,6 +225,14 @@ public class Order extends BaseEntity {
 
     public void setPaymentStatus(PaymentStatus paymentStatus) {
         this.paymentStatus = paymentStatus;
+    }
+
+    public com.cafeqr.payments.domain.PaymentMethod getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(com.cafeqr.payments.domain.PaymentMethod paymentMethod) {
+        this.paymentMethod = paymentMethod;
     }
 
     public BigDecimal getSubtotal() {

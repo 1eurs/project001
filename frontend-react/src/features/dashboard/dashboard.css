@@ -298,7 +298,6 @@
   .inv-hr{border-top:1px dashed #000;margin:6px 0}
   .inv-total{font-weight:800;font-size:14px}
   .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
-  .inv-brand{text-align:center;font-family:var(--font-mono);font-size:10px;color:#555;margin-top:2px}
 }
 
 /* Same receipt, rasterized off-screen for RawBT auto-print (ReceiptCapture.tsx) instead of
@@ -308,10 +307,15 @@
    rasterized clone, so opacity:0 or visibility:hidden here would capture as a blank image)
    but behind the app's own opaque background, so it's never actually visible to a user. */
 .receipt-capture-sheet{position:fixed;top:0;left:0;z-index:-1;pointer-events:none}
-/* Top padding intentionally smaller than bottom: the paper left over after the previous
-   cut (printhead-to-cutter distance) already shows as blank space above the next receipt,
-   so the printed slip only looks symmetric when the image itself carries less at the top. */
-.receipt-capture-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:1mm 4mm 6mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5}
+/* Print-margin geometry (measured empirically on the AF250): the cutter sits ~12mm
+   downstream of the printhead and RawBT cuts WITHOUT feeding first, so the blade lands
+   ~12mm BEFORE the end of the image — the image's last 12mm stays on the roll and becomes
+   the TOP of the NEXT slip. Therefore:
+     printed bottom margin = image bottom padding − ~12mm (hardware gap)
+     printed top margin    = ~12mm (fixed; unremovable without reverse feed)
+   22mm bottom padding ⇒ ~10mm printed bottom, roughly matching the ~12mm top. The anchor
+   dot in buildEscPosRaster keeps RawBT from trimming this padding as trailing blank rows. */
+.receipt-capture-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:0 4mm 22mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5}
 .receipt-capture-sheet .inv-name{text-align:center;font-size:16px;font-weight:800}
 .receipt-capture-sheet .inv-sub{text-align:center;font-size:11px;color:#333}
 .receipt-capture-sheet .inv-title{text-align:center;font-weight:700;margin:6px 0 8px;padding:3px 0;border-top:1px dashed #000;border-bottom:1px dashed #000}
@@ -329,7 +333,84 @@
 .receipt-capture-sheet .inv-hr{border-top:1px dashed #000;margin:6px 0}
 .receipt-capture-sheet .inv-total{font-weight:800;font-size:14px}
 .receipt-capture-sheet .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
-.receipt-capture-sheet .inv-brand{text-align:center;font-family:var(--font-mono);font-size:10px;color:#555;margin-top:2px}
+
+/* Receipt customization pieces (logo / footer) — shared by capture and preview scopes. */
+.receipt-capture-sheet .inv-logo-wrap,.receipt-preview-sheet .inv-logo-wrap{text-align:center;margin-bottom:4px}
+/* grayscale+contrast so the preview approximates the printed 1-bit look; the print pipeline
+   binarizes for real (ReceiptCapture) so the filter costs nothing there. */
+.receipt-capture-sheet .inv-logo,.receipt-preview-sheet .inv-logo{max-height:14mm;max-width:40mm;filter:grayscale(1) contrast(1.6)}
+.receipt-capture-sheet .inv-footer,.receipt-preview-sheet .inv-footer{text-align:center;font-size:10.5px;margin-top:3px;white-space:pre-wrap}
+/* Text-art stamp: mono + pre so multi-line ASCII pieces keep their alignment. Centered as a
+   BLOCK (width:max-content + auto margins) — text-align:center would re-center every line
+   individually and shear the drawing. */
+.receipt-capture-sheet .inv-art,.receipt-preview-sheet .inv-art{font-family:var(--font-mono);font-size:12px;line-height:1.15;white-space:pre;width:max-content;margin:5px auto 0;text-align:left}
+
+/* Style presets — .invoice-sheet.rcpt-* (specificity 0,2,0 on the wrapper + 0,3,0 with a
+   child) beats the scoped base rules above, so they restyle capture, preview and print
+   alike. Keep colors near-black / near-white only: the print binarize (threshold 185)
+   makes mid-grays flip unpredictably. rcpt-classic IS the base look — no overrides. */
+.invoice-sheet.rcpt-minimal .inv-title{border-top:none;border-bottom:1px solid #000;font-weight:600;letter-spacing:1px}
+.invoice-sheet.rcpt-minimal .inv-hr{border-top:1px solid #000}
+.invoice-sheet.rcpt-minimal .inv-name{font-weight:600;font-size:15px;letter-spacing:2px;text-transform:uppercase}
+.invoice-sheet.rcpt-minimal .inv-total{font-weight:700}
+.invoice-sheet.rcpt-bold .inv-name{font-size:19px;font-weight:900}
+.invoice-sheet.rcpt-bold .inv-title{background:#000;color:#fff;border:none;font-weight:900;padding:4px 0}
+.invoice-sheet.rcpt-bold .inv-hr{border-top:2px solid #000}
+.invoice-sheet.rcpt-bold .inv-row,.invoice-sheet.rcpt-bold .inv-sub,.invoice-sheet.rcpt-bold .inv-en,.invoice-sheet.rcpt-bold .inv-note{font-weight:700}
+.invoice-sheet.rcpt-bold .inv-total{font-size:15px;font-weight:900}
+
+/* Character-art pieces shared by the creative styles — single line, clipped to the paper
+   width so a long repeated string becomes a full-width rule without measurement. */
+.invoice-sheet .inv-hr-txt,.invoice-sheet .inv-tear,.invoice-sheet .inv-ornament{overflow:hidden;white-space:nowrap;text-align:center;line-height:1.2}
+.invoice-sheet .inv-hr-txt{margin:5px 0;font-size:11px;letter-spacing:1px}
+.invoice-sheet .inv-tear{direction:ltr;margin:2px 0 6px;font-size:11px;color:#000}
+.invoice-sheet .inv-ornament{font-size:11px;margin:2px 0;letter-spacing:2px}
+
+/* RETRO — 80s dot-matrix diner ticket: everything mono, boxed header, ==== rules. */
+.invoice-sheet.rcpt-retro{font-family:var(--font-mono)}
+.invoice-sheet.rcpt-retro .inv-name{font-family:var(--font-mono);font-size:15px;font-weight:800;letter-spacing:1px;border:2px double #000;padding:4px 6px;margin:0 8mm 3px}
+.invoice-sheet.rcpt-retro .inv-title{border:none;font-family:var(--font-mono);letter-spacing:1px;margin:4px 0}
+.invoice-sheet.rcpt-retro .inv-row .amt,.invoice-sheet.rcpt-retro .inv-sub{font-family:var(--font-mono)}
+.invoice-sheet.rcpt-retro .inv-hr-txt{letter-spacing:0;font-family:var(--font-mono)}
+.invoice-sheet.rcpt-retro .inv-thanks{font-family:var(--font-mono);letter-spacing:1px}
+
+/* FANCY — ornamental: serif headings, ✦ flourishes, dotted rules, framed total. */
+.invoice-sheet.rcpt-fancy .inv-name{font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:700;letter-spacing:1px}
+.invoice-sheet.rcpt-fancy .inv-title{border:none;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:600;margin:3px 0 6px}
+.invoice-sheet.rcpt-fancy .inv-total{border-top:1px solid #000;border-bottom:3px double #000;padding:3px 0;margin-top:3px}
+.invoice-sheet.rcpt-fancy .inv-thanks{font-family:Georgia,'Times New Roman',serif;font-style:italic}
+
+/* TICKET — cinema stub: ✂ tear lines, giant boxed order number. */
+.invoice-sheet.rcpt-ticket .inv-name{font-size:17px;font-weight:900;text-transform:uppercase;letter-spacing:2px}
+.invoice-sheet.rcpt-ticket .inv-ticket-no{display:flex;align-items:center;justify-content:space-between;border:2px dashed #000;border-radius:6px;padding:5px 10px;margin:6px 0}
+.invoice-sheet.rcpt-ticket .inv-ticket-no b{font-size:24px;font-weight:900}
+.invoice-sheet.rcpt-ticket .inv-total{border:2px solid #000;padding:3px 8px;margin-top:4px}
+
+/* Receipt customization editor: controls beside a live preview; stacks on phones. */
+.rcpt-editor{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+.seg.seg-wrap{flex-wrap:wrap}
+.rcpt-controls{flex:1 1 260px;min-width:240px;display:flex;flex-direction:column;gap:13px}
+.rcpt-controls textarea{width:100%;box-sizing:border-box;resize:vertical;border:1.5px solid var(--line-2);border-radius:7px;background:var(--paper);color:var(--ink);padding:9px 10px;font:inherit;font-size:13px}
+.rcpt-preview-col{flex:0 0 auto;display:flex;flex-direction:column;gap:8px}
+
+/* On-screen live preview in the profile — identical inner rules to the capture sheet
+   (KEEP IN SYNC with the .receipt-capture-sheet block above), just visibly positioned
+   with a paper look instead of hidden behind the app. */
+.receipt-preview-sheet{flex:0 0 auto}
+.receipt-preview-sheet .invoice-sheet{display:block;box-sizing:border-box;width:80mm;margin:0;padding:4mm;background:#fff;color:#000;font-size:11.5px;line-height:1.5;border:1px solid var(--line-2);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.receipt-preview-sheet .inv-name{text-align:center;font-size:16px;font-weight:800}
+.receipt-preview-sheet .inv-sub{text-align:center;font-size:11px;color:#333}
+.receipt-preview-sheet .inv-title{text-align:center;font-weight:700;margin:6px 0 8px;padding:3px 0;border-top:1px dashed #000;border-bottom:1px dashed #000}
+.receipt-preview-sheet .inv-row{display:table;width:100%}
+.receipt-preview-sheet .inv-row>span:first-child{display:table-cell;text-align:start}
+.receipt-preview-sheet .inv-row>span:last-child{display:table-cell;text-align:end;white-space:nowrap;width:1%}
+.receipt-preview-sheet .inv-row .amt{font-family:var(--font-mono);white-space:nowrap}
+.receipt-preview-sheet .inv-item{margin:2px 0}
+.receipt-preview-sheet .inv-en{font-size:10px;color:#333}
+.receipt-preview-sheet .inv-note{font-size:10px;color:#333;padding-inline-start:16px}
+.receipt-preview-sheet .inv-hr{border-top:1px dashed #000;margin:6px 0}
+.receipt-preview-sheet .inv-total{font-weight:800;font-size:14px}
+.receipt-preview-sheet .inv-thanks{text-align:center;font-weight:600;margin-top:2px}
 
 /* ---- menu manager ---- */
 .mcat{margin-bottom:22px}

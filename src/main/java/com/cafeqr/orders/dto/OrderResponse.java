@@ -4,6 +4,7 @@ import com.cafeqr.orders.domain.Order;
 import com.cafeqr.orders.domain.OrderStatus;
 import com.cafeqr.orders.domain.OrderType;
 import com.cafeqr.orders.domain.PaymentStatus;
+import com.cafeqr.payments.domain.PaymentMethod;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -25,6 +26,7 @@ public record OrderResponse(
         OrderType orderType,
         OrderStatus status,
         PaymentStatus paymentStatus,
+        PaymentMethod paymentMethod,
         BigDecimal subtotal,
         BigDecimal vatAmount,
         BigDecimal total,
@@ -47,7 +49,7 @@ public record OrderResponse(
         return new OrderResponse(
                 o.getId(), o.getOrderNumber(), o.getDailyNumber(), o.getTrackingToken(), o.getRestaurantId(), o.getBranchId(),
                 o.getTableId(), o.getCustomerName(), o.getCustomerPhone(), o.getCarPlate(), o.getCarColor(), o.getOrderType(), o.getStatus(),
-                o.getPaymentStatus(), o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(),
+                o.getPaymentStatus(), o.getPaymentMethod(), o.getSubtotal(), o.getVatAmount(), o.getTotal(), o.getPrepTimeMinutes(),
                 o.getDeclineReason(), o.getCustomerNote(), o.getInternalNote(),
                 o.getLoyaltyRewardLabel(), o.getLoyaltyRewardDiscount(),
                 o.getItems().stream().map(OrderItemResponse::from).toList(),
