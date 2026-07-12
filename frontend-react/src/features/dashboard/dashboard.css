@@ -340,10 +340,6 @@
    binarizes for real (ReceiptCapture) so the filter costs nothing there. */
 .receipt-capture-sheet .inv-logo,.receipt-preview-sheet .inv-logo{max-height:14mm;max-width:40mm;filter:grayscale(1) contrast(1.6)}
 .receipt-capture-sheet .inv-footer,.receipt-preview-sheet .inv-footer{text-align:center;font-size:10.5px;margin-top:3px;white-space:pre-wrap}
-/* Text-art stamp: mono + pre so multi-line ASCII pieces keep their alignment. Centered as a
-   BLOCK (width:max-content + auto margins) — text-align:center would re-center every line
-   individually and shear the drawing. */
-.receipt-capture-sheet .inv-art,.receipt-preview-sheet .inv-art{font-family:var(--font-mono);font-size:12px;line-height:1.15;white-space:pre;width:max-content;margin:5px auto 0;text-align:left}
 
 /* Style presets — .invoice-sheet.rcpt-* (specificity 0,2,0 on the wrapper + 0,3,0 with a
    child) beats the scoped base rules above, so they restyle capture, preview and print

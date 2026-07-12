@@ -5,7 +5,7 @@ import { useAuth, can } from '../../lib/auth';
 import { useI18n, useT, type Dict } from '../../lib/i18n';
 import { useToast } from '../../lib/toast';
 import { getLastPrintAttempt, type PrintAttempt } from '../../lib/printer';
-import { FOOTER_ART, parseReceiptSettings, RECEIPT_DEFAULTS, type ReceiptSettings, type ReceiptStyle } from '../../lib/receiptSettings';
+import { parseReceiptSettings, RECEIPT_DEFAULTS, type ReceiptSettings, type ReceiptStyle } from '../../lib/receiptSettings';
 import { useReceiptPrinter } from './receiptPrinter';
 import ReceiptSheet from './ReceiptSheet';
 import type { Restaurant, Subscription, BranchResponse, OrderResponse } from '../../lib/types';
@@ -32,7 +32,6 @@ const DICT: Dict = {
     receiptTitle: 'تخصيص الفاتورة', receiptSub: 'أضف لمستك على الفاتورة المطبوعة — الشكل، الشعار، ورسالتك الخاصة.',
     rcptStyle: 'شكل الفاتورة', rcptClassic: 'كلاسيكي', rcptMinimal: 'بسيط', rcptBold: 'جريء',
     rcptRetro: 'ريترو', rcptFancy: 'فاخر', rcptTicket: 'تذكرة',
-    rcptArt: 'ختم فني أسفل الفاتورة', rcptArtNone: 'بدون',
     rcptShowLogo: 'إظهار الشعار أعلى الفاتورة', rcptNoLogo: 'ارفع شعاراً أولاً من أعلى الصفحة.',
     rcptShowPhone: 'إظهار رقم الهاتف', rcptNoPhone: 'أضف رقم الهاتف أولاً في بيانات المطعم.',
     rcptFooter: 'رسالة أسفل الفاتورة', rcptFooterPh: 'مثال: تابعونا على إنستجرام @cafe · واي فاي: guest123',
@@ -62,7 +61,6 @@ const DICT: Dict = {
     receiptTitle: 'Receipt customization', receiptSub: 'Add your touch to the printed receipt — style, logo, and your own message.',
     rcptStyle: 'Receipt style', rcptClassic: 'Classic', rcptMinimal: 'Minimal', rcptBold: 'Bold',
     rcptRetro: 'Retro', rcptFancy: 'Fancy', rcptTicket: 'Ticket',
-    rcptArt: 'Art stamp at the bottom', rcptArtNone: 'None',
     rcptShowLogo: 'Show logo at the top', rcptNoLogo: 'Upload a logo first (top of this page).',
     rcptShowPhone: 'Show phone number', rcptNoPhone: 'Add a phone number first (restaurant details).',
     rcptFooter: 'Footer message', rcptFooterPh: 'e.g. Follow us @cafe · WiFi: guest123',
@@ -404,18 +402,6 @@ export default function RestaurantProfile({ branchId }: { branchId?: number }) {
                   <label className="field"><span>{t('rcptFooter')}</span>
                     <textarea rows={2} maxLength={200} value={rcpt.footerText} placeholder={t('rcptFooterPh')}
                       onChange={(e) => setRcptField('footerText', e.target.value)} />
-                  </label>
-                  <label className="field"><span>{t('rcptArt')}</span>
-                    <div className="seg seg-wrap">
-                      <button type="button" className={rcpt.footerArt === '' ? 'on' : ''}
-                        onClick={() => setRcptField('footerArt', '')}>{t('rcptArtNone')}</button>
-                      {Object.entries(FOOTER_ART).map(([id, a]) => (
-                        <button key={id} type="button" className={rcpt.footerArt === id ? 'on' : ''}
-                          onClick={() => setRcptField('footerArt', id)}>
-                          {lang === 'ar' ? a.label.ar : a.label.en}
-                        </button>
-                      ))}
-                    </div>
                   </label>
                   <label className="field"><span>{t('rcptVatNo')}</span>
                     <input className="num" maxLength={30} value={rcpt.vatNumber}

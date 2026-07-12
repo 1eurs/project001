@@ -1,6 +1,6 @@
 import { carColorOf } from '../../lib/carColors';
 import { Money } from '../../lib/Money';
-import { FOOTER_ART, parseReceiptSettings, type ReceiptSettings, type ReceiptStyle } from '../../lib/receiptSettings';
+import { parseReceiptSettings, type ReceiptSettings, type ReceiptStyle } from '../../lib/receiptSettings';
 import type { OrderResponse, PaymentMethod, Restaurant } from '../../lib/types';
 
 /* Bilingual (ع/EN) 80mm receipt markup for one order, rasterized to an image and sent to
@@ -105,9 +105,6 @@ export default function ReceiptSheet({ order, restaurant: r, tableNumber, settin
       <Divider style={s.style} />
       <div className="inv-thanks">{s.style === 'fancy' ? '✦ شكراً لزيارتكم / Thank you ✦' : 'شكراً لزيارتكم / Thank you'}</div>
       {s.footerText && <div className="inv-footer">{s.footerText}</div>}
-      {s.footerArt && FOOTER_ART[s.footerArt] && (
-        <pre className="inv-art" dir="ltr">{FOOTER_ART[s.footerArt].art}</pre>
-      )}
       {s.style === 'ticket' && <TearLine />}
     </div>
   );
