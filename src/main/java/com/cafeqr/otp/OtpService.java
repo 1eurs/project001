@@ -103,13 +103,6 @@ public class OtpService {
             throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
                     "Invalid or expired OTP. Please request a new code.");
         }
-        // TEMP bypass: with no OTP provider configured, codes only ever reach the server log,
-        // so real customers could never verify. Accept any code until WhatsApp is set up —
-        // enforcement turns back on automatically the moment the provider is configured.
-        if (waCfg == null || !waCfg.configured()) {
-            log.warn("[OTP:bypass] provider not configured — accepting any code for {}", phone);
-            return issuePhoneToken(phone);
-        }
         if (!store.verify(phone, code)) {
             throw new BadRequestException(ErrorCode.VALIDATION_ERROR,
                     "Invalid or expired OTP. Please request a new code.");
