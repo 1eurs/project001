@@ -16,13 +16,12 @@ import type { Lang } from '../../lib/types';
    reference for compliance.
    ───────────────────────────────────────────────────────────────────────── */
 
-// ⚠️ TODO: replace every value here with your real company details.
 export const COMPANY = {
   brand: 'Serva',
-  legalName: { en: 'Serva LLC', ar: 'شركة سيرفا ش.م.م' },
-  cr: '0000000', // Commercial Registration number
+  legalName: { en: 'Siah Tech Solutions LLC', ar: 'سياه تك سوليوشنز ش.م.م' },
+  cr: '1664835', // Commercial Registration number
   email: 'hello@serva.om',
-  phoneIntl: '+968 0000 0000',
+  phoneIntl: '+968 7695 9208',
   address: { en: 'Muscat, Sultanate of Oman', ar: 'مسقط، سلطنة عُمان' },
 };
 
