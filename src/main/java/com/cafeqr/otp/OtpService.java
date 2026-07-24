@@ -30,6 +30,9 @@ public class OtpService {
     private static final String GRAPH_API = "https://graph.facebook.com/v20.0";
     private static final String TOKEN_TYPE = "phone_verify";
     private static final long TOKEN_TTL_DAYS = 30;
+    /** Fixed code stored while no WhatsApp provider is configured, so the customer client's
+     *  silent auto-verify (see LoyaltyPortal.tsx) succeeds and the code screen is skipped. */
+    private static final String BYPASS_CODE = "000000";
 
     private final OtpStore store;
     private final AppProperties.Notifications.Whatsapp waCfg;
@@ -54,13 +57,17 @@ public class OtpService {
             throw new BadRequestException(ErrorCode.VALIDATION_ERROR, "Invalid phone number");
         }
 
-        String code = generateCode();
-        store.put(phone, code);
-
+        // No WhatsApp provider configured yet → OTP is bypassed: store the fixed code the
+        // customer client silently auto-verifies with, so they skip the code screen. Once
+        // credentials are set, real random codes are used and this bypass self-disables.
         if (waCfg == null || !waCfg.configured()) {
-            log.info("[OTP:log] phone={} code={}", phone, code);
+            store.put(phone, BYPASS_CODE);
+            log.info("[OTP:bypass] phone={} (no WhatsApp provider configured)", phone);
             return;
         }
+
+        String code = generateCode();
+        store.put(phone, code);
 
         String to = toE164Digits(phone);
         String url = GRAPH_API + "/" + waCfg.phoneNumberId() + "/messages";
